@@ -2,8 +2,8 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { AUTH_COOKIE_NAME, checkSecret, makeCredentialVersion, verifyAuthToken } from "@/lib/auth/passphrase";
-import type { AuthUser } from "@/lib/auth/types";
-import { isCurrentIndividualSession } from "@/lib/auth/accounts";
+import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
+import { isCurrentAccountSession } from "@/lib/auth/accounts";
 
 export class AuthenticationError extends Error {
   constructor() {
@@ -31,7 +31,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   const user = await verifyAuthToken(cookieStore.get(AUTH_COOKIE_NAME)?.value);
   if (!user) return null;
 
-  if (user.role === "individual" && !(await isCurrentIndividualSession(user))) return null;
+  if (isConfiguredAccountRole(user.role) && !(await isCurrentAccountSession(user))) return null;
   if (user.role === "admin") {
     const passphrase = process.env.APP_PASSPHRASE;
     if (

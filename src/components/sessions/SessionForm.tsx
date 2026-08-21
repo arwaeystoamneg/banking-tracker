@@ -9,10 +9,11 @@ import { currentTimeString, todayDateString, nowIso } from "@/lib/dates";
 import { getRememberedLoggedBy, rememberLoggedBy } from "@/lib/loggedInAs";
 import type { Session } from "@/lib/validation/schemas";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
+import { isConfiguredAccountRole } from "@/lib/auth/types";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 import { useGames } from "@/hooks/useGames";
 import { useFeeSchedules } from "@/hooks/useFeeSchedules";
-import { normalizeCasinoKey } from "@/lib/names";
+import { gameIsAtCasino, normalizeCasinoKey } from "@/lib/names";
 
 export function SessionForm({ session }: { session?: Session }) {
   const user = useCurrentUser();
@@ -32,7 +33,7 @@ export function SessionForm({ session }: { session?: Session }) {
   const [gameId, setGameId] = useState(() => session?.game_id ?? "");
   const [scheduleOption, setScheduleOption] = useState(() => session?.schedule_option ?? "");
   const [loggedBy, setLoggedBy] = useState(() =>
-    session?.logged_by ?? (user.role === "individual" ? user.name : getRememberedLoggedBy()),
+    session?.logged_by ?? (isConfiguredAccountRole(user.role) ? user.name : getRememberedLoggedBy()),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -146,7 +147,9 @@ export function SessionForm({ session }: { session?: Session }) {
           className="h-12 w-full rounded-xl border border-border bg-surface px-3 text-base text-foreground outline-none focus:border-neutral-500"
         >
           <option value="">No game selected</option>
-          {games.map((game) => (
+          {games
+            .filter((game) => !casino.trim() || gameIsAtCasino(game.casinos, casino) || game.game_id === gameId)
+            .map((game) => (
             <option key={game.game_id} value={game.game_id}>
               {game.name}
             </option>
@@ -219,7 +222,7 @@ export function SessionForm({ session }: { session?: Session }) {
           value={loggedBy}
           onChange={(e) => setLoggedBy(e.target.value)}
           placeholder="Name"
-          readOnly={user.role === "individual"}
+          readOnly={isConfiguredAccountRole(user.role)}
           required
         />
       </label>

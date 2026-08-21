@@ -1,35 +1,125 @@
 {
-  "_readme": "Reference dataset for scripts/import-to-sheet.mjs. Every edge is verified:false and its base is stated in edge_text — these are standard published figures for the base games, NOT transcribed BGC filings, and the California player-banked variants can differ. Side-bet paytables are common schedules; the big top lines (1000:1, 8000:1) are the bank's TAIL EXPOSURE, not prizes. Edit freely in-app after import.",
+  "_readme": "Reference catalog: one row per game type, casinos pipe-delimited. Calculators key off game type, not room. Edges are unverified published/estimate figures, not transcribed BGC filings, unless noted. UTH spreads at HPC, Commerce, and Bicycle; Bad Beat Jackpot is Bicycle-only. Buster Blackjack is Bicycle-only; HPC and Commerce spread blackjack without it.",
   "games": [
+    {
+      "id": "gm_baccarat",
+      "name": "Baccarat",
+      "version": "GEGA-004413",
+      "casinos": "Commerce|Bicycle",
+      "filing": "GEGA-004413",
+      "edge_text": "~1.123% of TTA when balanced (banker +1.235% vs Player action, +1.011% vs Banker action)",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "exposure_mult": 1.0,
+      "fee_text": "",
+      "rules": "8-deck CA player-banked baccarat. Banker three-card 7 pushes the Banker line (even money, no commission) and is the Dragon 7 event. Player-dealer banks.",
+      "settlement_order": "Player, Banker, Tie settle first; Panda 8, then Dragon 7, settle last.",
+      "notes": "Base edge follows the closed-form baccarat math in CLAUDE.md. Fee schedules other than Bicycle are unfilled; gross-vs-net coverage (open question 1) is unconfirmed. Do not treat fee numbers as solved."
+    },
+    {
+      "id": "gm_baccarat_hpc",
+      "name": "Baccarat (Hollywood Park)",
+      "version": "GEGA-004413 HPC",
+      "casinos": "Hollywood Park",
+      "filing": "GEGA-004413",
+      "edge_text": "Same Player/Banker/Tie/Dragon/Panda as EZ. HPC short-pays 9/7 at 30:1 (44.1% house vs 8.1% at 50:1) and 9/1 at 100:1 (42.4% vs 13.9% at 150:1). 8/6 stays 25:1 / 21.8%.",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "exposure_mult": 1.0,
+      "fee_text": "",
+      "rules": "Hollywood Park EZ baccarat plus Golden Frog-style 9/7, 9/1, and 8/6. Player-dealer banks. 9/7 is a 2-card 9 beating a 2-card 7; 9/1 is a 3-card 9 beating a 3-card 1; 8/6 is any 8 beating any 6.",
+      "settlement_order": "Player, Banker, Tie settle first; Panda 8, Dragon 7, 8/6, 9/7, 9/1 settle last.",
+      "notes": "The 44% figure is 9/7 at 30:1 (Wizard p=0.018019). Standard Golden Frog pays 50:1 / 150:1 on 9/7 and 9/1. Felt payouts override."
+    },
     {
       "id": "gm_uth",
       "name": "Ultimate Texas Hold'em",
       "version": "Standard",
       "casinos": "Hollywood Park|Commerce",
       "filing": "",
-      "edge_text": "House edge ~2.185% of Ante (standard rules). Realized banker edge in the CA player-banked form depends on collection + player leak, which is large in UTH — VERIFY",
+      "edge_text": "House edge ~2.185% of Ante (standard rules). Realized banker edge in the CA player-banked form depends on collection + player leak \u2014 VERIFY",
       "edge_pct": 0.02185,
       "verified": false,
       "exposure_mult": 4.5,
       "fee_text": "",
-      "rules": "Ante + Blind + Play + optional Trips. Player raises 4x pre-flop, 2x on the flop, or 1x on the turn, else folds. Blind pays on a straight or better. Player-dealer banks all wagers.",
-      "settlement_order": "Ante / Blind / Play settle first; Trips and any progressive settle last.",
-      "notes": "Standard published figure; the CA player-banked variant and its collection are not transcribed here. UTH is a high-leak decision game (CLAUDE.md: leak can exceed the structural edge) — realized edge is empirical, not this number."
+      "rules": "Ante + Blind + Play + optional Trips. Player raises 4x pre-flop, 2x on the flop, or 1x on the turn, else folds. Blind pays on a straight or better. Player-dealer banks all wagers. No Bad Beat Jackpot at Hollywood Park or Commerce.",
+      "settlement_order": "Ante / Blind / Play settle first; Trips settles last.",
+      "notes": "HPC and Commerce UTH has no BBJ. Standard published Ante edge; CA collection and leak are not transcribed."
+    },
+    {
+      "id": "gm_uth_bicycle",
+      "name": "Ultimate Texas Hold'em",
+      "version": "Standard + Bad Beat",
+      "casinos": "Bicycle",
+      "filing": "",
+      "edge_text": "House edge ~2.185% of Ante (standard rules). Realized banker edge in the CA player-banked form depends on collection + player leak \u2014 VERIFY",
+      "edge_pct": 0.02185,
+      "verified": false,
+      "exposure_mult": 4.5,
+      "fee_text": "",
+      "rules": "Ante + Blind + Play + optional Trips + Bad Beat. Player raises 4x pre-flop, 2x on the flop, or 1x on the turn, else folds. Blind pays on a straight or better. Player-dealer banks all wagers.",
+      "settlement_order": "Ante / Blind / Play settle first; Trips, then Bad Beat Jackpot, settle last.",
+      "notes": "Bicycle is the only room with Bad Beat. Standard published Ante edge; CA collection and leak are not transcribed. The BBJ edge is computed in the calculator from coverage, not this number."
     },
     {
       "id": "gm_3cp",
       "name": "Three Card Poker",
-      "version": "Standard",
-      "casinos": "Commerce|Hollywood Park|Bicycle",
+      "version": "CA Face-Up",
+      "casinos": "Hollywood Park|Commerce|Bicycle",
       "filing": "",
-      "edge_text": "Ante+Play house edge ~3.37% of Ante (dealer qualifies Q-high, standard Ante Bonus). Base is the ANTE, not TTA — VERIFY",
-      "edge_pct": 0.0337,
+      "edge_text": "CA Face-Up: +4.30% of Ante (Wizard of Odds; one dealer card up, no Ante Bonus, must beat a non-qualifying dealer). Raise rate ~49.5%, so ~2.87% of TTA. Not a transcribed filing.",
+      "edge_pct": 0.042964,
       "verified": false,
-      "exposure_mult": 4.0,
+      "exposure_mult": 2.0,
       "fee_text": "",
-      "rules": "Ante, then see 3 cards and either bet Play = Ante or fold. Dealer qualifies with Queen-high. Ante Bonus pays regardless of dealer: Straight 1:1, Trips 4:1, Straight flush 5:1. Player-dealer banks.",
+      "rules": "California Face-Up Three Card Poker. Ante, then see three cards plus one dealer upcard; Play = Ante or fold. Dealer qualifies Queen-high. If the dealer does not qualify, the player must still beat the dealer to win the Ante (Play pushes). No Ante Bonus. Player-dealer banks.",
       "settlement_order": "Ante / Play settle first; Pair Plus, then 6 Card Bonus, settle last.",
-      "notes": "Exposure multiple is an estimate. The tail lives in the side bets (6 Card Bonus tops at 1000:1) — those are bank exposure, not the base game."
+      "notes": "Base edge is of the Ante, not TTA. Pair Plus and 6 Card Bonus edges are computed in the calculator from combinatorics + coverage. \u03c1 \u2248 0.5 is an estimate (common dealer upcard)."
+    },
+    {
+      "id": "gm_paigow",
+      "name": "Pai Gow Poker",
+      "version": "Standard",
+      "casinos": "Hollywood Park|Commerce|Bicycle",
+      "filing": "",
+      "edge_text": "Banker edge ~1.27% of base when banking (banker wins copies; 5% commission on net wins). CA collection replaces commission and differs \u2014 VERIFY",
+      "edge_pct": 0.0127,
+      "verified": false,
+      "exposure_mult": 1.0,
+      "fee_text": "",
+      "rules": "Seven cards set into a 5-card high hand and a 2-card low hand; both must beat the banker's to win. Banker wins copies. Joker is semi-wild (ace, or completes a straight/flush). Player-dealer banks.",
+      "settlement_order": "Base settles first; Fortune / progressive side bets settle last.",
+      "notes": "Base is near-even money, so exposure_mult ~1.0 \u2014 but Fortune Bonus tops at 8000:1, which is the real bank tail."
+    },
+    {
+      "id": "gm_blackjack",
+      "name": "Blackjack",
+      "version": "CA player-banked",
+      "casinos": "Hollywood Park|Commerce",
+      "filing": "",
+      "edge_text": "~1.5% estimate \u2014 not a solved figure. CA player-banked blackjack; no Buster.",
+      "edge_pct": 0.015,
+      "verified": false,
+      "exposure_mult": 2.5,
+      "fee_text": "",
+      "rules": "Player-banked blackjack. Player-dealer banks all wagers. Hollywood Park and Commerce do not spread Buster Blackjack.",
+      "settlement_order": "Base (ante / bet / extra bet) settles first; any side bets last.",
+      "notes": "HPC and Commerce blackjack, no BBJ. Edge is an estimate, not derived. \u03c1 \u2248 0.5 is an estimate (common dealer hand)."
+    },
+    {
+      "id": "gm_nobust",
+      "name": "No Bust Blackjack",
+      "version": "GEGA-003955",
+      "casinos": "Bicycle",
+      "filing": "GEGA-003955",
+      "edge_text": "~2.0% estimate spanning 1.5\u20132.5%. CA No Bust 21st Century Blackjack \u2014 not a solved figure.",
+      "edge_pct": 0.02,
+      "verified": false,
+      "exposure_mult": 3.0,
+      "fee_text": "",
+      "rules": "Player-banked No Bust 21st Century Blackjack: players cannot bust; the dealer can. Player-dealer banks all wagers. Mechanics per the GEGA-003955 filing.",
+      "settlement_order": "Base (ante / bet / extra bet) settles first; Buster and other side bets settle last.",
+      "notes": "Bicycle-only in this catalog, including Buster. Edge is an estimate range, not derived. \u03c1 \u2248 0.5 is an estimate (common dealer hand)."
     },
     {
       "id": "gm_2ww",
@@ -37,47 +127,107 @@
       "version": "GEGA-004043",
       "casinos": "Hollywood Park",
       "filing": "GEGA-004043",
-      "edge_text": "Unsolved — no closed form. Route election (player picks which game their two cards play as) widens edge dispersion; realized edge is leak-driven and empirical.",
-      "edge_pct": 0,
+      "edge_text": "~5% skill-leak estimate of booked Antes+Play \u2014 not solved. Route election (blackjack vs Hold'em) makes a closed form intractable; realized edge is leak-driven.",
+      "edge_pct": 0.05,
       "verified": false,
-      "exposure_mult": 4.5,
+      "exposure_mult": 3.0,
       "fee_text": "",
-      "rules": "Player's two cards may be elected to play as one of two games (route election), a free option held by the player. Player-dealer banks. Mechanics per the GEGA-004043 filing.",
-      "settlement_order": "Base wager settles first; any bonus settles last.",
-      "notes": "CLAUDE.md flags Two Way Winner as entirely unsolved. Included for reference only — the 0% edge is a placeholder for 'unknown', not a derived value. No side bets sourced; add them here once filed."
-    },
-    {
-      "id": "gm_paigow",
-      "name": "Pai Gow Poker",
-      "version": "Standard",
-      "casinos": "Commerce|Bicycle|Hollywood Park",
-      "filing": "",
-      "edge_text": "Banker edge ~1.27% of base when banking (banker wins copies; 5% commission on net wins). CA collection replaces commission and differs — VERIFY",
-      "edge_pct": 0.0127,
-      "verified": false,
-      "exposure_mult": 1.0,
-      "fee_text": "",
-      "rules": "Seven cards set into a 5-card high hand and a 2-card low hand; both must beat the banker's to win. Banker wins copies. Joker is semi-wild (ace, or completes a straight/flush). Player-dealer banks.",
-      "settlement_order": "Base settles first; Fortune / progressive side bets settle last.",
-      "notes": "Base is near-even money, so exposure_mult ~1.0 — but the Fortune Bonus tops at 8000:1, which is the real bank tail exposure. Standard figure; CA collection structure not transcribed."
-    },
-    {
-      "id": "gm_baccarat_21c",
-      "name": "21st Century Baccarat",
-      "version": "GEGA-004413",
-      "casinos": "Hollywood Park|Commerce|Bicycle",
-      "filing": "GEGA-004413",
-      "edge_text": "~1.123% of TTA when balanced (banker +1.235% vs Player action, +1.011% vs Banker action)",
-      "edge_pct": 0.01123,
-      "verified": false,
-      "exposure_mult": 1.0,
-      "fee_text": "",
-      "rules": "8-deck. CA player-banked variant: a Banker three-card 7 pushes one betting line and wins against the other, and roughly 2.2% of hands carry the entire edge. Player-dealer banks.",
-      "settlement_order": "Player / Banker / Tie base settle first; Dragon Bonus, Dragon 7 / Panda 8, then Pairs settle last.",
-      "notes": "Base edge follows the closed-form baccarat math in CLAUDE.md and is solved for balanced action, but this listing stays unverified: the fee schedule isn't transcribed and the gross-vs-net coverage rule (open question 1) is unconfirmed. Side-bet paytables below are standard published schedules, not filed."
+      "rules": "Hollywood Park (GEGR-001574 / GEGA-004043). 53-card deck with a joker (2 or 12 in blackjack; ace/straight/flush in poker). Two equal Antes plus an optional Bonus. Player elects blackjack (Play = 1x Ante) or Hold'em (Play = 1x or 2x Ante), or surrenders one Ante back. On a blackjack win the unused poker Ante pushes. Player-dealer banks.",
+      "settlement_order": "Antes / Play settle first; Bonus settles last.",
+      "notes": "Base edge is a ~5% skill-leak estimate, not derived. Bonus is Fortune-style 7-card (Wizard counts, 9.90% to-1 on the 5000:1 cloth). Joker-22 beats 21 in blackjack; other 22s bust (floor report, not a filing)."
     }
   ],
   "sidebets": [
+    {
+      "id": "sb_bac_main",
+      "game_id": "gm_baccarat",
+      "name": "Main (Banker/Player/Tie)",
+      "top_payout": "Tie 8:1",
+      "limits": "",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "note": "Base wager stored as a Sidebets row. CA EZ / 21st Century: Player 1:1, Banker 1:1 (Dragon 7 pushes Banker), Tie 8:1."
+    },
+    {
+      "id": "sb_bac_dragon",
+      "game_id": "gm_baccarat",
+      "name": "Dragon 7",
+      "top_payout": "Dragon 7 40:1",
+      "limits": "",
+      "edge_pct": 0,
+      "verified": false,
+      "note": "Banker wins with a three-card 7. Pays 40:1. Edge is computed in the calculator from hand settlement, not this field."
+    },
+    {
+      "id": "sb_bac_panda",
+      "game_id": "gm_baccarat",
+      "name": "Panda 8",
+      "top_payout": "Panda 8 25:1",
+      "limits": "",
+      "edge_pct": 0,
+      "verified": false,
+      "note": "Player wins with a three-card 8. Pays 25:1. Bicycle labels this Koi — same bet. Edge from hand settlement in the calculator."
+    },
+    {
+      "id": "sb_bac_hpc_main",
+      "game_id": "gm_baccarat_hpc",
+      "name": "Main (Banker/Player/Tie)",
+      "top_payout": "Tie 8:1",
+      "limits": "",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "note": "Same EZ main as the generic calculator. Tie 8:1."
+    },
+    {
+      "id": "sb_bac_hpc_dragon",
+      "game_id": "gm_baccarat_hpc",
+      "name": "Dragon 7",
+      "top_payout": "Dragon 7 40:1",
+      "limits": "",
+      "edge_pct": 0,
+      "verified": false,
+      "note": "Banker three-card 7. 40:1. Unchanged at HPC."
+    },
+    {
+      "id": "sb_bac_hpc_panda",
+      "game_id": "gm_baccarat_hpc",
+      "name": "Panda 8",
+      "top_payout": "Panda 8 25:1",
+      "limits": "",
+      "edge_pct": 0,
+      "verified": false,
+      "note": "Player three-card 8. 25:1. Unchanged at HPC."
+    },
+    {
+      "id": "sb_bac_hpc_97",
+      "game_id": "gm_baccarat_hpc",
+      "name": "9/7 44 HE",
+      "top_payout": "2-card 9 over 7 30:1",
+      "limits": "",
+      "edge_pct": 0.4414,
+      "verified": false,
+      "note": "2-card 9 beats 2-card 7. Standard Golden Frog 50:1 is 8.10% house. HPC pays 30:1 \u2014 44.14% house. This is the 44% figure."
+    },
+    {
+      "id": "sb_bac_hpc_91",
+      "game_id": "gm_baccarat_hpc",
+      "name": "9/1 44 HE",
+      "top_payout": "3-card 9 over 1 100:1",
+      "limits": "",
+      "edge_pct": 0.4239,
+      "verified": false,
+      "note": "3-card 9 beats 3-card 1. Standard 150:1 is 13.87% house. HPC pays 100:1 \u2014 42.39% house."
+    },
+    {
+      "id": "sb_bac_hpc_86",
+      "game_id": "gm_baccarat_hpc",
+      "name": "8/6",
+      "top_payout": "8 over 6 25:1",
+      "limits": "",
+      "edge_pct": 0.2179,
+      "verified": false,
+      "note": "Any 8 beats any 6. 25:1, 21.79% house. Unchanged vs Golden Frog."
+    },
     {
       "id": "sb_uth_trips",
       "game_id": "gm_uth",
@@ -86,37 +236,37 @@
       "limits": "",
       "edge_pct": 0,
       "verified": false,
-      "note": "Pays on the player's final 5-card hand regardless of the dealer, so the bank pays it even on a losing hand. Common schedule shown; house edge ~1.9–3.5% depending on the flush/straight lines — VERIFY."
+      "note": "Pays on the player's final 5-card hand regardless of the dealer. Common schedule shown; house edge ~1.9\u20133.5% depending on the flush/straight lines \u2014 VERIFY."
     },
     {
-      "id": "sb_uth_progressive",
-      "game_id": "gm_uth",
-      "name": "Progressive / Bad Beat",
-      "top_payout": "Room-specific",
+      "id": "sb_uth_bicycle_trips",
+      "game_id": "gm_uth_bicycle",
+      "name": "Trips (Bonus)",
+      "top_payout": "Royal flush 50:1",
       "limits": "",
       "edge_pct": 0,
       "verified": false,
-      "note": "Optional $1 progressive; paytable and jackpot seed are room-specific and not sourced. Placeholder — the bank's exposure on the top line can be enormous; capture the real schedule before banking it."
+      "note": "Pays on the player's final 5-card hand regardless of the dealer. Common schedule shown; house edge ~1.9\u20133.5% depending on the flush/straight lines \u2014 VERIFY."
+    },
+    {
+      "id": "sb_uth_progressive",
+      "game_id": "gm_uth_bicycle",
+      "name": "Bad Beat Jackpot",
+      "top_payout": "Straight flush 7,500:1",
+      "limits": "",
+      "edge_pct": 0,
+      "verified": false,
+      "note": "Bicycle-only. Pays on the losing hand when that loser is trips or better (Stones/M8trix rule). Straight flush 7,500:1; calculator computes realized edge from coverage. Confirm the PD covers this \u2014 VERIFY."
     },
     {
       "id": "sb_3cp_pairplus",
       "game_id": "gm_3cp",
       "name": "Pair Plus",
-      "top_payout": "Straight flush 40:1",
+      "top_payout": "Mini Royal 200:1",
       "limits": "",
-      "edge_pct": 0.0232,
+      "edge_pct": 0.0438,
       "verified": false,
-      "note": "Common 40/30/6/3/1 schedule (~2.32% house edge). Other CA schedules pay Flush 4:1 / Straight 6:1 and shift the edge — VERIFY against the table felt."
-    },
-    {
-      "id": "sb_3cp_antebonus",
-      "game_id": "gm_3cp",
-      "name": "Ante Bonus",
-      "top_payout": "Straight flush 5:1",
-      "limits": "",
-      "edge_pct": 0,
-      "verified": false,
-      "note": "Pays on the player's ante regardless of whether the dealer qualifies — bank pays it even when losing the hand. Standard 1:1 / 4:1 / 5:1 shown."
+      "note": "Player's three cards, independent of the dealer. CA filed schedule (California Grand / BGC): Mini Royal 200, SF 40, trips 30, straight 6, flush 3, pair 1 (~4.38% house edge). Flush 4:1 is the 2.32% table \u2014 VERIFY the felt. Calculator uses exact 22,100-hand combinatorics + coverage."
     },
     {
       "id": "sb_3cp_6card",
@@ -124,9 +274,19 @@
       "name": "6 Card Bonus",
       "top_payout": "Royal flush 1000:1",
       "limits": "",
-      "edge_pct": 0,
+      "edge_pct": 0.0856,
       "verified": false,
-      "note": "Best 5-card hand from the player's 3 + dealer's 3 cards. The 1000:1 top line is bank tail exposure that can exceed the bankroll on one hand. House edge ~8–14% depending on schedule — VERIFY."
+      "note": "Best 5-card hand from the player's 3 + dealer 3. BGC TCP-6B4 / Wizard 1-A: 1000/200/100/20/15/10/7 (~8.56% house edge). Not forfeited on a fold. Calculator uses C(52,6) counts + coverage. VERIFY the posted table."
+    },
+    {
+      "id": "sb_2ww_bonus",
+      "game_id": "gm_2ww",
+      "name": "Bonus",
+      "top_payout": "Natural 7-card SF 5000:1",
+      "limits": "",
+      "edge_pct": 0.099,
+      "verified": false,
+      "note": "Optional 7-card joker bonus. Hollywood Park felt: 5000/750/250/100/50/20/5/4/3/2. Wizard combo counts. To-1 house 9.90%; for-1 on the same numbers is 29.09%. Felt prints to 1. No Envy."
     },
     {
       "id": "sb_paigow_fortune",
@@ -134,105 +294,435 @@
       "name": "Fortune Bonus",
       "top_payout": "7-card straight flush 8000:1",
       "limits": "",
-      "edge_pct": 0,
+      "edge_pct": 0.0777,
       "verified": false,
-      "note": "Rates the best 7-card hand. The 8000:1 line (natural 7-card straight flush) is the single largest tail in the room — one hit can exceed the bankroll. Usually carries an Envy bonus paid to other players too. Standard schedule; VERIFY."
+      "note": "Rates the best 7-card hand. Wizard Fortune pay table 2 (8000/2000 RM/1000/400/150/50/25/5/4/3/2) is 7.77% to-1 before Envy. Calculator uses C(53,7) counts + coverage. Envy is extra PD liability \u2014 not in this number. VERIFY the felt."
     },
     {
-      "id": "sb_paigow_progressive",
-      "game_id": "gm_paigow",
-      "name": "Progressive / Emperor's Challenge",
-      "top_payout": "Room-specific",
+      "id": "sb_nobust_buster",
+      "game_id": "gm_nobust",
+      "name": "Buster Blackjack",
+      "top_payout": "8+ card dealer bust 200:1",
       "limits": "",
       "edge_pct": 0,
       "verified": false,
-      "note": "Room-specific progressive; not sourced. Placeholder — capture the schedule and jackpot rules before banking it."
-    },
-    {
-      "id": "sb_bac_dragon",
-      "game_id": "gm_baccarat_21c",
-      "name": "Dragon Bonus",
-      "top_payout": "Non-natural win by 9: 30:1",
-      "limits": "",
-      "edge_pct": 0,
-      "verified": false,
-      "note": "Pays on a natural win or a non-natural win by margin. Standard schedule shown; Banker Dragon house edge ~9.4%, Player ~2.7% — VERIFY. The 30:1 line is the bank's exposure."
-    },
-    {
-      "id": "sb_bac_ez",
-      "game_id": "gm_baccarat_21c",
-      "name": "Dragon 7 / Panda 8 (EZ)",
-      "top_payout": "Dragon 7: 40:1",
-      "limits": "",
-      "edge_pct": 0,
-      "verified": false,
-      "note": "Dragon 7 = Banker wins with a three-card 7 (40:1); Panda 8 = Player wins with a three-card 8 (25:1). Present only in EZ-style variants — confirm the game actually spreads these before booking them."
-    },
-    {
-      "id": "sb_bac_pairs",
-      "game_id": "gm_baccarat_21c",
-      "name": "Pairs (Player / Banker / Perfect)",
-      "top_payout": "Perfect Pair 25:1",
-      "limits": "",
-      "edge_pct": 0,
-      "verified": false,
-      "note": "Player Pair / Banker Pair 11:1, Either Pair 5:1, Perfect Pair 25:1. Standard schedule; house edges vary by line — VERIFY."
+      "note": "Bicycle-only. Pays when the dealer busts, scaled by cards in the busting hand. Common 9:1 / 5,000:1 is not this table \u2014 VERIFY the felt. Intermediate lines not captured."
     }
   ],
   "paytables": [
-    { "sidebet_id": "sb_uth_trips", "ordinal": 1, "outcome": "Royal flush", "payout": "50:1" },
-    { "sidebet_id": "sb_uth_trips", "ordinal": 2, "outcome": "Straight flush", "payout": "40:1" },
-    { "sidebet_id": "sb_uth_trips", "ordinal": 3, "outcome": "Four of a kind", "payout": "30:1" },
-    { "sidebet_id": "sb_uth_trips", "ordinal": 4, "outcome": "Full house", "payout": "9:1" },
-    { "sidebet_id": "sb_uth_trips", "ordinal": 5, "outcome": "Flush", "payout": "7:1" },
-    { "sidebet_id": "sb_uth_trips", "ordinal": 6, "outcome": "Straight", "payout": "4:1" },
-    { "sidebet_id": "sb_uth_trips", "ordinal": 7, "outcome": "Three of a kind", "payout": "3:1" },
-
-    { "sidebet_id": "sb_3cp_pairplus", "ordinal": 1, "outcome": "Straight flush", "payout": "40:1" },
-    { "sidebet_id": "sb_3cp_pairplus", "ordinal": 2, "outcome": "Three of a kind", "payout": "30:1" },
-    { "sidebet_id": "sb_3cp_pairplus", "ordinal": 3, "outcome": "Straight", "payout": "6:1" },
-    { "sidebet_id": "sb_3cp_pairplus", "ordinal": 4, "outcome": "Flush", "payout": "3:1" },
-    { "sidebet_id": "sb_3cp_pairplus", "ordinal": 5, "outcome": "Pair", "payout": "1:1" },
-
-    { "sidebet_id": "sb_3cp_antebonus", "ordinal": 1, "outcome": "Straight flush", "payout": "5:1" },
-    { "sidebet_id": "sb_3cp_antebonus", "ordinal": 2, "outcome": "Three of a kind", "payout": "4:1" },
-    { "sidebet_id": "sb_3cp_antebonus", "ordinal": 3, "outcome": "Straight", "payout": "1:1" },
-
-    { "sidebet_id": "sb_3cp_6card", "ordinal": 1, "outcome": "Royal flush", "payout": "1000:1" },
-    { "sidebet_id": "sb_3cp_6card", "ordinal": 2, "outcome": "Straight flush", "payout": "200:1" },
-    { "sidebet_id": "sb_3cp_6card", "ordinal": 3, "outcome": "Four of a kind", "payout": "100:1" },
-    { "sidebet_id": "sb_3cp_6card", "ordinal": 4, "outcome": "Full house", "payout": "20:1" },
-    { "sidebet_id": "sb_3cp_6card", "ordinal": 5, "outcome": "Flush", "payout": "15:1" },
-    { "sidebet_id": "sb_3cp_6card", "ordinal": 6, "outcome": "Straight", "payout": "10:1" },
-    { "sidebet_id": "sb_3cp_6card", "ordinal": 7, "outcome": "Three of a kind", "payout": "7:1" },
-
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 1, "outcome": "7-card straight flush (no joker)", "payout": "8000:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 2, "outcome": "Royal flush + royal match", "payout": "2000:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 3, "outcome": "7-card straight flush (with joker)", "payout": "1000:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 4, "outcome": "Five aces", "payout": "400:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 5, "outcome": "Royal flush", "payout": "150:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 6, "outcome": "Straight flush", "payout": "50:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 7, "outcome": "Four of a kind", "payout": "25:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 8, "outcome": "Full house", "payout": "5:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 9, "outcome": "Flush", "payout": "4:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 10, "outcome": "Three of a kind", "payout": "3:1" },
-    { "sidebet_id": "sb_paigow_fortune", "ordinal": 11, "outcome": "Straight", "payout": "2:1" },
-
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 1, "outcome": "Non-natural win by 9", "payout": "30:1" },
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 2, "outcome": "Non-natural win by 8", "payout": "10:1" },
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 3, "outcome": "Non-natural win by 7", "payout": "6:1" },
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 4, "outcome": "Non-natural win by 6", "payout": "4:1" },
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 5, "outcome": "Non-natural win by 5", "payout": "2:1" },
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 6, "outcome": "Non-natural win by 4", "payout": "1:1" },
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 7, "outcome": "Natural win", "payout": "1:1" },
-    { "sidebet_id": "sb_bac_dragon", "ordinal": 8, "outcome": "Natural tie", "payout": "push" },
-
-    { "sidebet_id": "sb_bac_ez", "ordinal": 1, "outcome": "Dragon 7 (Banker 3-card 7)", "payout": "40:1" },
-    { "sidebet_id": "sb_bac_ez", "ordinal": 2, "outcome": "Panda 8 (Player 3-card 8)", "payout": "25:1" },
-
-    { "sidebet_id": "sb_bac_pairs", "ordinal": 1, "outcome": "Perfect Pair (same rank & suit)", "payout": "25:1" },
-    { "sidebet_id": "sb_bac_pairs", "ordinal": 2, "outcome": "Player Pair", "payout": "11:1" },
-    { "sidebet_id": "sb_bac_pairs", "ordinal": 3, "outcome": "Banker Pair", "payout": "11:1" },
-    { "sidebet_id": "sb_bac_pairs", "ordinal": 4, "outcome": "Either Pair", "payout": "5:1" }
+    {
+      "sidebet_id": "sb_bac_main",
+      "ordinal": 1,
+      "outcome": "Banker win",
+      "payout": "1:1"
+    },
+    {
+      "sidebet_id": "sb_bac_main",
+      "ordinal": 2,
+      "outcome": "Player win",
+      "payout": "1:1"
+    },
+    {
+      "sidebet_id": "sb_bac_main",
+      "ordinal": 3,
+      "outcome": "Tie",
+      "payout": "8:1"
+    },
+    {
+      "sidebet_id": "sb_bac_dragon",
+      "ordinal": 1,
+      "outcome": "Dragon 7 (Banker 3-card 7)",
+      "payout": "40:1"
+    },
+    {
+      "sidebet_id": "sb_bac_panda",
+      "ordinal": 1,
+      "outcome": "Panda 8 (Player 3-card 8)",
+      "payout": "25:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_main",
+      "ordinal": 1,
+      "outcome": "Banker win",
+      "payout": "1:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_main",
+      "ordinal": 2,
+      "outcome": "Player win",
+      "payout": "1:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_main",
+      "ordinal": 3,
+      "outcome": "Tie",
+      "payout": "8:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_dragon",
+      "ordinal": 1,
+      "outcome": "Dragon 7 (Banker 3-card 7)",
+      "payout": "40:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_panda",
+      "ordinal": 1,
+      "outcome": "Panda 8 (Player 3-card 8)",
+      "payout": "25:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_97",
+      "ordinal": 1,
+      "outcome": "9/7 (2-card 9 over 7)",
+      "payout": "30:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_91",
+      "ordinal": 1,
+      "outcome": "9/1 (3-card 9 over 1)",
+      "payout": "100:1"
+    },
+    {
+      "sidebet_id": "sb_bac_hpc_86",
+      "ordinal": 1,
+      "outcome": "8/6 (any 8 over 6)",
+      "payout": "25:1"
+    },
+    {
+      "sidebet_id": "sb_uth_trips",
+      "ordinal": 1,
+      "outcome": "Royal flush",
+      "payout": "50:1"
+    },
+    {
+      "sidebet_id": "sb_uth_trips",
+      "ordinal": 2,
+      "outcome": "Straight flush",
+      "payout": "40:1"
+    },
+    {
+      "sidebet_id": "sb_uth_trips",
+      "ordinal": 3,
+      "outcome": "Four of a kind",
+      "payout": "30:1"
+    },
+    {
+      "sidebet_id": "sb_uth_trips",
+      "ordinal": 4,
+      "outcome": "Full house",
+      "payout": "9:1"
+    },
+    {
+      "sidebet_id": "sb_uth_trips",
+      "ordinal": 5,
+      "outcome": "Flush",
+      "payout": "7:1"
+    },
+    {
+      "sidebet_id": "sb_uth_trips",
+      "ordinal": 6,
+      "outcome": "Straight",
+      "payout": "4:1"
+    },
+    {
+      "sidebet_id": "sb_uth_trips",
+      "ordinal": 7,
+      "outcome": "Three of a kind",
+      "payout": "3:1"
+    },
+    {
+      "sidebet_id": "sb_uth_bicycle_trips",
+      "ordinal": 1,
+      "outcome": "Royal flush",
+      "payout": "50:1"
+    },
+    {
+      "sidebet_id": "sb_uth_bicycle_trips",
+      "ordinal": 2,
+      "outcome": "Straight flush",
+      "payout": "40:1"
+    },
+    {
+      "sidebet_id": "sb_uth_bicycle_trips",
+      "ordinal": 3,
+      "outcome": "Four of a kind",
+      "payout": "30:1"
+    },
+    {
+      "sidebet_id": "sb_uth_bicycle_trips",
+      "ordinal": 4,
+      "outcome": "Full house",
+      "payout": "9:1"
+    },
+    {
+      "sidebet_id": "sb_uth_bicycle_trips",
+      "ordinal": 5,
+      "outcome": "Flush",
+      "payout": "7:1"
+    },
+    {
+      "sidebet_id": "sb_uth_bicycle_trips",
+      "ordinal": 6,
+      "outcome": "Straight",
+      "payout": "4:1"
+    },
+    {
+      "sidebet_id": "sb_uth_bicycle_trips",
+      "ordinal": 7,
+      "outcome": "Three of a kind",
+      "payout": "3:1"
+    },
+    {
+      "sidebet_id": "sb_uth_progressive",
+      "ordinal": 1,
+      "outcome": "Straight flush",
+      "payout": "7500:1"
+    },
+    {
+      "sidebet_id": "sb_uth_progressive",
+      "ordinal": 2,
+      "outcome": "Four of a kind",
+      "payout": "500:1"
+    },
+    {
+      "sidebet_id": "sb_uth_progressive",
+      "ordinal": 3,
+      "outcome": "Full house",
+      "payout": "50:1"
+    },
+    {
+      "sidebet_id": "sb_uth_progressive",
+      "ordinal": 4,
+      "outcome": "Flush",
+      "payout": "30:1"
+    },
+    {
+      "sidebet_id": "sb_uth_progressive",
+      "ordinal": 5,
+      "outcome": "Straight",
+      "payout": "20:1"
+    },
+    {
+      "sidebet_id": "sb_uth_progressive",
+      "ordinal": 6,
+      "outcome": "Three of a kind",
+      "payout": "9:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_pairplus",
+      "ordinal": 1,
+      "outcome": "Mini Royal (AKQ suited)",
+      "payout": "200:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_pairplus",
+      "ordinal": 2,
+      "outcome": "Straight flush",
+      "payout": "40:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_pairplus",
+      "ordinal": 3,
+      "outcome": "Three of a kind",
+      "payout": "30:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_pairplus",
+      "ordinal": 4,
+      "outcome": "Straight",
+      "payout": "6:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_pairplus",
+      "ordinal": 5,
+      "outcome": "Flush",
+      "payout": "3:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_pairplus",
+      "ordinal": 6,
+      "outcome": "Pair",
+      "payout": "1:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_6card",
+      "ordinal": 1,
+      "outcome": "Royal flush",
+      "payout": "1000:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_6card",
+      "ordinal": 2,
+      "outcome": "Straight flush",
+      "payout": "200:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_6card",
+      "ordinal": 3,
+      "outcome": "Four of a kind",
+      "payout": "100:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_6card",
+      "ordinal": 4,
+      "outcome": "Full house",
+      "payout": "20:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_6card",
+      "ordinal": 5,
+      "outcome": "Flush",
+      "payout": "15:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_6card",
+      "ordinal": 6,
+      "outcome": "Straight",
+      "payout": "10:1"
+    },
+    {
+      "sidebet_id": "sb_3cp_6card",
+      "ordinal": 7,
+      "outcome": "Three of a kind",
+      "payout": "7:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 1,
+      "outcome": "Natural 7-card straight flush",
+      "payout": "5000:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 2,
+      "outcome": "Seven-card straight flush",
+      "payout": "750:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 3,
+      "outcome": "Five aces",
+      "payout": "250:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 4,
+      "outcome": "Royal flush",
+      "payout": "100:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 5,
+      "outcome": "Straight flush",
+      "payout": "50:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 6,
+      "outcome": "Four of a kind",
+      "payout": "20:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 7,
+      "outcome": "Full house",
+      "payout": "5:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 8,
+      "outcome": "Flush",
+      "payout": "4:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 9,
+      "outcome": "Three of a kind",
+      "payout": "3:1"
+    },
+    {
+      "sidebet_id": "sb_2ww_bonus",
+      "ordinal": 10,
+      "outcome": "Straight",
+      "payout": "2:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 1,
+      "outcome": "7-card straight flush (no joker)",
+      "payout": "8000:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 2,
+      "outcome": "Royal flush + royal match",
+      "payout": "2000:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 3,
+      "outcome": "7-card straight flush (with joker)",
+      "payout": "1000:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 4,
+      "outcome": "Five aces",
+      "payout": "400:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 5,
+      "outcome": "Royal flush",
+      "payout": "150:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 6,
+      "outcome": "Straight flush",
+      "payout": "50:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 7,
+      "outcome": "Four of a kind",
+      "payout": "25:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 8,
+      "outcome": "Full house",
+      "payout": "5:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 9,
+      "outcome": "Flush",
+      "payout": "4:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 10,
+      "outcome": "Three of a kind",
+      "payout": "3:1"
+    },
+    {
+      "sidebet_id": "sb_paigow_fortune",
+      "ordinal": 11,
+      "outcome": "Straight",
+      "payout": "2:1"
+    },
+    {
+      "sidebet_id": "sb_nobust_buster",
+      "ordinal": 1,
+      "outcome": "Eight or more card dealer bust",
+      "payout": "200:1"
+    },
+    {
+      "sidebet_id": "sb_nobust_buster",
+      "ordinal": 2,
+      "outcome": "Five-card dealer bust",
+      "payout": "4:1"
+    }
   ]
 }

@@ -1,6 +1,6 @@
 /**
  * Column order below is authoritative (matches CLAUDE.md exactly) with one addition: a trailing
- * `_row_version` column appended after the documented columns on every tab, giving all six tabs
+ * `_row_version` column appended after the documented columns on every tab, giving every tab
  * uniform optimistic-concurrency conflict detection even where no edited_at column exists.
  * The app reads by header name, not index, so this order is a writing convention, not a hard
  * requirement — but new columns should still be appended at the end so a user reordering columns in
@@ -136,4 +136,75 @@ export const ROUNDS_TAB: TabConfig = {
   booleanFields: [],
 };
 
-export const ALL_TABS = [GAMES_TAB, SIDEBETS_TAB, PAYTABLES_TAB, FEE_SCHEDULES_TAB, SESSIONS_TAB, ROUNDS_TAB];
+export const LOSS_REPORTS_TAB: TabConfig = {
+  tabName: "LossReports",
+  idField: "loss_id",
+  headers: [
+    "loss_id",
+    "session_id",
+    "casino",
+    "game_id",
+    "table_no",
+    "occurred_at",
+    "reported_at",
+    "amount",
+    "circumstances",
+    "witness_name",
+    "status",
+    "submitted_by",
+    "owner_id",
+    "reviewed_by",
+    "reviewed_at",
+    "review_note",
+    "second_attestor",
+    "_row_version",
+  ],
+  numberFields: ["amount", "_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
+export const LOSS_EVIDENCE_TAB: TabConfig = {
+  tabName: "LossEvidence",
+  idField: "evidence_id",
+  headers: [
+    "evidence_id",
+    "loss_id",
+    "ordinal",
+    "kind",
+    "blob_key",
+    "content_hash",
+    "byte_size",
+    "mime",
+    "width",
+    "height",
+    "captured_at_exif",
+    "uploaded_at",
+    "uploaded_by",
+    "_row_version",
+  ],
+  numberFields: ["ordinal", "byte_size", "_row_version"],
+  nullableNumberFields: ["width", "height"],
+  booleanFields: [],
+};
+
+export const AUDIT_LOG_TAB: TabConfig = {
+  tabName: "AuditLog",
+  idField: "entry_id",
+  headers: ["entry_id", "loss_id", "at", "actor", "from_status", "to_status", "note", "_row_version"],
+  numberFields: ["_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
+export const ALL_TABS = [
+  GAMES_TAB,
+  SIDEBETS_TAB,
+  PAYTABLES_TAB,
+  FEE_SCHEDULES_TAB,
+  SESSIONS_TAB,
+  ROUNDS_TAB,
+  LOSS_REPORTS_TAB,
+  LOSS_EVIDENCE_TAB,
+  AUDIT_LOG_TAB,
+];

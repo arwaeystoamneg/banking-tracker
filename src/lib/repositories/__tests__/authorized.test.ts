@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createAuthorizedRepositories } from "@/lib/repositories/authorized";
 import { ConflictError, type CrudRepository, type Repositories } from "@/lib/repositories/types";
+import { toAppendOnly, toLossReportRepository } from "@/lib/repositories/appendOnly";
 import {
   feeScheduleSchema,
   gameSchema,
   paytableSchema,
   sessionSchema,
   sidebetSchema,
+  type AuditEntry,
   type FeeSchedule,
   type Game,
+  type LossEvidence,
+  type LossReport,
   type Paytable,
   type Round,
   type Session,
@@ -63,6 +67,9 @@ function fixtureRepos(seed: {
   feeSchedules?: FeeSchedule[];
   sessions?: Session[];
   rounds?: Round[];
+  lossReports?: LossReport[];
+  lossEvidence?: LossEvidence[];
+  auditLog?: AuditEntry[];
 }): Repositories & {
   games: ReturnType<typeof memoryRepo<Game>>;
   sidebets: ReturnType<typeof memoryRepo<Sidebet>>;
@@ -78,6 +85,9 @@ function fixtureRepos(seed: {
     feeSchedules: memoryRepo(seed.feeSchedules ?? [], "schedule_id"),
     sessions: memoryRepo(seed.sessions ?? [], "session_id"),
     rounds: memoryRepo(seed.rounds ?? [], "round_id"),
+    lossReports: toLossReportRepository(memoryRepo(seed.lossReports ?? [], "loss_id")),
+    lossEvidence: toAppendOnly(memoryRepo(seed.lossEvidence ?? [], "evidence_id")),
+    auditLog: toAppendOnly(memoryRepo(seed.auditLog ?? [], "entry_id")),
   };
 }
 

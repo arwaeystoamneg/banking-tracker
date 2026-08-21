@@ -201,3 +201,159 @@ export const roundCreateSchema = roundFieldsSchema
   })
   .superRefine(bookedCannotExceedTta);
 export const roundPatchSchema = roundFieldsSchema.omit({ round_id: true, _row_version: true }).partial();
+
+/* ------------------------------------------------------------------------------------------------
+ * Big-loss reporting. These three tabs are append-only: `LossReports` and `LossEvidence` have no
+ * patch schema at all, and the single mutation path — a reviewer decision — is the narrow
+ * `lossDecisionSchema` below. The absence of a general patch schema is the append-only guarantee,
+ * enforced at the type level rather than by convention.
+ * ---------------------------------------------------------------------------------------------- */
+
+export const LOSS_STATUSES = ["submitted", "in_review", "verified", "disputed", "rejected"] as const;
+export type LossStatus = (typeof LOSS_STATUSES)[number];
+
+/** Terminal-ish states a reviewer can move a report into. `submitted` is only ever set on receipt. */
+export const LOSS_DECISION_STATUSES = ["in_review", "verified", "disputed", "rejected"] as const;
+export type LossDecisionStatus = (typeof LOSS_DECISION_STATUSES)[number];
+
+export const lossReportSchema = z
+  .object({
+    loss_id: z.string(),
+    session_id: z.string().default(""),
+    casino: z.string().default(""),
+    game_id: z.string().default(""),
+    table_no: z.string().default(""),
+    /** What the employee claims. Compare against reported_at — the gap is a review signal. */
+    occurred_at: z.string(),
+    /** Stamped server-side on receipt. Never accepted from a request body. */
+    reported_at: z.string(),
+    amount: z.number().nonnegative(),
+    circumstances: z.string().default(""),
+    witness_name: z.string().default(""),
+    status: z.enum(LOSS_STATUSES).default("submitted"),
+    /** Taken from the session server-side, never from the request body. */
+    submitted_by: z.string(),
+    owner_id: z.string().default(""),
+    reviewed_by: z.string().default(""),
+    reviewed_at: z.string().default(""),
+    review_note: z.string().default(""),
+    second_attestor: z.string().default(""),
+  })
+  .merge(rowVersion);
+export type LossReport = z.infer<typeof lossReportSchema>;
+
+/**
+ * What a submitter is allowed to put in the request body. Every field the reviewer or the server
+ * owns is simply absent, so zod's default object stripping drops them rather than trusting them.
+ */
+export const lossReportSubmitSchema = z.object({
+  session_id: z.string().default(""),
+  casino: z.string().trim().min(1),
+  game_id: z.string().default(""),
+  table_no: z.string().default(""),
+  occurred_at: z.string().min(1),
+  amount: z.number().positive(),
+  circumstances: z.string().trim().min(1),
+  witness_name: z.string().default(""),
+});
+export type LossReportSubmission = z.infer<typeof lossReportSubmitSchema>;
+
+/**
+ * Repository-level create. The eight server- and reviewer-owned fields are optional here because the
+ * authorized layer supplies them — but `reported_at` and `submitted_by` have no schema default, so a
+ * create that skips the authorized layer fails to parse rather than landing an unattributed report.
+ */
+export const lossReportCreateSchema = lossReportSchema.omit({ loss_id: true, _row_version: true }).partial({
+  reported_at: true,
+  status: true,
+  submitted_by: true,
+  owner_id: true,
+  reviewed_by: true,
+  reviewed_at: true,
+  review_note: true,
+  second_attestor: true,
+});
+
+/** The only fields a reviewer decision may touch. reviewed_by/reviewed_at are stamped server-side. */
+export const lossDecisionSchema = z.object({
+  status: z.enum(LOSS_DECISION_STATUSES),
+  review_note: z.string().default(""),
+  second_attestor: z.string().default(""),
+});
+export type LossDecisionInput = z.infer<typeof lossDecisionSchema>;
+
+/**
+ * Repository-level decision patch — the reviewer's fields plus the server's stamps. `status` is the
+ * narrow decision enum, so no write path can put a report back into `submitted`.
+ */
+export const lossDecisionPatchSchema = lossReportSchema
+  .pick({ review_note: true, second_attestor: true, reviewed_by: true, reviewed_at: true })
+  .extend({ status: z.enum(LOSS_DECISION_STATUSES) });
+export type LossDecisionPatch = z.infer<typeof lossDecisionPatchSchema>;
+
+export const lossEvidenceSchema = z
+  .object({
+    evidence_id: z.string(),
+    loss_id: z.string(),
+    ordinal: z.number().int().nonnegative(),
+    kind: z.string().default("photo"),
+    blob_key: z.string().min(1),
+    /** SHA-256 of the resized bytes actually stored — hashed after downscaling, not before. */
+    content_hash: z.string().min(1),
+    byte_size: z.number().int().nonnegative(),
+    mime: z.string().default(""),
+    width: z.number().int().nullable().default(null),
+    height: z.number().int().nullable().default(null),
+    captured_at_exif: z.string().default(""),
+    uploaded_at: z.string(),
+    uploaded_by: z.string(),
+  })
+  .merge(rowVersion);
+export type LossEvidence = z.infer<typeof lossEvidenceSchema>;
+
+/** Client-supplied half of an evidence row; the server stamps uploaded_at/uploaded_by. */
+export const lossEvidenceSubmitSchema = z.object({
+  loss_id: z.string().min(1),
+  ordinal: z.number().int().nonnegative(),
+  kind: z.string().default("photo"),
+  blob_key: z.string().min(1),
+  content_hash: z.string().regex(/^[0-9a-f]{64}$/, "content_hash must be a hex SHA-256 digest"),
+  byte_size: z.number().int().nonnegative(),
+  mime: z.string().default(""),
+  width: z.number().int().nullable().default(null),
+  height: z.number().int().nullable().default(null),
+  captured_at_exif: z.string().default(""),
+});
+export type LossEvidenceSubmission = z.infer<typeof lossEvidenceSubmitSchema>;
+
+/** `uploaded_at`/`uploaded_by` are stamped by the authorized layer, as with a report's receipt time. */
+export const lossEvidenceCreateSchema = lossEvidenceSchema.omit({ evidence_id: true, _row_version: true }).partial({
+  uploaded_at: true,
+  uploaded_by: true,
+});
+
+export const auditEntrySchema = z
+  .object({
+    entry_id: z.string(),
+    loss_id: z.string(),
+    at: z.string(),
+    actor: z.string(),
+    from_status: z.string().default(""),
+    to_status: z.string().default(""),
+    note: z.string().default(""),
+  })
+  .merge(rowVersion);
+export type AuditEntry = z.infer<typeof auditEntrySchema>;
+
+export const auditEntryCreateSchema = auditEntrySchema.omit({ entry_id: true, _row_version: true });
+
+/** Which statuses a report may legally move into from where. `submitted` is only ever the entry state. */
+export const LOSS_STATUS_TRANSITIONS: Record<LossStatus, readonly LossDecisionStatus[]> = {
+  submitted: ["in_review", "verified", "disputed", "rejected"],
+  in_review: ["verified", "disputed", "rejected"],
+  // A dispute is an open question, so it can still resolve either way once investigated.
+  disputed: ["verified", "rejected"],
+  // A settled report is not re-decided; it is superseded by a new report if the facts change.
+  verified: [],
+  rejected: [],
+};

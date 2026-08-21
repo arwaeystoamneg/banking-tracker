@@ -33,3 +33,16 @@ export function maxPayoutMultiple(payouts: string[]): number | null {
   }
   return max;
 }
+
+/**
+ * True for a line that is not yet a real paytable row: blank, TBD, or an explicit placeholder.
+ * "push" is a real outcome and is not treated as a placeholder.
+ */
+export function isPlaceholderPaytableLine(outcome: string, payout: string): boolean {
+  const o = outcome.trim().toLowerCase();
+  const p = payout.trim().toLowerCase();
+  if (!o || !p) return true;
+  if (o.includes("placeholder") || o.includes("not yet entered")) return true;
+  if (p === "tbd" || o === "tbd") return true;
+  return false;
+}

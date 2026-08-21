@@ -2,13 +2,17 @@ import { makeId } from "@/lib/ids";
 import type { Repositories } from "@/lib/repositories/types";
 import { createMockRepository } from "@/lib/repositories/mock/mockRepository";
 import {
+  auditEntrySchema,
   feeScheduleSchema,
   gameSchema,
+  lossEvidenceSchema,
+  lossReportSchema,
   paytableSchema,
   roundSchema,
   sessionSchema,
   sidebetSchema,
 } from "@/lib/validation/schemas";
+import { toAppendOnly, toLossReportRepository } from "@/lib/repositories/appendOnly";
 
 export function createMockRepositories(): Repositories {
   return {
@@ -54,5 +58,32 @@ export function createMockRepositories(): Repositories {
       makeId: () => makeId("round"),
       rowSchema: roundSchema,
     }),
+    lossReports: toLossReportRepository(
+      createMockRepository({
+        tab: "LossReports",
+        table: "lossReports",
+        idField: "loss_id",
+        makeId: () => makeId("lossReport"),
+        rowSchema: lossReportSchema,
+      }),
+    ),
+    lossEvidence: toAppendOnly(
+      createMockRepository({
+        tab: "LossEvidence",
+        table: "lossEvidence",
+        idField: "evidence_id",
+        makeId: () => makeId("lossEvidence"),
+        rowSchema: lossEvidenceSchema,
+      }),
+    ),
+    auditLog: toAppendOnly(
+      createMockRepository({
+        tab: "AuditLog",
+        table: "auditLog",
+        idField: "entry_id",
+        makeId: () => makeId("auditEntry"),
+        rowSchema: auditEntrySchema,
+      }),
+    ),
   };
 }

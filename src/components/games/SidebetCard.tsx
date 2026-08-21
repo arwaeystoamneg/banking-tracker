@@ -1,18 +1,26 @@
 "use client";
 
+import { useState } from "react";
 import type { Paytable, Sidebet } from "@/lib/validation/schemas";
 import { VerifiedBadge } from "@/components/games/VerifiedBadge";
 import { PaytableGrid } from "@/components/games/PaytableGrid";
+import { Button } from "@/components/ui/Button";
 import { maxPayoutMultiple } from "@/lib/payout";
+import { highValueSidebetTag } from "@/lib/gameFamily";
 import { useSidebets } from "@/hooks/useSidebets";
+import { usePaytables } from "@/hooks/usePaytables";
 
 /**
- * A side bet, framed as the bank's liability rather than a prize (domain doc §6). The worst-case tail —
- * the largest funded multiple across the paytable — is the headline, because a 200:1 or 8000:1 line can
- * exceed the entire bank on a single hand. The named top payout is secondary; the exposure is the point.
+ * A side bet, framed as the bank's liability rather than a prize (domain doc §6). High-value
+ * banker bets (BBJ, HPC 9/7 · 9/1 tagged 44 HE) are highlighted so they read first on a dim floor.
  */
 export function SidebetCard({ sidebet, rows, readOnly = false }: { sidebet: Sidebet; rows: Paytable[]; readOnly?: boolean }) {
-  const { update } = useSidebets(sidebet.game_id);
+  const { update, remove } = useSidebets(sidebet.game_id);
+  const { remove: removePaytable } = usePaytables(sidebet.sidebet_id);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const highValueTag = highValueSidebetTag(sidebet.name);
+  const highValue = highValueTag !== null;
   const maxMultiple = maxPayoutMultiple(rows.map((r) => r.payout));
   const tone =
     maxMultiple === null
@@ -30,8 +38,25 @@ export function SidebetCard({ sidebet, rows, readOnly = false }: { sidebet: Side
     muted: "border-border bg-surface-inset text-muted",
   };
 
+  async function handleDelete() {
+    if (!window.confirm(`Delete ${sidebet.name}? Its paytable lines will be deleted too.`)) return;
+    setDeleting(true);
+    setError("");
+    try {
+      for (const row of rows) await removePaytable(row.paytable_id);
+      await remove(sidebet.sidebet_id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete that side bet.");
+      setDeleting(false);
+    }
+  }
+
   return (
-    <div className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+    <div
+      className={`space-y-3 rounded-2xl border bg-surface p-4 ${
+        highValue ? "border-lime-400/40" : "border-border"
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <input
           defaultValue={sidebet.name}
@@ -42,8 +67,15 @@ export function SidebetCard({ sidebet, rows, readOnly = false }: { sidebet: Side
               void update(sidebet.sidebet_id, { name }, sidebet._row_version);
             }
           }}
-          className="h-10 min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 text-sm font-semibold text-foreground outline-none focus:border-border"
+          className={`h-10 min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 text-sm font-semibold outline-none focus:border-border ${
+            highValue ? "text-lime-300" : "text-foreground"
+          }`}
         />
+        {highValueTag ? (
+          <span className="shrink-0 rounded-full border border-lime-400/40 bg-lime-500/15 px-2 py-0.5 text-[11px] font-medium text-lime-300">
+            {highValueTag}
+          </span>
+        ) : null}
         <VerifiedBadge verified={sidebet.verified} />
       </div>
 
@@ -93,6 +125,19 @@ export function SidebetCard({ sidebet, rows, readOnly = false }: { sidebet: Side
       {sidebet.note ? <p className="text-xs text-amber-400/90">{sidebet.note}</p> : null}
 
       <PaytableGrid sidebetId={sidebet.sidebet_id} readOnly={readOnly} />
+
+      {error ? <p className="text-xs text-red-400">{error}</p> : null}
+      {!readOnly ? (
+        <Button
+          type="button"
+          variant="danger"
+          className="h-10 w-full text-xs"
+          disabled={deleting}
+          onClick={() => void handleDelete()}
+        >
+          {deleting ? "Deleting…" : "Delete side bet"}
+        </Button>
+      ) : null}
     </div>
   );
 }

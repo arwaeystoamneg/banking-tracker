@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Game } from "@/lib/validation/schemas";
 import { formatPercent } from "@/lib/decimal";
 import { canonicalCasinoList } from "@/lib/names";
+import { isHighValueSidebet } from "@/lib/gameFamily";
 
 /**
  * Scan card for the game list. Two comparison-critical figures get equal, aligned billing: the
@@ -12,12 +13,15 @@ import { canonicalCasinoList } from "@/lib/names";
 export function GameCard({
   game,
   sidebetCount = 0,
-  maxTail = null,
+  sidebetNames,
+  hideCasinos = false,
 }: {
   game: Game;
   sidebetCount?: number;
-  /** Largest funded payout multiple across this game's side bets — worst-case bank tail per $1. */
-  maxTail?: number | null;
+  /** Named side bets to show as chips. When omitted, only the count is shown. */
+  sidebetNames?: string[];
+  /** Hide the casino line when the card already sits under a casino heading. */
+  hideCasinos?: boolean;
 }) {
   const positive = game.edge_pct >= 0;
   const edgeTone = !game.verified
@@ -35,9 +39,11 @@ export function GameCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold text-foreground">{game.name}</h3>
-          <p className="mt-0.5 truncate text-sm text-muted">
-            {game.casinos ? canonicalCasinoList(game.casinos).join(" · ") : "No casino listed"}
-          </p>
+          {hideCasinos ? null : (
+            <p className="mt-0.5 truncate text-sm text-muted">
+              {game.casinos ? canonicalCasinoList(game.casinos).join(" · ") : "No casino listed"}
+            </p>
+          )}
         </div>
         {!game.verified ? (
           <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400">
@@ -64,22 +70,26 @@ export function GameCard({
         </div>
       </div>
 
-      {sidebetCount > 0 ? (
+      {sidebetCount > 0 || (sidebetNames && sidebetNames.length > 0) ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-          <span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-inset px-2 py-0.5 text-muted">
-            {sidebetCount} side bet{sidebetCount === 1 ? "" : "s"}
-          </span>
-          {maxTail !== null && maxTail >= 10 ? (
-            <span
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-medium ${
-                maxTail >= 100
-                  ? "border-red-500/40 bg-red-500/10 text-red-300"
-                  : "border-amber-500/40 bg-amber-500/10 text-amber-300"
-              }`}
-            >
-              <span aria-hidden>▲</span> tail ×{maxTail.toLocaleString()} per $1
+          {sidebetNames && sidebetNames.length > 0 ? (
+            sidebetNames.map((name) => (
+              <span
+                key={name}
+                className={
+                  isHighValueSidebet(name)
+                    ? "inline-flex items-center rounded-md border border-lime-400/50 bg-lime-500/15 px-2 py-0.5 font-medium text-lime-300"
+                    : "inline-flex items-center rounded-md border border-border bg-surface-inset px-2 py-0.5 text-muted"
+                }
+              >
+                {name}
+              </span>
+            ))
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-inset px-2 py-0.5 text-muted">
+              {sidebetCount} side bet{sidebetCount === 1 ? "" : "s"}
             </span>
-          ) : null}
+          )}
         </div>
       ) : null}
     </Link>

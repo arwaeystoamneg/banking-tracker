@@ -1,7 +1,8 @@
 import "server-only";
-import type { z } from "zod";
+import { z } from "zod";
+import { ConflictError, NotFoundError, type CrudRepository } from "@/lib/repositories/types";
 import { getSheetId, getSheetsClient } from "@/lib/repositories/sheets/client";
-import { fetchAllTabsRaw } from "@/lib/repositories/sheets/loader";
+import { fetchAllTabsRaw, ensureWorksheet } from "@/lib/repositories/sheets/loader";
 import {
   fullTabRange,
   objectToSheetRow,
@@ -9,7 +10,7 @@ import {
   sheetRowsToObjectsWithPositions,
 } from "@/lib/repositories/sheets/rowMapper";
 import type { TabConfig } from "@/lib/repositories/sheets/tabs";
-import { ConflictError, NotFoundError, type CrudRepository } from "@/lib/repositories/types";
+import { salvagePaytableRow, rowVersionMatches } from "@/lib/paytableRow";
 
 function columnLetter(n: number): string {
   let s = "";
@@ -51,6 +52,9 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
 
   async function ensureHeaders(): Promise<string[]> {
     const sheets = getSheetsClient();
+    await withRowLock(`${spreadsheetId}:${tabConfig.tabName}:ensure-tab`, async () => {
+      await ensureWorksheet(spreadsheetId, tabConfig.tabName, tabConfig.headers.length);
+    });
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: `${tabConfig.tabName}!1:1`,
@@ -83,7 +87,19 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
   async function list(): Promise<T[]> {
     const allTabs = await fetchAllTabsRaw(spreadsheetId);
     const raw = allTabs[tabConfig.tabName] ?? [];
-    return sheetRowsToObjects(tabConfig, raw).map((r) => rowSchema.parse(r));
+    const listed: T[] = [];
+    for (const row of sheetRowsToObjects(tabConfig, raw)) {
+      const parsed = rowSchema.safeParse(row);
+      if (parsed.success) {
+        listed.push(parsed.data);
+        continue;
+      }
+      if (tab === "Paytables") {
+        const salvaged = salvagePaytableRow(row);
+        if (salvaged) listed.push(salvaged as unknown as T);
+      }
+    }
+    return listed;
   }
 
   return {
@@ -107,7 +123,7 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
         const parsed = rowSchema.parse(row);
         await sheets.spreadsheets.values.append({
           spreadsheetId,
-          range: fullTabRange(tabConfig.tabName),
+          range: `${tabConfig.tabName}!A:${columnLetter(headers.length)}`,
           valueInputOption: "RAW",
           insertDataOption: "INSERT_ROWS",
           requestBody: { values: [objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers)] },
@@ -175,8 +191,10 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
         ({ value }) => value[tabConfig.idField] === id,
       );
       if (!positioned) return;
-      if (positioned.value._row_version !== expectedVersion) {
-        throw new ConflictError(tab, id, rowSchema.parse(positioned.value));
+      if (!rowVersionMatches(positioned.value._row_version, expectedVersion)) {
+        throw new ConflictError(tab, id, rowSchema.safeParse(positioned.value).success
+          ? rowSchema.parse(positioned.value)
+          : positioned.value);
       }
 
       // Clear instead of deleting the dimension. Stable physical row numbers prevent concurrent

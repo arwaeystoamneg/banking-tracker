@@ -14,29 +14,54 @@ export interface MockTables {
   feeSchedules: Record<string, unknown>[];
   sessions: Record<string, unknown>[];
   rounds: Record<string, unknown>[];
+  lossReports: Record<string, unknown>[];
+  lossEvidence: Record<string, unknown>[];
+  auditLog: Record<string, unknown>[];
 }
+
+const TABLE_NAMES: (keyof MockTables)[] = [
+  "games",
+  "sidebets",
+  "paytables",
+  "feeSchedules",
+  "sessions",
+  "rounds",
+  "lossReports",
+  "lossEvidence",
+  "auditLog",
+];
 
 const STORE_PATH = path.join(process.cwd(), ".data", "mock-store.json");
 const BACKUP_PATH = `${STORE_PATH}.bak`;
 const SEED_PATH = path.join(process.cwd(), "src", "lib", "repositories", "mock", "fixtures", "seed.json");
 
-function isMockTables(value: unknown): value is MockTables {
-  if (!value || typeof value !== "object") return false;
-  const tables = value as Partial<MockTables>;
-  return (
-    Array.isArray(tables.games) &&
-    Array.isArray(tables.sidebets) &&
-    Array.isArray(tables.paytables) &&
-    Array.isArray(tables.feeSchedules) &&
-    Array.isArray(tables.sessions) &&
-    Array.isArray(tables.rounds)
-  );
+/**
+ * Missing tables are backfilled as empty rather than rejected. A store written before a new tab
+ * existed is not corrupt — it is just older — and failing validation here would silently discard a
+ * developer's whole local dataset back to the seed the first time a tab is added. Only a value that
+ * is not an object, or that has a non-array where a table should be, is treated as invalid.
+ */
+export function normalizeMockTables(value: unknown): MockTables | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, unknown>;
+  const tables = {} as MockTables;
+  for (const name of TABLE_NAMES) {
+    const rows = source[name];
+    if (rows === undefined) {
+      tables[name] = [];
+      continue;
+    }
+    if (!Array.isArray(rows)) return null;
+    tables[name] = rows as Record<string, unknown>[];
+  }
+  return tables;
 }
 
 function readTables(filePath: string): MockTables {
   const parsed: unknown = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  if (!isMockTables(parsed)) throw new Error(`Invalid mock store shape: ${filePath}`);
-  return parsed;
+  const tables = normalizeMockTables(parsed);
+  if (!tables) throw new Error(`Invalid mock store shape: ${filePath}`);
+  return tables;
 }
 
 function loadSeed(): MockTables {

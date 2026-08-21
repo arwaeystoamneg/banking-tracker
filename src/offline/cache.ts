@@ -1,10 +1,9 @@
-import { db, getActivePrincipalId } from "@/offline/db";
-import type { QueueTab } from "@/offline/db";
-import { TAB_CLIENT_CONFIG } from "@/offline/tabConfig";
+import { db, getActivePrincipalId, type CacheTab } from "@/offline/db";
+import { isQueueTab, TAB_CLIENT_CONFIG } from "@/offline/tabConfig";
 import { queueItemMatchesPrincipal } from "@/offline/legacyQueue";
 
 /** Fetches a tab fresh from the API and repopulates its Dexie cache — the "revalidate" half of the read path. */
-export async function refreshTabCache(tab: QueueTab): Promise<unknown[]> {
+export async function refreshTabCache(tab: CacheTab): Promise<unknown[]> {
   const { apiPath } = TAB_CLIENT_CONFIG[tab];
   const res = await fetch(apiPath, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to fetch ${apiPath}: ${res.status}`);
@@ -22,7 +21,7 @@ export async function refreshTabCache(tab: QueueTab): Promise<unknown[]> {
       );
       const principalId = getActivePrincipalId();
       const queued =
-        principalId == null
+        !isQueueTab(tab) || principalId == null
           ? []
           : (await database.writeQueue.where("tab").equals(tab).sortBy("createdAt")).filter((item) =>
               queueItemMatchesPrincipal(item, principalId),
@@ -48,7 +47,7 @@ export async function refreshTabCache(tab: QueueTab): Promise<unknown[]> {
 }
 
 /** Reads whatever is cached locally right now — instant, works offline. */
-export async function readTabCache<T>(tab: QueueTab): Promise<T[]> {
+export async function readTabCache<T>(tab: CacheTab): Promise<T[]> {
   if (!db) return [];
   return db.table(tab).toArray();
 }

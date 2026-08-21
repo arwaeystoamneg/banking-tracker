@@ -14,12 +14,7 @@
     { "id": "fs_bike_paigow_1", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1, "tier_max": 100, "pd_fee": 1, "player_fee": 0 },
     { "id": "fs_bike_paigow_2", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 101, "tier_max": 400, "pd_fee": 3, "player_fee": 0 },
     { "id": "fs_bike_paigow_3", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 401, "tier_max": 1000, "pd_fee": 7, "player_fee": 0 },
-    { "id": "fs_bike_paigow_4", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1001, "tier_max": null, "pd_fee": 15, "player_fee": 0 },
-
-    { "id": "fs_bike_baccarat_21c_1", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1, "tier_max": 100, "pd_fee": 1, "player_fee": 0 },
-    { "id": "fs_bike_baccarat_21c_2", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 101, "tier_max": 400, "pd_fee": 3, "player_fee": 0 },
-    { "id": "fs_bike_baccarat_21c_3", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 401, "tier_max": 1000, "pd_fee": 7, "player_fee": 0 },
-    { "id": "fs_bike_baccarat_21c_4", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1001, "tier_max": null, "pd_fee": 15, "player_fee": 0 }
+    { "id": "fs_bike_paigow_4", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1001, "tier_max": null, "pd_fee": 15, "player_fee": 0 }
   ],
   "badBeat": {
     "sidebetId": "sb_uth_progressive",

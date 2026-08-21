@@ -112,7 +112,10 @@ export async function verifyAuthToken(token: string | undefined | null): Promise
   try {
     const value = JSON.parse(decoded) as Partial<AuthTokenPayload>;
     if (
-      (value.role !== "admin" && value.role !== "individual" && value.role !== "demo") ||
+      (value.role !== "admin" &&
+        value.role !== "individual" &&
+        value.role !== "employee" &&
+        value.role !== "demo") ||
       typeof value.userId !== "string" ||
       !value.userId ||
       typeof value.name !== "string" ||

@@ -1,10 +1,18 @@
 import "server-only";
 
 import seed from "@/lib/repositories/mock/fixtures/seed.json";
-import type { CrudRepository, Repositories } from "@/lib/repositories/types";
+import type {
+  AppendOnlyRepository,
+  CrudRepository,
+  LossReportRepository,
+  Repositories,
+} from "@/lib/repositories/types";
 import {
+  auditEntrySchema,
   feeScheduleSchema,
   gameSchema,
+  lossEvidenceSchema,
+  lossReportSchema,
   paytableSchema,
   roundSchema,
   sessionSchema,
@@ -33,6 +41,42 @@ function fixtureRepository<T, TCreate, TPatch>(
   };
 }
 
+function appendOnlyFixtureRepository<T, TCreate>(
+  rows: T[],
+  idField: keyof T,
+): AppendOnlyRepository<T, TCreate> {
+  return {
+    async list() {
+      return rows;
+    },
+    async get(id) {
+      return rows.find((row) => row[idField] === id) ?? null;
+    },
+    create: async () => {
+      throw new AuthorizationError("The demo is read-only");
+    },
+  };
+}
+
+function lockAppendOnly<T, TCreate>(
+  repository: AppendOnlyRepository<T, TCreate>,
+): AppendOnlyRepository<T, TCreate> {
+  return {
+    list: () => repository.list(),
+    get: (id) => repository.get(id),
+    create: async () => {
+      throw new AuthorizationError("The demo is read-only");
+    },
+  };
+}
+
+function lockLossReports(repository: LossReportRepository): LossReportRepository {
+  const deny = async (): Promise<never> => {
+    throw new AuthorizationError("The demo is read-only");
+  };
+  return { ...lockAppendOnly(repository), recordDecision: deny };
+}
+
 function lockRepository<T, TCreate, TPatch>(
   repository: CrudRepository<T, TCreate, TPatch>,
 ): CrudRepository<T, TCreate, TPatch> {
@@ -56,6 +100,9 @@ function lockRepositories(base: Repositories): Repositories {
     feeSchedules: lockRepository(base.feeSchedules),
     sessions: lockRepository(base.sessions),
     rounds: lockRepository(base.rounds),
+    lossReports: lockLossReports(base.lossReports),
+    lossEvidence: lockAppendOnly(base.lossEvidence),
+    auditLog: lockAppendOnly(base.auditLog),
   };
 }
 
@@ -81,6 +128,9 @@ export async function getDemoRepositories(): Promise<Repositories> {
     const feeSchedules = seed.feeSchedules.map((row) => feeScheduleSchema.parse(row));
     const sessions = seed.sessions.map((row) => sessionSchema.parse(row));
     const rounds = seed.rounds.map((row) => roundSchema.parse(row));
+    const lossReports = seed.lossReports.map((row) => lossReportSchema.parse(row));
+    const lossEvidence = seed.lossEvidence.map((row) => lossEvidenceSchema.parse(row));
+    const auditLog = seed.auditLog.map((row) => auditEntrySchema.parse(row));
 
     return {
       games: fixtureRepository(games, "game_id"),
@@ -89,6 +139,14 @@ export async function getDemoRepositories(): Promise<Repositories> {
       feeSchedules: fixtureRepository(feeSchedules, "schedule_id"),
       sessions: fixtureRepository(sessions, "session_id"),
       rounds: fixtureRepository(rounds, "round_id"),
+      lossReports: {
+        ...appendOnlyFixtureRepository(lossReports, "loss_id"),
+        recordDecision: async () => {
+          throw new AuthorizationError("The demo is read-only");
+        },
+      },
+      lossEvidence: appendOnlyFixtureRepository(lossEvidence, "evidence_id"),
+      auditLog: appendOnlyFixtureRepository(auditLog, "entry_id"),
     };
   })();
 

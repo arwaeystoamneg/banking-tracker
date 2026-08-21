@@ -66,6 +66,16 @@ const ALIASES: ReadonlyArray<readonly [string, string]> = [
   ["gardens", "Gardens"],
 ];
 
+/** Canonical display names for the rooms we actually visit — used as datalist options, not a closed set. */
+export const KNOWN_CASINO_NAMES = Array.from(new Set(ALIASES.map(([, display]) => display)));
+
+/** True when `casino` is one of the rooms listed on this game's pipe-delimited casinos field. */
+export function gameIsAtCasino(casinos: string, casino: string): boolean {
+  const key = normalizeCasinoKey(casino);
+  if (!key) return false;
+  return canonicalCasinoList(casinos).some((room) => normalizeCasinoKey(room) === key);
+}
+
 /** Display form for a casino — snaps known rooms and their listed aliases to a canonical name. */
 export function canonicalCasino(raw: string): string {
   const key = normalizeCasinoKey(raw);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maxPayoutMultiple, payoutMultiple } from "@/lib/payout";
+import { maxPayoutMultiple, payoutMultiple, isPlaceholderPaytableLine } from "@/lib/payout";
 
 describe("payoutMultiple", () => {
   it("parses X:1 ratios", () => {
@@ -38,5 +38,19 @@ describe("maxPayoutMultiple", () => {
 
   it("returns null when nothing parses", () => {
     expect(maxPayoutMultiple(["push", "TBD"])).toBeNull();
+  });
+});
+
+describe("isPlaceholderPaytableLine", () => {
+  it("flags blank, TBD, and explicit placeholder lines", () => {
+    expect(isPlaceholderPaytableLine("", "50:1")).toBe(true);
+    expect(isPlaceholderPaytableLine("Pair", "")).toBe(true);
+    expect(isPlaceholderPaytableLine("Pair", "TBD")).toBe(true);
+    expect(isPlaceholderPaytableLine("PLACEHOLDER — full paytable not yet entered", "TBD")).toBe(true);
+  });
+
+  it("keeps real lines, including push", () => {
+    expect(isPlaceholderPaytableLine("Natural tie", "push")).toBe(false);
+    expect(isPlaceholderPaytableLine("Royal flush", "50:1")).toBe(false);
   });
 });

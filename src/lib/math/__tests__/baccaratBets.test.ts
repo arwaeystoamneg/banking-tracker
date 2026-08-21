@@ -88,6 +88,8 @@ describe("realized edge vs coverage", () => {
 describe("paytable / name matching", () => {
   it("matches Dragon and Panda/Koi side-bet names, not Main", () => {
     expect(matchBaccaratSidebet("Dragon")).toBe("dragon");
+    expect(matchBaccaratSidebet("Dragon 7")).toBe("dragon");
+    expect(matchBaccaratSidebet("Dragon Bonus")).toBe("dragon");
     expect(matchBaccaratSidebet("Koi")).toBe("pandaKoi");
     expect(matchBaccaratSidebet("Panda 8")).toBe("pandaKoi");
     expect(matchBaccaratSidebet("Tie")).toBe("tie");

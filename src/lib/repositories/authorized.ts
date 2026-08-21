@@ -1,10 +1,11 @@
 import "server-only";
 
-import type { AuthUser } from "@/lib/auth/types";
+import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
 import { ownsGame, ownsSession } from "@/lib/auth/permissions";
 import { AuthorizationError, InputError } from "@/lib/auth/session";
 import type { Repositories } from "@/lib/repositories/types";
 import { ConflictError, NotFoundError } from "@/lib/repositories/types";
+import { createLossRepositories } from "@/lib/repositories/losses";
 import type {
   FeeScheduleCreate,
   FeeSchedulePatch,
@@ -63,19 +64,22 @@ function assertVersion(tab: string, id: string, row: { _row_version: number }, e
 /** Stamp owner_id onto a legacy row without letting an admin edit steal it via edited_by/logged_by. */
 function claimMissingOwnerId(user: AuthUser, ownerId: string, implicitOwner: string): { owner_id?: string } {
   if (ownerId) return {};
-  if (user.role === "individual") return { owner_id: user.userId };
+  if (isConfiguredAccountRole(user.role)) return { owner_id: user.userId };
   const frozen = implicitOwner.trim();
   return frozen ? { owner_id: frozen } : {};
 }
 
 /**
  * Wraps the data layer so every mutation is authorized even if a route handler is later
- * added outside proxy coverage. Reads remain shared for admin/individual accounts.
+ * added outside proxy coverage. Reads remain shared for every real account.
  */
 export function createAuthorizedRepositories(repos: Repositories, user: AuthUser): Repositories {
   if (user.role === "demo") throw new AuthorizationError("Demo data must use the isolated demo repository");
 
+  const lossRepositories = createLossRepositories(repos, user);
+
   return {
+    ...lossRepositories,
     games: {
       list: () => repos.games.list(),
       get: (id) => repos.games.get(id),
@@ -135,8 +139,15 @@ export function createAuthorizedRepositories(repos: Repositories, user: AuthUser
         const sidebet = await requiredSidebet(repos, id);
         assertOwnsGame(user, await requiredGame(repos, sidebet.game_id));
         assertVersion("Sidebets", id, sidebet, expectedVersion);
-        if (patch.game_id && patch.game_id !== sidebet.game_id) throw new AuthorizationError("A side bet cannot be moved");
-        return repos.sidebets.update(id, withoutKeys(patch, ["game_id"]), expectedVersion);
+        if (patch.game_id && patch.game_id !== sidebet.game_id) {
+          if (user.role !== "admin") throw new AuthorizationError("A side bet cannot be moved");
+          assertOwnsGame(user, await requiredGame(repos, patch.game_id));
+        }
+        return repos.sidebets.update(
+          id,
+          user.role === "admin" ? patch : withoutKeys(patch, ["game_id"]),
+          expectedVersion,
+        );
       },
       async remove(id: string, expectedVersion: number) {
         const sidebet = await requiredSidebet(repos, id);
@@ -202,15 +213,14 @@ export function createAuthorizedRepositories(repos: Repositories, user: AuthUser
       list: () => repos.sessions.list(),
       get: (id) => repos.sessions.get(id),
       async create(data: SessionCreate, id?: string) {
-        const stamped =
-          user.role === "individual"
-            ? {
-                ...data,
-                logged_by: user.name,
-                logged_at: new Date().toISOString(),
-                owner_id: user.userId,
-              }
-            : { ...data, owner_id: user.userId };
+        const stamped = isConfiguredAccountRole(user.role)
+          ? {
+              ...data,
+              logged_by: user.name,
+              logged_at: new Date().toISOString(),
+              owner_id: user.userId,
+            }
+          : { ...data, owner_id: user.userId };
         const candidate = sessionSchema.parse({ session_id: id ?? "pending", ...stamped, _row_version: 1 });
         if (!isSessionOpen(candidate) && candidate.coverage_pct === null) {
           throw new InputError("A session cannot be created closed without coverage data");

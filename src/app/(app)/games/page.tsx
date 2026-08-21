@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useGames } from "@/hooks/useGames";
 import { useSidebets } from "@/hooks/useSidebets";
 import { usePaytables } from "@/hooks/usePaytables";
-import { searchGames } from "@/lib/search";
+import { gamesByCasino, searchGames } from "@/lib/search";
 import { canonicalCasino, normalizeCasinoKey } from "@/lib/names";
-import { maxPayoutMultiple } from "@/lib/payout";
+import { isMainWagerSidebet, sidebetAppliesAtCasino } from "@/lib/gameFamily";
 import { GameCard } from "@/components/games/GameCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -22,7 +22,6 @@ export default function GamesPage() {
   const [casino, setCasino] = useState<string | null>(null);
 
   const casinos = useMemo(() => {
-    // De-dupe rooms by normalized key so "The Bicycle", "bicycle", and "Bicycle" are one chip.
     const byKey = new Map<string, string>();
     for (const g of games) {
       for (const c of g.casinos.split("|")) {
@@ -35,33 +34,11 @@ export default function GamesPage() {
     return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
   }, [games]);
 
-  const sidebetCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const sb of sidebets) counts.set(sb.game_id, (counts.get(sb.game_id) ?? 0) + 1);
-    return counts;
-  }, [sidebets]);
-
-  // Worst-case bank tail per game = largest funded payout multiple across its side bets' paytables.
-  const maxTails = useMemo(() => {
-    const payoutsBySidebet = new Map<string, string[]>();
-    for (const pt of paytables) {
-      const list = payoutsBySidebet.get(pt.sidebet_id) ?? [];
-      list.push(pt.payout);
-      payoutsBySidebet.set(pt.sidebet_id, list);
-    }
-    const byGame = new Map<string, number>();
-    for (const sb of sidebets) {
-      const m = maxPayoutMultiple(payoutsBySidebet.get(sb.sidebet_id) ?? []);
-      if (m === null) continue;
-      byGame.set(sb.game_id, Math.max(byGame.get(sb.game_id) ?? 0, m));
-    }
-    return byGame;
-  }, [sidebets, paytables]);
-
   const results = useMemo(
     () => searchGames(games, sidebets, paytables, query, casino),
     [games, sidebets, paytables, query, casino],
   );
+  const grouped = useMemo(() => gamesByCasino(results), [results]);
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-8">
@@ -69,7 +46,9 @@ export default function GamesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Games</h1>
           <p className="text-sm text-muted">
-            {isLoading ? "Loading…" : `${games.length} game${games.length === 1 ? "" : "s"} on file`}
+            {isLoading
+              ? "Loading…"
+              : `${casinos.length} casino${casinos.length === 1 ? "" : "s"} · ${games.length} game${games.length === 1 ? "" : "s"}`}
           </p>
         </div>
         {user.role !== "demo" ? (
@@ -79,7 +58,6 @@ export default function GamesPage() {
         ) : null}
       </div>
 
-      {/* Search + filters stay pinned so they remain reachable one-handed while scrolling the list. */}
       <div className="sticky top-0 z-20 -mx-4 space-y-3 bg-background/95 px-4 pb-3 pt-3 backdrop-blur">
         <Input
           placeholder="Search name, casino, side bet, or payout…"
@@ -112,19 +90,30 @@ export default function GamesPage() {
       ) : results.length === 0 ? (
         <EmptyState query={query} canAdd={user.role !== "demo"} />
       ) : (
-        <div className="space-y-3">
-          {query || casino ? (
+        <div className="space-y-8">
+          {query ? (
             <p className="text-xs text-muted">
               {results.length} match{results.length === 1 ? "" : "es"}
             </p>
           ) : null}
-          {results.map((game) => (
-            <GameCard
-              key={game.game_id}
-              game={game}
-              sidebetCount={sidebetCounts.get(game.game_id) ?? 0}
-              maxTail={maxTails.get(game.game_id) ?? null}
-            />
+          {grouped.map((section) => (
+            <section key={section.casino} className="space-y-3">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-muted">{section.casino}</h2>
+              {section.games.map((game) => {
+                const names = game.sidebets
+                  .filter((sb) => !isMainWagerSidebet(sb.name) && sidebetAppliesAtCasino(sb.name, section.casino))
+                  .map((sb) => sb.name);
+                return (
+                  <GameCard
+                    key={`${section.casino}-${game.game_id}`}
+                    game={game}
+                    hideCasinos
+                    sidebetCount={names.length}
+                    sidebetNames={names}
+                  />
+                );
+              })}
+            </section>
           ))}
         </div>
       )}

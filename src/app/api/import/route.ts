@@ -3,8 +3,11 @@ import { z } from "zod";
 import { getActiveBackend } from "@/lib/repositories";
 import { replaceMockStore } from "@/lib/repositories/mock/store";
 import {
+  auditEntrySchema,
   feeScheduleSchema,
   gameSchema,
+  lossEvidenceSchema,
+  lossReportSchema,
   paytableSchema,
   roundSchema,
   sessionSchema,
@@ -20,6 +23,10 @@ const snapshotSchema = z.object({
   feeSchedules: z.array(feeScheduleSchema),
   sessions: z.array(sessionSchema),
   rounds: z.array(roundSchema),
+  // Optional so a snapshot taken before loss reporting existed still restores cleanly.
+  lossReports: z.array(lossReportSchema).default([]),
+  lossEvidence: z.array(lossEvidenceSchema).default([]),
+  auditLog: z.array(auditEntrySchema).default([]),
 });
 
 /**

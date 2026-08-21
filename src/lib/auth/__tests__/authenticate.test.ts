@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parseAccountsJson } from "@/lib/auth/accounts";
 import { authenticateLogin } from "@/lib/auth/authenticate";
 import { AuthConfigError } from "@/lib/auth/types";
@@ -7,19 +10,47 @@ import { LOGIN_ERROR, safeLoginDestination } from "@/lib/auth/loginErrors";
 const originalPassphrase = process.env.APP_PASSPHRASE;
 const originalSecret = process.env.AUTH_COOKIE_SECRET;
 const originalUsers = process.env.APP_USERS_JSON;
+const originalUsersFile = process.env.APP_USERS_FILE;
 
 afterEach(() => {
   process.env.APP_PASSPHRASE = originalPassphrase;
   process.env.AUTH_COOKIE_SECRET = originalSecret;
   process.env.APP_USERS_JSON = originalUsers;
+  process.env.APP_USERS_FILE = originalUsersFile;
 });
 
 describe("parseAccountsJson", () => {
+  it("accepts pretty-printed JSON with whitespace", () => {
+    const pretty = `[
+  {"id": "ray", "name": "Ray Tang", "password": "secret", "role": "individual"}
+]`;
+    expect(parseAccountsJson(pretty)).toEqual([
+      { id: "ray", name: "Ray Tang", password: "secret", role: "individual" },
+    ]);
+  });
+
   it("accepts dashboard-wrapped and double-encoded JSON from Vercel env vars", () => {
     const accounts = [{ id: "ray", name: "Ray Tang", password: "secret" }];
-    expect(parseAccountsJson(JSON.stringify(accounts))).toEqual(accounts);
-    expect(parseAccountsJson(`'${JSON.stringify(accounts)}'`)).toEqual(accounts);
-    expect(parseAccountsJson(JSON.stringify(JSON.stringify(accounts)))).toEqual(accounts);
+    const parsed = [{ ...accounts[0], role: "individual" }];
+    expect(parseAccountsJson(JSON.stringify(accounts))).toEqual(parsed);
+    expect(parseAccountsJson(`'${JSON.stringify(accounts)}'`)).toEqual(parsed);
+    expect(parseAccountsJson(JSON.stringify(JSON.stringify(accounts)))).toEqual(parsed);
+  });
+
+  it("reads the employee role and defaults entries written before roles existed", () => {
+    const accounts = [
+      { id: "ray", name: "Ray Tang", password: "secret" },
+      { id: "dana", name: "Dana Reyes", password: "other", role: "employee" },
+    ];
+    expect(parseAccountsJson(JSON.stringify(accounts)).map((account) => account.role)).toEqual([
+      "individual",
+      "employee",
+    ]);
+  });
+
+  it("rejects a role that is not a configured account role", () => {
+    const accounts = [{ id: "ray", name: "Ray Tang", password: "secret", role: "admin" }];
+    expect(() => parseAccountsJson(JSON.stringify(accounts))).toThrow(AuthConfigError);
   });
 
   it("rejects malformed account lists with AuthConfigError", () => {
@@ -78,6 +109,27 @@ describe("authenticateLogin", () => {
       username: "Ray",
       passphrase: "ray-pass",
       attemptKey: "test:ray",
+    });
+    expect(result).toMatchObject({ user: { role: "individual", userId: "ray", name: "Ray Tang" } });
+  });
+
+  it("loads accounts from APP_USERS_FILE when APP_USERS_JSON is empty", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "app-users-"));
+    const file = join(dir, "users.json");
+    writeFileSync(
+      file,
+      JSON.stringify([{ id: "ray", name: "Ray Tang", password: "ray-pass", role: "individual" }], null, 2),
+    );
+    process.env.APP_PASSPHRASE = "admin-pass";
+    process.env.AUTH_COOKIE_SECRET = "s".repeat(32);
+    process.env.APP_USERS_JSON = "";
+    process.env.APP_USERS_FILE = file;
+
+    const result = await authenticateLogin({
+      mode: "account",
+      username: "ray",
+      passphrase: "ray-pass",
+      attemptKey: "test:file",
     });
     expect(result).toMatchObject({ user: { role: "individual", userId: "ray", name: "Ray Tang" } });
   });

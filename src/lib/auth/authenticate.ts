@@ -5,7 +5,7 @@ import {
   makeAuthToken,
   makeCredentialVersion,
 } from "@/lib/auth/passphrase";
-import { authenticateIndividual } from "@/lib/auth/accounts";
+import { authenticateAccount } from "@/lib/auth/accounts";
 import { AuthConfigError, type AuthUser } from "@/lib/auth/types";
 import { canAttemptLogin, clearLoginFailures, recordLoginFailure } from "@/lib/auth/rateLimit";
 import { LOGIN_ERROR, type LoginErrorCode } from "@/lib/auth/loginErrors";
@@ -47,7 +47,7 @@ export async function authenticateLogin(input: {
         accountVersion: await makeCredentialVersion(input.passphrase),
       };
     } else if (username && input.passphrase) {
-      user = await authenticateIndividual(username, input.passphrase);
+      user = await authenticateAccount(username, input.passphrase);
     }
 
     if (!user) {
@@ -63,7 +63,7 @@ export async function authenticateLogin(input: {
     if (error instanceof AuthConfigError) return { error: LOGIN_ERROR.config };
     if (
       error instanceof Error &&
-      /AUTH_COOKIE_SECRET|APP_PASSPHRASE is not set|APP_USERS_JSON/.test(error.message)
+      /AUTH_COOKIE_SECRET|APP_PASSPHRASE is not set|APP_USERS_JSON|APP_USERS_FILE/.test(error.message)
     ) {
       return { error: LOGIN_ERROR.config };
     }

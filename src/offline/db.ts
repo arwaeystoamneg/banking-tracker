@@ -1,11 +1,29 @@
 import Dexie, { type Table } from "dexie";
-import type { FeeSchedule, Game, Paytable, Round, Session, Sidebet } from "@/lib/validation/schemas";
+import type {
+  AuditEntry,
+  FeeSchedule,
+  Game,
+  LossEvidence,
+  LossReport,
+  Paytable,
+  Round,
+  Session,
+  Sidebet,
+} from "@/lib/validation/schemas";
 import type { AuthUser } from "@/lib/auth/types";
 import { queueItemBelongsToUser, type LegacyOwnerTables } from "@/offline/legacyQueue";
 
 export type QueueOp = "create" | "update" | "delete";
 export type QueueStatus = "pending" | "syncing" | "error" | "conflict" | "blocked";
+
+/** Tabs the write queue is allowed to mutate. Loss tabs are deliberately absent. */
 export type QueueTab = "games" | "sidebets" | "paytables" | "feeSchedules" | "sessions" | "rounds";
+
+/**
+ * Tabs with a Dexie cache. A superset of QueueTab: the loss tabs are readable offline but
+ * submission is online-only, so they must never be a QueueTab.
+ */
+export type CacheTab = QueueTab | "lossReports" | "lossEvidence" | "auditLog";
 
 export interface WriteQueueItem {
   id?: number;
@@ -33,6 +51,9 @@ class OfflineDatabase extends Dexie {
   feeSchedules!: Table<FeeSchedule, string>;
   sessions!: Table<Session, string>;
   rounds!: Table<Round, string>;
+  lossReports!: Table<LossReport, string>;
+  lossEvidence!: Table<LossEvidence, string>;
+  auditLog!: Table<AuditEntry, string>;
   writeQueue!: Table<WriteQueueItem, number>;
   meta!: Table<MetaRow, string>;
 
@@ -45,6 +66,20 @@ class OfflineDatabase extends Dexie {
       feeSchedules: "schedule_id, game_id",
       sessions: "session_id, game_id, date",
       rounds: "round_id, session_id, seq",
+      writeQueue: "++id, tab, status, createdAt",
+      meta: "key",
+    });
+    // Additive. Editing version(1) would break already-installed PWAs on the next load.
+    this.version(2).stores({
+      games: "game_id, name",
+      sidebets: "sidebet_id, game_id",
+      paytables: "paytable_id, sidebet_id",
+      feeSchedules: "schedule_id, game_id",
+      sessions: "session_id, game_id, date",
+      rounds: "round_id, session_id, seq",
+      lossReports: "loss_id, status, session_id, owner_id",
+      lossEvidence: "evidence_id, loss_id",
+      auditLog: "entry_id, loss_id",
       writeQueue: "++id, tab, status, createdAt",
       meta: "key",
     });

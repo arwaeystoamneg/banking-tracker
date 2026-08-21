@@ -64,7 +64,7 @@ const BET_META: Record<BaccaratBetKind, { label: string; winProb: number; pushPr
   },
   tie: { label: "Tie", winProb: pTie, pushProb: 0 },
   dragon: { label: "Dragon 7", winProb: pBanker3Card7, pushProb: 0 },
-  pandaKoi: { label: "Panda / Koi", winProb: 0.034543, pushProb: 0 },
+  pandaKoi: { label: "Panda 8", winProb: 0.034543, pushProb: 0 },
 };
 
 export function baccaratBetModel(kind: BaccaratBetKind, payout = BACCARAT_BET_PAYOUTS[kind]): BaccaratBetModel {

@@ -7,7 +7,7 @@
  * cap = ∞ is the fully-banked house edge.
  *
  * Shared accounting only. Each game still needs its own probabilities, paytables, and
- * EV-page wiring (baccaratBets, uthBadBeat). Blackjack and 2WW will too.
+ * EV-page wiring (baccaratBets, uthBadBeat, threeCardPoker, twoWayWinner).
  *
  * Outcomes list the non-lose branches. Lose probability is 1 − Σ p. A push is an
  * outcome with payout 0 (stake returned; contributes neither to the win total nor to lose).

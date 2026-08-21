@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { useCurrentUser } from "@/components/providers/AuthProvider";
+import { canSeeAllLossReports, canSubmitLossReport } from "@/lib/auth/permissions";
 
 /** Stroked line icons — flat, no fill, so they read in low light without emotional color. */
 function Icon({ path }: { path: ReactNode }) {
@@ -22,7 +24,7 @@ function Icon({ path }: { path: ReactNode }) {
   );
 }
 
-const ITEMS: { href: string; label: string; icon: ReactNode }[] = [
+const BANKING_ITEMS: { href: string; label: string; icon: ReactNode }[] = [
   {
     href: "/games",
     label: "Games",
@@ -45,12 +47,32 @@ const ITEMS: { href: string; label: string; icon: ReactNode }[] = [
   },
 ];
 
+const LOSSES_ITEM: { href: string; label: string; icon: ReactNode } = {
+  href: "/losses",
+  label: "Losses",
+  icon: (
+    <Icon
+      path={
+        <>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6M8 13h8M8 17h5" />
+        </>
+      }
+    />
+  ),
+};
+
 export function BottomNav() {
   const pathname = usePathname();
+  const user = useCurrentUser();
+  const items =
+    canSubmitLossReport(user) || canSeeAllLossReports(user)
+      ? [...BANKING_ITEMS, LOSSES_ITEM]
+      : BANKING_ITEMS;
 
   return (
     <nav className="sticky bottom-0 z-30 flex border-t border-border bg-surface/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-      {ITEMS.map((item) => {
+      {items.map((item) => {
         const active = pathname.startsWith(item.href);
         return (
           <Link

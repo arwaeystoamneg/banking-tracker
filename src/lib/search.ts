@@ -63,3 +63,22 @@ export function searchGames(
     })
     .map(({ game, sidebets: gameSidebets }) => ({ ...game, sidebets: gameSidebets }));
 }
+
+/**
+ * Floor view: each room is a section, and a game that spreads at several rooms appears under each.
+ * Games with an empty casinos field land in "Unlisted" so they don't vanish.
+ */
+export function gamesByCasino(games: GameSearchResult[]): { casino: string; games: GameSearchResult[] }[] {
+  const byKey = new Map<string, { casino: string; games: GameSearchResult[] }>();
+  for (const game of games) {
+    const rooms = canonicalCasinoList(game.casinos);
+    const targets = rooms.length > 0 ? rooms : ["Unlisted"];
+    for (const room of targets) {
+      const key = normalizeCasinoKey(room);
+      const bucket = byKey.get(key) ?? { casino: room, games: [] };
+      bucket.games.push(game);
+      byKey.set(key, bucket);
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.casino.localeCompare(b.casino));
+}

@@ -9,7 +9,7 @@ import { isSessionOpen } from "@/lib/sessionHelpers";
 import { formatDateForDisplay } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
-import { ownsSession } from "@/lib/auth/permissions";
+import { canSubmitLossReport, ownsSession } from "@/lib/auth/permissions";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const user = useCurrentUser();
@@ -32,12 +32,26 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
             {session.time_out ? `–${session.time_out}` : ""}
           </p>
         </div>
-        {canEdit ? <Link
-          href={`/sessions/${session.session_id}/edit`}
-          className="flex h-10 min-w-12 items-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-foreground active:bg-neutral-800"
-        >
-          Edit
-        </Link> : null}
+        {canEdit || canSubmitLossReport(user) ? (
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            {canEdit ? (
+              <Link
+                href={`/sessions/${session.session_id}/edit`}
+                className="flex h-10 min-w-12 items-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-foreground active:bg-neutral-800"
+              >
+                Edit
+              </Link>
+            ) : null}
+            {canSubmitLossReport(user) ? (
+              <Link
+                href={`/losses/new?session_id=${session.session_id}`}
+                className="flex h-10 min-w-12 items-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-foreground active:bg-neutral-800"
+              >
+                Report loss
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <section className="space-y-2 rounded-2xl border border-border bg-surface p-4 text-sm">

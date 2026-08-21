@@ -12,6 +12,9 @@ import type {
   sessionPatchSchema,
   sidebetCreateSchema,
   sidebetPatchSchema,
+  lossReportCreateSchema,
+  lossEvidenceCreateSchema,
+  auditEntryCreateSchema,
 } from "@/lib/validation/schemas";
 
 export type GameCreate = z.infer<typeof gameCreateSchema>;
@@ -26,3 +29,10 @@ export type SessionCreate = z.infer<typeof sessionCreateSchema>;
 export type SessionPatch = z.infer<typeof sessionPatchSchema>;
 export type RoundCreate = z.infer<typeof roundCreateSchema>;
 export type RoundPatch = z.infer<typeof roundPatchSchema>;
+
+// The loss-reporting tabs are append-only, so there is deliberately no Patch type for them — see
+// lib/repositories/types.ts. The only mutation is a reviewer decision (LossDecisionPatch, exported
+// from the schemas module because it is a fixed shape rather than a partial).
+export type LossReportCreate = z.infer<typeof lossReportCreateSchema>;
+export type LossEvidenceCreate = z.infer<typeof lossEvidenceCreateSchema>;
+export type AuditEntryCreate = z.infer<typeof auditEntryCreateSchema>;
