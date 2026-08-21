@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import { flushQueue } from "@/offline/queue";
+import { refreshAllTabCaches } from "@/offline/cache";
 import { ConflictDialog } from "@/components/sync/ConflictDialog";
 
 function relativeTime(iso: string | null): string {
@@ -59,8 +60,12 @@ export function SyncStatusBar() {
           <button
             onClick={async () => {
               setSyncing(true);
-              await flushQueue();
-              setSyncing(false);
+              try {
+                await flushQueue();
+                await refreshAllTabCaches();
+              } finally {
+                setSyncing(false);
+              }
             }}
             disabled={syncing || !online}
             className="font-medium text-emerald-400 disabled:opacity-40"

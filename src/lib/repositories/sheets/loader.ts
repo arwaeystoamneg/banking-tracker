@@ -6,9 +6,13 @@ import { fullTabRange } from "@/lib/repositories/sheets/rowMapper";
 import { isSheetAlreadyExistsError } from "@/lib/repositories/sheets/googleErrors";
 
 /**
- * One batched read for all six tabs, memoized per request via React's cache() — so a single page
+ * One batched read for every tab, memoized per request via React's cache() — so a single page
  * render that touches multiple repositories (e.g. games + sidebets + paytables) issues one
  * spreadsheets.values.batchGet call instead of one per repository, respecting the 60 req/min/user quota.
+ *
+ * Tab titles are also per-request (see getSheetGridIds). A process-lifetime snapshot would skip
+ * LossReports / LossEvidence / AuditLog on isolates that started before those worksheets existed,
+ * so other phones would see an empty list until the lambda recycled.
  */
 export const fetchAllTabsRaw = cache(async (spreadsheetId = getSheetId()): Promise<Record<string, string[][]>> => {
   const sheets = getSheetsClient();
@@ -30,35 +34,19 @@ export const fetchAllTabsRaw = cache(async (spreadsheetId = getSheetId()): Promi
   return result;
 });
 
-// Sheet structure (which tab has which numeric grid id) changes rarely, so this is memoized globally
-// rather than per-request.
-const globalForGridIds = globalThis as unknown as {
-  __sheetGridIds?: Map<string, Promise<Record<string, number>>>;
-};
-
-export function getSheetGridIds(spreadsheetId = getSheetId()): Promise<Record<string, number>> {
-  if (!globalForGridIds.__sheetGridIds) globalForGridIds.__sheetGridIds = new Map();
-  if (!globalForGridIds.__sheetGridIds.has(spreadsheetId)) {
-    globalForGridIds.__sheetGridIds.set(spreadsheetId, (async () => {
-      const sheets = getSheetsClient();
-      const res = await sheets.spreadsheets.get({ spreadsheetId });
-      const map: Record<string, number> = {};
-      for (const sheet of res.data.sheets ?? []) {
-        const title = sheet.properties?.title;
-        const sheetId = sheet.properties?.sheetId;
-        if (title !== undefined && title !== null && sheetId !== undefined && sheetId !== null) {
-          map[title] = sheetId;
-        }
-      }
-      return map;
-    })());
+export const getSheetGridIds = cache(async (spreadsheetId = getSheetId()): Promise<Record<string, number>> => {
+  const sheets = getSheetsClient();
+  const res = await sheets.spreadsheets.get({ spreadsheetId });
+  const map: Record<string, number> = {};
+  for (const sheet of res.data.sheets ?? []) {
+    const title = sheet.properties?.title;
+    const sheetId = sheet.properties?.sheetId;
+    if (title !== undefined && title !== null && sheetId !== undefined && sheetId !== null) {
+      map[title] = sheetId;
+    }
   }
-  return globalForGridIds.__sheetGridIds.get(spreadsheetId)!;
-}
-
-export function invalidateSheetGridIds(spreadsheetId: string): void {
-  globalForGridIds.__sheetGridIds?.delete(spreadsheetId);
-}
+  return map;
+});
 
 /**
  * Adds a worksheet if this spreadsheet doesn't have one by that title yet. First write of a new
@@ -97,7 +85,9 @@ export async function ensureWorksheet(
     if (typeof sheetId === "number") present[tabName] = sheetId;
   } catch (err) {
     if (isSheetAlreadyExistsError(err)) {
-      invalidateSheetGridIds(spreadsheetId);
+      // Same-request reads key off this map. React's cache() cannot be invalidated, so stamp
+      // the title or fetchAllTabsRaw will skip a tab that just won the create race.
+      present[tabName] = present[tabName] ?? -1;
       return;
     }
     throw err;
