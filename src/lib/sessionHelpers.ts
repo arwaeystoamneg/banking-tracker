@@ -1,6 +1,8 @@
 import type { Session } from "@/lib/validation/schemas";
 
-/** A session is "open" while it has no recorded collection paid — no separate status column. */
+/** Cash-complete sessions close without round data; legacy round sessions use their existing close totals. */
 export function isSessionOpen(session: Session): boolean {
-  return session.collection_paid === null;
+  if (session.buy_out !== null && session.time_out !== "") return false;
+  if (session.rounds_banked !== null && session.collection_paid !== null) return false;
+  return true;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { use } from "react";
+import Link from "next/link";
 import { useSessions } from "@/hooks/useSessions";
 import { RoundLogger } from "@/components/sessions/RoundLogger";
 import { SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
@@ -19,12 +20,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
 
   return (
     <main className="mx-auto max-w-lg space-y-5 px-4 pt-4 pb-8">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">{session.casino || "Casino session"}</h1>
-        <p className="text-sm text-muted">
-          {formatDateForDisplay(session.date)} · {session.time_in || "—"}
-          {session.time_out ? `–${session.time_out}` : ""}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">{session.casino || "Casino session"}</h1>
+          <p className="text-sm text-muted">
+            {formatDateForDisplay(session.date)} · {session.time_in || "—"}
+            {session.time_out ? `–${session.time_out}` : ""}
+          </p>
+        </div>
+        <Link
+          href={`/sessions/${session.session_id}/edit`}
+          className="flex h-10 min-w-12 items-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-foreground active:bg-neutral-800"
+        >
+          Edit
+        </Link>
       </div>
 
       <section className="space-y-2 rounded-2xl border border-border bg-surface p-4 text-sm">

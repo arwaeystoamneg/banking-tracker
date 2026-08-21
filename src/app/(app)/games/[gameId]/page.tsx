@@ -1,18 +1,27 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useGames } from "@/hooks/useGames";
 import { useSidebets } from "@/hooks/useSidebets";
+import { usePaytables } from "@/hooks/usePaytables";
+import { useFeeSchedules } from "@/hooks/useFeeSchedules";
 import { EditableField } from "@/components/games/EditableField";
 import { PaytableGrid } from "@/components/games/PaytableGrid";
 import { FeeScheduleGrid } from "@/components/games/FeeScheduleGrid";
 import { VerifiedBadge } from "@/components/games/VerifiedBadge";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 
 export default function GameDetailPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { games, isLoading, update } = useGames();
-  const { sidebets, isLoading: sidebetsLoading } = useSidebets(gameId);
+  const router = useRouter();
+  const { games, isLoading, update, remove: removeGame } = useGames();
+  const { sidebets, isLoading: sidebetsLoading, remove: removeSidebet } = useSidebets(gameId);
+  const { paytables, remove: removePaytable } = usePaytables();
+  const { feeSchedules, remove: removeFeeSchedule } = useFeeSchedules(gameId);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const game = games.find((g) => g.game_id === gameId);
 
@@ -21,6 +30,24 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
 
   function save<K extends string>(field: K) {
     return (value: string) => void update(gameId, { [field]: value } as never, game!._row_version);
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Delete ${game?.name}? Its side bets, paytables, and fee schedules will also be deleted.`)) return;
+
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const sidebetIds = new Set(sidebets.map((sidebet) => sidebet.sidebet_id));
+      await Promise.all(paytables.filter((paytable) => sidebetIds.has(paytable.sidebet_id)).map((paytable) => removePaytable(paytable.paytable_id)));
+      await Promise.all(sidebets.map((sidebet) => removeSidebet(sidebet.sidebet_id)));
+      await Promise.all(feeSchedules.map((schedule) => removeFeeSchedule(schedule.schedule_id)));
+      await removeGame(gameId);
+      router.replace("/games");
+    } catch {
+      setDeleteError("Could not queue the full deletion. Check sync status before trying again.");
+      setDeleting(false);
+    }
   }
 
   return (
@@ -65,6 +92,15 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
           <Badge>Used by the fee calculator</Badge>
         </div>
         <FeeScheduleGrid gameId={gameId} />
+      </section>
+
+      <section className="space-y-2 rounded-2xl border border-red-900/70 bg-red-950/20 p-4">
+        <h2 className="text-sm font-semibold text-red-300">Delete game</h2>
+        <p className="text-xs text-muted">This also removes its side bets, paytables, and fee schedules.</p>
+        {deleteError ? <p className="text-xs text-red-400">{deleteError}</p> : null}
+        <Button variant="danger" onClick={handleDelete} disabled={deleting} className="w-full">
+          {deleting ? "Deleting…" : "Delete game"}
+        </Button>
       </section>
     </main>
   );

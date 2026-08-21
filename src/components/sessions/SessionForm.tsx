@@ -7,18 +7,21 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { currentTimeString, todayDateString, nowIso } from "@/lib/dates";
 import { getRememberedLoggedBy, rememberLoggedBy } from "@/lib/loggedInAs";
+import type { Session } from "@/lib/validation/schemas";
 
-export function SessionForm() {
+export function SessionForm({ session }: { session?: Session }) {
   const router = useRouter();
-  const { create } = useSessions();
+  const { create, update } = useSessions();
+  const editing = session !== undefined;
 
-  const [casino, setCasino] = useState("");
-  const [buyIn, setBuyIn] = useState("");
-  const [buyOut, setBuyOut] = useState("");
-  const [timeIn, setTimeIn] = useState(() => currentTimeString());
-  const [timeOut, setTimeOut] = useState("");
-  const [notes, setNotes] = useState("");
-  const [loggedBy, setLoggedBy] = useState(() => getRememberedLoggedBy());
+  const [date, setDate] = useState(() => session?.date ?? todayDateString());
+  const [casino, setCasino] = useState(() => session?.casino ?? "");
+  const [buyIn, setBuyIn] = useState(() => (session ? String(session.buy_in) : ""));
+  const [buyOut, setBuyOut] = useState(() => (session?.buy_out === null || session === undefined ? "" : String(session.buy_out)));
+  const [timeIn, setTimeIn] = useState(() => session?.time_in ?? currentTimeString());
+  const [timeOut, setTimeOut] = useState(() => session?.time_out ?? "");
+  const [notes, setNotes] = useState(() => session?.notes ?? "");
+  const [loggedBy, setLoggedBy] = useState(() => session?.logged_by ?? getRememberedLoggedBy());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -28,6 +31,7 @@ export function SessionForm() {
     const buyOutAmount = buyOut === "" ? null : Number(buyOut);
     if (
       !casino.trim() ||
+      !date ||
       !loggedBy.trim() ||
       !timeIn ||
       buyIn === "" ||
@@ -35,7 +39,7 @@ export function SessionForm() {
       buyInAmount < 0 ||
       (buyOutAmount !== null && (!Number.isFinite(buyOutAmount) || buyOutAmount < 0))
     ) {
-      setError("Casino, buy-in, time-in, and logged-by name are required.");
+      setError("Date, casino, buy-in, time-in, and logged-by name are required.");
       return;
     }
 
@@ -44,13 +48,25 @@ export function SessionForm() {
     rememberLoggedBy(loggedBy.trim());
 
     try {
-      const id = await create({
-        date: todayDateString(),
+      const fields = {
+        date,
         casino: casino.trim(),
         buy_in: buyInAmount,
         buy_out: buyOutAmount,
         time_in: timeIn,
         time_out: timeOut,
+        notes: notes.trim(),
+        logged_by: loggedBy.trim(),
+      };
+
+      if (session) {
+        await update(session.session_id, fields, session._row_version);
+        router.replace(`/sessions/${session.session_id}`);
+        return;
+      }
+
+      const id = await create({
+        ...fields,
         game_id: "",
         schedule_option: "",
         rounds_banked: null,
@@ -64,20 +80,27 @@ export function SessionForm() {
         peak_drawdown: null,
         partners: "",
         split_terms: "",
-        notes: notes.trim(),
-        logged_by: loggedBy.trim(),
         logged_at: nowIso(),
       });
 
       router.push(`/sessions/${id}`);
     } catch {
-      setError("Could not start the session. Your entry was not discarded; check sync status and try again.");
+      setError(
+        editing
+          ? "Could not save the session. Your changes were not discarded; check sync status and try again."
+          : "Could not start the session. Your entry was not discarded; check sync status and try again.",
+      );
       setSubmitting(false);
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      <label className="block space-y-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted">Session date</span>
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      </label>
+
       <label className="block space-y-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted">Casino</span>
         <Input value={casino} onChange={(e) => setCasino(e.target.value)} placeholder="Casino name" required />
@@ -131,7 +154,7 @@ export function SessionForm() {
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
       <Button type="submit" disabled={submitting} className="w-full">
-        {submitting ? "Starting…" : "Start session"}
+        {submitting ? (editing ? "Saving…" : "Starting…") : editing ? "Save changes" : "Start session"}
       </Button>
     </form>
   );

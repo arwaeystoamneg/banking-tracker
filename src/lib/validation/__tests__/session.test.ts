@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sessionCreateSchema, sessionSchema } from "@/lib/validation/schemas";
+import { isSessionOpen } from "@/lib/sessionHelpers";
 
 describe("session schemas", () => {
   it("fills new cash and time fields when reading a legacy session", () => {
@@ -33,5 +34,22 @@ describe("session schemas", () => {
     expect(sessionCreateSchema.parse(valid)).toMatchObject(valid);
     expect(() => sessionCreateSchema.parse({ ...valid, casino: "" })).toThrow();
     expect(() => sessionCreateSchema.parse({ ...valid, buy_in: -1 })).toThrow();
+  });
+
+  it("treats a past cash session with buy-out and time-out as closed", () => {
+    const session = sessionSchema.parse({
+      session_id: "past",
+      date: "2026-01-02",
+      casino: "Commerce",
+      buy_in: 1000,
+      buy_out: 1200,
+      time_in: "18:00",
+      time_out: "22:00",
+      logged_by: "Ray",
+      logged_at: "2026-01-02T18:00:00.000Z",
+      _row_version: 1,
+    });
+
+    expect(isSessionOpen(session)).toBe(false);
   });
 });
