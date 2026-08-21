@@ -1,5 +1,6 @@
 import { Decimal, d } from "@/lib/decimal";
 import type { Session } from "@/lib/validation/schemas";
+import { canonicalPerson, normalizePersonKey } from "@/lib/names";
 
 export interface PersonStats {
   name: string;
@@ -32,9 +33,12 @@ export function computePersonStats(sessions: Session[]): PersonStats[] {
   for (const session of sessions) {
     const name = session.logged_by.trim();
     if (!name) continue;
-    const key = name.toLocaleLowerCase();
+    // Group case/spacing/punctuation variants of the same name together, and display one
+    // consistent form regardless of how any single session happened to be typed.
+    const key = normalizePersonKey(name);
+    if (!key) continue;
     const current = byPerson.get(key) ?? {
-      name,
+      name: canonicalPerson(name),
       sessionCount: 0,
       completedCount: 0,
       winningCount: 0,

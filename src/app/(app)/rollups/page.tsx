@@ -19,7 +19,7 @@ export default function RollupsPage() {
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Stats</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Stats</h1>
         <p className="text-sm text-muted">All-time session totals grouped by the name entered in Logged by.</p>
       </div>
 
@@ -35,16 +35,19 @@ export default function RollupsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-base font-semibold text-foreground">{person.name}</h2>
-                    <p className="text-xs text-muted">
+                    <p className="num text-xs text-muted">
                       {formatDateForDisplay(person.firstDate)}–{formatDateForDisplay(person.lastDate)}
                     </p>
                   </div>
-                  <p className={`text-lg font-semibold ${person.netCash.isNegative() ? "text-red-400" : "text-emerald-400"}`}>
-                    {formatMoney(person.netCash)}
-                  </p>
+                  <div className="text-right">
+                    <p className={`num text-xl font-semibold ${person.netCash.isNegative() ? "text-red-400" : "text-emerald-400"}`}>
+                      {formatMoney(person.netCash)}
+                    </p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted">net cash</p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface-inset p-3">
                   <Stat label="Sessions" value={String(person.sessionCount)} />
                   <Stat label="Completed" value={String(person.completedCount)} />
                   <Stat label="Still open" value={String(openCount)} />
@@ -76,7 +79,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs text-muted">{label}</p>
-      <p className="text-base font-semibold text-foreground">{value}</p>
+      <p className="num text-base font-semibold text-foreground">{value}</p>
     </div>
   );
 }

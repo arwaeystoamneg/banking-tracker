@@ -23,6 +23,11 @@ export function SyncStatusBar() {
   const [syncing, setSyncing] = useState(false);
 
   const hasWork = pendingCount > 0 || conflictCount > 0 || !online;
+  const dotClass = !online
+    ? "bg-red-400"
+    : pendingCount > 0 || conflictCount > 0
+      ? "bg-amber-400"
+      : "bg-emerald-400";
 
   return (
     <>
@@ -31,10 +36,19 @@ export function SyncStatusBar() {
           hasWork ? "bg-amber-500/10 text-amber-300" : "bg-surface text-muted"
         }`}
       >
-        <span>
-          {!online ? "Offline. " : ""}
-          {pendingCount > 0 ? `${pendingCount} pending write${pendingCount === 1 ? "" : "s"}. ` : "All synced. "}
-          Last synced: {relativeTime(lastSyncedAt)}
+        <span className="flex items-center gap-2">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} aria-hidden />
+          <span>
+            {!online ? "Offline. " : ""}
+            {pendingCount > 0 ? (
+              <>
+                <span className="num font-semibold">{pendingCount}</span> pending write{pendingCount === 1 ? "" : "s"}.{" "}
+              </>
+            ) : (
+              "All synced. "
+            )}
+            Last synced <span className="num">{relativeTime(lastSyncedAt)}</span>
+          </span>
         </span>
         <div className="flex items-center gap-3">
           {conflictCount > 0 ? (

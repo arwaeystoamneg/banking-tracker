@@ -1,4 +1,5 @@
 import type { Game, Paytable, Sidebet } from "@/lib/validation/schemas";
+import { canonicalCasinoList, normalizeCasinoKey } from "@/lib/names";
 
 export interface GameSearchResult extends Game {
   sidebets: Sidebet[];
@@ -20,7 +21,9 @@ export function searchGames(
   casino: string | null,
 ): GameSearchResult[] {
   const q = normalize(query);
-  const casinoFilter = casino ? normalize(casino) : null;
+  // The selected casino is a canonical display name; match on its normalized key so a game listed
+  // as "The Bicycle" still matches the "Bicycle" chip.
+  const casinoFilterKey = casino ? normalizeCasinoKey(casino) : null;
 
   const sidebetsByGame = new Map<string, Sidebet[]>();
   for (const sb of sidebets) {
@@ -37,11 +40,18 @@ export function searchGames(
   }
 
   return games
-    .filter((game) => (casinoFilter ? normalize(game.casinos).includes(casinoFilter) : true))
+    .filter((game) =>
+      casinoFilterKey
+        ? canonicalCasinoList(game.casinos).some((c) => normalizeCasinoKey(c) === casinoFilterKey)
+        : true,
+    )
     .map((game) => ({ game, sidebets: sidebetsByGame.get(game.game_id) ?? [] }))
     .filter(({ game, sidebets: gameSidebets }) => {
       if (!q) return true;
-      if (normalize(game.name).includes(q) || normalize(game.casinos).includes(q)) return true;
+      // Also match the canonical room names so "hpc" finds a game listed under "Hollywood Park".
+      const canonicalCasinos = normalize(canonicalCasinoList(game.casinos).join(" "));
+      if (normalize(game.name).includes(q) || normalize(game.casinos).includes(q) || canonicalCasinos.includes(q))
+        return true;
       for (const sb of gameSidebets) {
         if (normalize(sb.name).includes(q) || normalize(sb.top_payout).includes(q)) return true;
         const rows = paytablesBySidebet.get(sb.sidebet_id) ?? [];

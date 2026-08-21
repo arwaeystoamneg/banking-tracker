@@ -6,6 +6,7 @@ import { useGames } from "@/hooks/useGames";
 import { useSidebets } from "@/hooks/useSidebets";
 import { usePaytables } from "@/hooks/usePaytables";
 import { searchGames } from "@/lib/search";
+import { canonicalCasino, normalizeCasinoKey } from "@/lib/names";
 import { GameCard } from "@/components/games/GameCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -18,15 +19,24 @@ export default function GamesPage() {
   const [casino, setCasino] = useState<string | null>(null);
 
   const casinos = useMemo(() => {
-    const set = new Set<string>();
+    // De-dupe rooms by normalized key so "The Bicycle", "bicycle", and "Bicycle" are one chip.
+    const byKey = new Map<string, string>();
     for (const g of games) {
       for (const c of g.casinos.split("|")) {
         const trimmed = c.trim();
-        if (trimmed) set.add(trimmed);
+        if (!trimmed) continue;
+        const display = canonicalCasino(trimmed);
+        byKey.set(normalizeCasinoKey(display), display);
       }
     }
-    return Array.from(set).sort();
+    return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
   }, [games]);
+
+  const sidebetCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const sb of sidebets) counts.set(sb.game_id, (counts.get(sb.game_id) ?? 0) + 1);
+    return counts;
+  }, [sidebets]);
 
   const results = useMemo(
     () => searchGames(games, sidebets, paytables, query, casino),
@@ -34,56 +44,95 @@ export default function GamesPage() {
   );
 
   return (
-    <main className="mx-auto max-w-lg space-y-4 px-4 pt-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Games</h1>
+    <main className="mx-auto max-w-lg px-4 pb-8">
+      <div className="flex items-end justify-between pt-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Games</h1>
+          <p className="text-sm text-muted">
+            {isLoading ? "Loading…" : `${games.length} game${games.length === 1 ? "" : "s"} on file`}
+          </p>
+        </div>
         <Link href="/games/new">
           <Button className="h-10 px-4 text-sm">+ Add</Button>
         </Link>
       </div>
 
-      <Input
-        placeholder="Search name, casino, side bet, or paytable outcome…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        inputMode="search"
-      />
+      {/* Search + filters stay pinned so they remain reachable one-handed while scrolling the list. */}
+      <div className="sticky top-0 z-20 -mx-4 space-y-3 bg-background/95 px-4 pb-3 pt-3 backdrop-blur">
+        <Input
+          placeholder="Search name, casino, side bet, or payout…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          inputMode="search"
+          type="search"
+        />
 
-      {casinos.length > 0 ? (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => setCasino(null)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
-              casino === null ? "border-emerald-500 text-emerald-400" : "border-border text-muted"
-            }`}
-          >
-            All casinos
-          </button>
-          {casinos.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCasino(c)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
-                casino === c ? "border-emerald-500 text-emerald-400" : "border-border text-muted"
-              }`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-      ) : null}
+        {casinos.length > 0 ? (
+          <div className="no-scrollbar flex gap-2 overflow-x-auto">
+            <FilterChip active={casino === null} onClick={() => setCasino(null)}>
+              All
+            </FilterChip>
+            {casinos.map((c) => (
+              <FilterChip key={c} active={casino === c} onClick={() => setCasino(c)}>
+                {c}
+              </FilterChip>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-28 animate-pulse rounded-2xl border border-border bg-surface" />
+          ))}
+        </div>
       ) : results.length === 0 ? (
-        <p className="text-sm text-muted">No games match.</p>
+        <EmptyState query={query} />
       ) : (
         <div className="space-y-3">
+          {query || casino ? (
+            <p className="text-xs text-muted">
+              {results.length} match{results.length === 1 ? "" : "es"}
+            </p>
+          ) : null}
           {results.map((game) => (
-            <GameCard key={game.game_id} game={game} />
+            <GameCard key={game.game_id} game={game} sidebetCount={sidebetCounts.get(game.game_id) ?? 0} />
           ))}
         </div>
       )}
     </main>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
+          : "border-border text-muted active:bg-surface-raised"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EmptyState({ query }: { query: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-border bg-surface/50 px-4 py-10 text-center">
+      <p className="text-sm text-muted">
+        {query ? `No games match “${query}”.` : "No games yet."}
+      </p>
+      {!query ? (
+        <Link href="/games/new" className="mt-3 inline-block">
+          <Button variant="secondary" className="h-10 px-4 text-sm">
+            Add the first game
+          </Button>
+        </Link>
+      ) : null}
+    </div>
   );
 }

@@ -12,6 +12,8 @@ import { FeeScheduleGrid } from "@/components/games/FeeScheduleGrid";
 import { VerifiedBadge } from "@/components/games/VerifiedBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Metric } from "@/components/ui/Metric";
+import { formatPercent } from "@/lib/decimal";
 
 export default function GameDetailPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
@@ -50,14 +52,37 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
     }
   }
 
+  const edgePositive = game.edge_pct >= 0;
+  const edgeTone = !game.verified ? "warning" : edgePositive ? "positive" : "negative";
+  const signedEdge = `${edgePositive ? "+" : ""}${formatPercent(game.edge_pct, 2)}`;
+
   return (
     <main className="mx-auto max-w-lg space-y-6 px-4 pt-4 pb-8">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-foreground">{game.name}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{game.name}</h1>
+          <p className="mt-0.5 text-sm text-muted">
+            {game.filing ? <span className="num">{game.filing}</span> : "No filing"}
+            {game.version ? ` · ${game.version}` : ""}
+          </p>
+        </div>
         <VerifiedBadge verified={game.verified} />
       </div>
 
+      {/* Key figures up top — the decision-relevant numbers, before the editing surface. Edge always
+          shows its base (edge_text), and an unverified edge renders in warning color. */}
+      <section className="grid grid-cols-2 gap-4 rounded-2xl border border-border bg-surface p-4">
+        <Metric label="Banker edge" value={signedEdge} base={game.edge_text || undefined} tone={edgeTone} size="lg" />
+        <Metric label="Exposure" value={`×${game.exposure_mult}`} base="bank per $1 of action" size="lg" />
+        {game.fee_text ? (
+          <div className="col-span-2 border-t border-border pt-3">
+            <Metric label="Collection" value={<span className="text-base">{game.fee_text}</span>} />
+          </div>
+        ) : null}
+      </section>
+
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Details — tap any field to edit</p>
         <EditableField label="Name" value={game.name} onSave={save("name")} />
         <EditableField label="Casinos (pipe-delimited)" value={game.casinos} onSave={save("casinos")} />
         <EditableField label="Version" value={game.version} onSave={save("version")} />

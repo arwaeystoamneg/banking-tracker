@@ -11,30 +11,39 @@ export function PaytableGrid({ sidebetId }: { sidebetId: string }) {
     <div className="space-y-2">
       {isLoading ? (
         <p className="text-xs text-muted">Loading paytable…</p>
-      ) : (
-        rows.map((row) => (
-          <div key={row.paytable_id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
-            <input
-              defaultValue={row.outcome}
-              onBlur={(e) => {
-                if (e.target.value !== row.outcome) void update(row.paytable_id, { outcome: e.target.value }, row._row_version);
-              }}
-              className="h-10 rounded-lg border border-border bg-surface px-2 text-sm text-foreground outline-none focus:border-neutral-500"
-              placeholder="Outcome"
-            />
-            <input
-              defaultValue={row.payout}
-              onBlur={(e) => {
-                if (e.target.value !== row.payout) void update(row.paytable_id, { payout: e.target.value }, row._row_version);
-              }}
-              className="h-10 w-24 rounded-lg border border-border bg-surface px-2 text-sm text-foreground outline-none focus:border-neutral-500"
-              placeholder="Payout"
-            />
-            <button onClick={() => void remove(row.paytable_id)} className="h-10 w-10 text-muted active:text-red-400">
-              ✕
-            </button>
+      ) : rows.length > 0 ? (
+        <>
+          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-2 text-[11px] font-medium uppercase tracking-wide text-muted">
+            <span>Outcome</span>
+            <span className="w-24 text-right">Payout</span>
+            <span className="w-10" />
           </div>
-        ))
+          {rows.map((row) => (
+            <div key={row.paytable_id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
+              <input
+                defaultValue={row.outcome}
+                onBlur={(e) => {
+                  if (e.target.value !== row.outcome) void update(row.paytable_id, { outcome: e.target.value }, row._row_version);
+                }}
+                className="h-10 rounded-lg border border-border bg-surface-inset px-2 text-sm text-foreground outline-none focus:border-emerald-500/70"
+                placeholder="Outcome"
+              />
+              <input
+                defaultValue={row.payout}
+                onBlur={(e) => {
+                  if (e.target.value !== row.payout) void update(row.paytable_id, { payout: e.target.value }, row._row_version);
+                }}
+                className="num h-10 w-24 rounded-lg border border-border bg-surface-inset px-2 text-right text-sm font-semibold text-foreground outline-none focus:border-emerald-500/70"
+                placeholder="—"
+              />
+              <button onClick={() => void remove(row.paytable_id)} className="h-10 w-10 text-muted active:text-red-400" aria-label="Remove row">
+                ✕
+              </button>
+            </div>
+          ))}
+        </>
+      ) : (
+        <p className="px-2 text-xs text-muted">No paytable rows — a side bet with no captured payouts is unquantified tail risk.</p>
       )}
       <Button
         variant="secondary"

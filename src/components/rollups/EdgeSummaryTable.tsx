@@ -37,7 +37,7 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: { is
   return (
     <div>
       <p className="text-xs text-muted">{label}</p>
-      <p className={`text-base font-semibold ${toneClass}`}>{value}</p>
+      <p className={`num text-base font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
 }

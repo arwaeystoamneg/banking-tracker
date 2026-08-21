@@ -1,10 +1,28 @@
 {
   "games": [
     {
+      "game_id": "gm_baccarat_hpc",
+      "name": "Baccarat Hollywood Park",
+      "version": "Standard",
+      "casinos": "Hollywood Park",
+      "filing": "GEGA-004413",
+      "edge_text": "~1.123% of TTA when balanced (banker +1.235% vs Player action, +1.011% vs Banker action)",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "exposure_mult": 1.0,
+      "fee_text": "",
+      "rules": "Standard 8-deck California player-banked baccarat: Banker, Player, and Tie wagers with standard third-card draw rules. The player-dealer banks all wagers.",
+      "settlement_order": "Main (Banker/Player/Tie) settles first; any side bets settle last if the bank runs short.",
+      "notes": "Edge follows the closed-form baccarat math in CLAUDE.md and is solved for balanced action, but this specific listing is not marked verified: the fee schedule (GEGA-004413) has not been transcribed and the room's gross-vs-net coverage rule (CLAUDE.md open question 1) is unconfirmed. Do not treat fee numbers as solved.",
+      "edited_by": "seed",
+      "edited_at": "2026-08-21T00:00:00.000Z",
+      "_row_version": 1
+    },
+    {
       "game_id": "gm_baccarat_bicycle",
       "name": "Baccarat Bicycle",
       "version": "Standard",
-      "casinos": "The Bicycle",
+      "casinos": "Bicycle",
       "filing": "",
       "edge_text": "~1.123% of TTA when balanced (banker +1.235% vs Player action, +1.011% vs Banker action)",
       "edge_pct": 0.01123,
@@ -17,9 +35,38 @@
       "edited_by": "seed",
       "edited_at": "2026-08-20T00:00:00.000Z",
       "_row_version": 1
+    },
+    {
+      "game_id": "gm_baccarat_commerce",
+      "name": "Baccarat Commerce",
+      "version": "Standard",
+      "casinos": "Commerce",
+      "filing": "",
+      "edge_text": "~1.123% of TTA when balanced (banker +1.235% vs Player action, +1.011% vs Banker action)",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "exposure_mult": 1.0,
+      "fee_text": "",
+      "rules": "Standard 8-deck California player-banked baccarat: Banker, Player, and Tie wagers with standard third-card draw rules. The player-dealer banks all wagers.",
+      "settlement_order": "Main (Banker/Player/Tie) settles first; any side bets settle last if the bank runs short.",
+      "notes": "Edge follows the closed-form baccarat math in CLAUDE.md and is solved for balanced action, but this specific listing is not marked verified: no BGC filing has been sourced and the Commerce fee schedule is unfilled (CLAUDE.md open question 3). Do not treat fee numbers as solved.",
+      "edited_by": "seed",
+      "edited_at": "2026-08-21T00:00:00.000Z",
+      "_row_version": 1
     }
   ],
   "sidebets": [
+    {
+      "sidebet_id": "sb_baccarat_hpc_main",
+      "game_id": "gm_baccarat_hpc",
+      "name": "Main (Banker/Player/Tie)",
+      "top_payout": "Tie 8:1",
+      "limits": "",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "note": "Modeled as a Sidebets row for schema convenience — this is the primary base wager, not a true side bet. Standard payouts assumed (Banker 0.95:1, Player 1:1, Tie 8:1); not confirmed against the filed GEGA-004413 schedule.",
+      "_row_version": 1
+    },
     {
       "sidebet_id": "sb_baccarat_main",
       "game_id": "gm_baccarat_bicycle",
@@ -52,14 +99,31 @@
       "verified": false,
       "note": "Assumed to be the common 'Dragon Bonus' side bet (pays on win margin); not confirmed for this room. Placeholder pending real numbers.",
       "_row_version": 1
+    },
+    {
+      "sidebet_id": "sb_baccarat_commerce_main",
+      "game_id": "gm_baccarat_commerce",
+      "name": "Main (Banker/Player/Tie)",
+      "top_payout": "Tie 8:1",
+      "limits": "",
+      "edge_pct": 0.01123,
+      "verified": false,
+      "note": "Modeled as a Sidebets row for schema convenience — this is the primary base wager, not a true side bet. Standard payouts assumed (Banker 0.95:1, Player 1:1, Tie 8:1); not confirmed against a filed schedule.",
+      "_row_version": 1
     }
   ],
   "paytables": [
+    { "paytable_id": "pt_hpc_main_banker", "sidebet_id": "sb_baccarat_hpc_main", "ordinal": 1, "outcome": "Banker win", "payout": "0.95:1", "_row_version": 1 },
+    { "paytable_id": "pt_hpc_main_player", "sidebet_id": "sb_baccarat_hpc_main", "ordinal": 2, "outcome": "Player win", "payout": "1:1", "_row_version": 1 },
+    { "paytable_id": "pt_hpc_main_tie", "sidebet_id": "sb_baccarat_hpc_main", "ordinal": 3, "outcome": "Tie", "payout": "8:1", "_row_version": 1 },
     { "paytable_id": "pt_main_banker", "sidebet_id": "sb_baccarat_main", "ordinal": 1, "outcome": "Banker win", "payout": "0.95:1", "_row_version": 1 },
     { "paytable_id": "pt_main_player", "sidebet_id": "sb_baccarat_main", "ordinal": 2, "outcome": "Player win", "payout": "1:1", "_row_version": 1 },
     { "paytable_id": "pt_main_tie", "sidebet_id": "sb_baccarat_main", "ordinal": 3, "outcome": "Tie", "payout": "8:1", "_row_version": 1 },
     { "paytable_id": "pt_koi_placeholder", "sidebet_id": "sb_baccarat_koi", "ordinal": 1, "outcome": "PLACEHOLDER — full paytable not yet entered", "payout": "TBD", "_row_version": 1 },
-    { "paytable_id": "pt_dragon_placeholder", "sidebet_id": "sb_baccarat_dragon", "ordinal": 1, "outcome": "PLACEHOLDER — full paytable not yet entered", "payout": "TBD", "_row_version": 1 }
+    { "paytable_id": "pt_dragon_placeholder", "sidebet_id": "sb_baccarat_dragon", "ordinal": 1, "outcome": "PLACEHOLDER — full paytable not yet entered", "payout": "TBD", "_row_version": 1 },
+    { "paytable_id": "pt_commerce_main_banker", "sidebet_id": "sb_baccarat_commerce_main", "ordinal": 1, "outcome": "Banker win", "payout": "0.95:1", "_row_version": 1 },
+    { "paytable_id": "pt_commerce_main_player", "sidebet_id": "sb_baccarat_commerce_main", "ordinal": 2, "outcome": "Player win", "payout": "1:1", "_row_version": 1 },
+    { "paytable_id": "pt_commerce_main_tie", "sidebet_id": "sb_baccarat_commerce_main", "ordinal": 3, "outcome": "Tie", "payout": "8:1", "_row_version": 1 }
   ],
   "feeSchedules": [],
   "sessions": [],
