@@ -3,9 +3,11 @@ import {
   BAD_BEAT_BASE_EDGE,
   BAD_BEAT_PROBABILITIES,
   badBeatEdgeForCoverage,
+  badBeatHitMultipleAfterTrips,
   badBeatSigma,
   evaluate7,
   realizedBadBeatEdge,
+  realizedBadBeatEdgeAfterTrips,
   simulateBadBeatProbabilities,
 } from "@/lib/math/uthBadBeat";
 
@@ -64,6 +66,21 @@ describe("realized edge vs coverage", () => {
     expect(full).toBeGreaterThan(1); // far above an even-money bet's σ≈1
     expect(capped).toBeLessThan(full);
     expect(capped).toBeGreaterThan(0);
+  });
+
+  it("after-Trips cap does not withhold max main; SF is paid from the tray minus that hand's Trips", () => {
+    const leftoverBank = Math.max(0, 17_000 - 5 * 100 * 4.5 - 5 * 5 * 50);
+    const leftover = badBeatEdgeForCoverage(leftoverBank, 2);
+    const afterTrips = realizedBadBeatEdgeAfterTrips(17_000, 5, 2);
+    const full = BAD_BEAT_BASE_EDGE;
+    // $17k pays 7500:1 on $2 after $200 SF Trips; leftover-bank still pretends SF is short.
+    expect(afterTrips).toBeCloseTo(full, 4);
+    expect(leftover).toBeGreaterThan(afterTrips);
+    expect(badBeatHitMultipleAfterTrips(17_000, 5, 2, "straightFlush")).toBeCloseTo(8400, 6);
+  });
+
+  it("no Trips posted matches a plain buy-in cap", () => {
+    expect(realizedBadBeatEdgeAfterTrips(2000, 0, 2)).toBeCloseTo(badBeatEdgeForCoverage(2000, 2), 9);
   });
 
   it("badBeatEdgeForCoverage maps bank/action to a cap", () => {

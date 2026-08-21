@@ -21,7 +21,22 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   navigateFallback: "/offline.html",
+  navigateFallbackDenylist: [/^\/login(?:\/|$)/, /^\/api\//],
   runtimeCaching: [
+    {
+      matcher: ({ url }) => url.pathname === "/api/login" || url.pathname === "/api/logout",
+      method: "POST",
+      handler: new NetworkOnly(),
+    },
+    {
+      matcher: ({ request }) => request.headers.has("Next-Action") || request.headers.has("next-action"),
+      method: "POST",
+      handler: new NetworkOnly(),
+    },
+    {
+      matcher: ({ request }) => request.headers.has("RSC"),
+      handler: new NetworkOnly(),
+    },
     {
       matcher: ({ url }) =>
         /^\/api\/(games|sidebets|paytables|fee-schedules|sessions|rounds)(\/|$)/.test(url.pathname),

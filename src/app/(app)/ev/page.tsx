@@ -13,27 +13,29 @@ import { simulateSessions, type SimResult } from "@/lib/math/evSim";
 import {
   BAD_BEAT_PAYOUTS,
   BAD_BEAT_PROBABILITIES,
-  badBeatEdgeForCoverage,
+  TRIPS_PAYOUTS_BY_BADBEAT,
+  badBeatHitMultipleAfterTrips,
   badBeatPayoutsFromRows,
-  badBeatSigma,
+  badBeatSigmaAfterTrips,
   realizedBadBeatEdge,
+  realizedBadBeatEdgeAfterTrips,
+  tripsPayoutsFromRows,
 } from "@/lib/math/uthBadBeat";
 import {
   BACCARAT_BET_PAYOUTS,
-  baccaratBetCap,
-  baccaratBetEdgeForCoverage,
-  baccaratBetModel,
   baccaratBetPayoutFromRows,
-  baccaratBetSigma,
   matchBaccaratSidebet,
-  realizedBaccaratBetEdge,
   type BaccaratBetKind,
 } from "@/lib/math/baccaratBets";
+import {
+  baccaratBankingMoments,
+  simulateBaccaratSessions,
+  type BaccaratBets,
+} from "@/lib/math/baccaratSim";
 import { describeCliff, findTierForAction, isNearCliff, type FeeTier } from "@/lib/fees/cliff";
 import { maxPayoutMultiple } from "@/lib/payout";
 import { formatMoney } from "@/lib/decimal";
 import { normalizeCasinoKey } from "@/lib/names";
-import { baccaratExpectedValue, baccaratVariance } from "@/lib/math/baccarat";
 
 const SIM_SESSIONS = 4000;
 
@@ -42,30 +44,13 @@ function num(s: string, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** One coverage-capped baccarat (or BBJ-style) layer: fully booked, edge/σ from the leftover bank. */
-function cappedBaccaratLayer(
-  id: string,
-  name: string,
-  kind: BaccaratBetKind,
-  actionOffered: number,
-  payout: number,
-  bankAvailable: number,
-) {
-  const cap = baccaratBetCap(bankAvailable, actionOffered);
-  const model = baccaratBetModel(kind, payout);
-  return {
-    id,
-    name,
-    actionOffered,
-    edge: baccaratBetEdgeForCoverage(kind, bankAvailable, actionOffered, payout),
-    exposureMult: 1,
-    sigma: baccaratBetSigma(model, cap),
-    kind,
-    cap,
-    baseEdge: realizedBaccaratBetEdge(model, Infinity),
-    payout,
-  };
-}
+const BACCARAT_BET_LABEL: Record<keyof BaccaratBets, string> = {
+  player: "Player line",
+  banker: "Banker line",
+  tie: "Tie",
+  dragon: "Dragon 7",
+  pandaKoi: "Panda / Koi",
+};
 
 export default function EvCalculatorPage() {
   const { games } = useGames();
@@ -149,12 +134,6 @@ export default function EvCalculatorPage() {
   const baccaratBankerAmount = Math.max(0, num(baccaratBankerAction));
   const baccaratTieAmount = Math.max(0, num(baccaratTieAction));
   const baseAction = isBaccarat ? baccaratPlayerAmount + baccaratBankerAmount : n * mainBetAmount;
-  const baccaratMoments = isBaccarat
-    ? {
-        ev: baccaratExpectedValue(baccaratPlayerAmount, baccaratBankerAmount),
-        variance: baccaratVariance(baccaratPlayerAmount, baccaratBankerAmount),
-      }
-    : undefined;
 
   const sideActionOf = (sidebetId: string) => {
     const size = Math.max(0, num(sideSizes[sidebetId] ?? ""));
@@ -201,42 +180,58 @@ export default function EvCalculatorPage() {
     }))
     .filter((l) => l.actionOffered > 0);
 
-  // Walk settlement: main (Player/Banker) first, then Tie, Panda/Koi, Dragon, other sides, BBJ last.
-  let bankRemaining = Math.max(0, bankAmount - Math.min(baseAction * (game?.exposure_mult || 1), bankAmount));
-  const baccaratCappedLayers: ReturnType<typeof cappedBaccaratLayer>[] = [];
-
-  if (isBaccarat && !tieFromSidebet && baccaratTieAmount > 0) {
+  const baccaratBets: BaccaratBets = {
+    player: baccaratPlayerAmount,
+    banker: baccaratBankerAmount,
+    tie:
+      baccaratTieAmount +
+      baccaratCappedSidebets.filter((row) => row.kind === "tie").reduce((sum, row) => sum + row.actionOffered, 0),
+    dragon: baccaratCappedSidebets.filter((row) => row.kind === "dragon").reduce((sum, row) => sum + row.actionOffered, 0),
+    pandaKoi: baccaratCappedSidebets.filter((row) => row.kind === "pandaKoi").reduce((sum, row) => sum + row.actionOffered, 0),
+  };
+  const baccaratPayouts: Record<BaccaratBetKind, number> = { ...BACCARAT_BET_PAYOUTS };
+  for (const row of baccaratCappedSidebets) baccaratPayouts[row.kind] = row.payout;
+  if (isBaccarat && !tieFromSidebet) {
     const mainPaytable = gameSidebets.find((sb) => /main/i.test(sb.name));
     const tiePayout =
       (mainPaytable ? baccaratBetPayoutFromRows("tie", paytableRowsOf(mainPaytable.sidebet_id)) : null) ??
       BACCARAT_BET_PAYOUTS.tie;
-    baccaratCappedLayers.push(
-      cappedBaccaratLayer("baccarat_tie", "Tie", "tie", baccaratTieAmount, tiePayout, bankRemaining),
-    );
-    bankRemaining -= Math.min(baccaratTieAmount, bankRemaining);
+    baccaratPayouts.tie = tiePayout;
   }
 
-  for (const kind of ["tie", "pandaKoi", "dragon"] as const) {
-    for (const row of baccaratCappedSidebets) {
-      if (row.kind !== kind || row.actionOffered <= 0) continue;
-      baccaratCappedLayers.push(
-        cappedBaccaratLayer(row.id, row.name, row.kind, row.actionOffered, row.payout, bankRemaining),
-      );
-      bankRemaining -= Math.min(row.actionOffered, bankRemaining);
-    }
-  }
+  const baccaratMomentsSettled = isBaccarat ? baccaratBankingMoments(bankAmount, baccaratBets, undefined, baccaratPayouts) : null;
+  const baccaratMomentsFull = isBaccarat ? baccaratBankingMoments(1e12, baccaratBets, undefined, baccaratPayouts) : null;
+  const baccaratCoverageRows = isBaccarat
+    ? (["player", "banker", "tie", "pandaKoi", "dragon"] as const)
+        .filter((bet) => baccaratBets[bet] > 0)
+        .map((bet) => ({
+          id: bet,
+          name: BACCARAT_BET_LABEL[bet],
+          action: baccaratBets[bet],
+          payout: baccaratPayouts[bet],
+          hitMultiple: baccaratMomentsSettled!.hitMultiple[bet],
+          edge: baccaratMomentsSettled!.edges[bet],
+          baseEdge: baccaratMomentsFull!.edges[bet],
+        }))
+    : [];
+  const baccaratUnderbanked = baccaratCoverageRows.some((row) => row.hitMultiple + 0.01 < row.payout);
 
-  for (const l of otherSideLayers) bankRemaining -= Math.min(l.actionOffered * l.exposureMult, bankRemaining);
-  const bankForBbj = Math.max(0, bankRemaining);
+  const tripsSidebet = gameSidebets.find((sb) => sb !== bbjSidebet && /trips/i.test(sb.name));
+  const tripsSize = tripsSidebet ? Math.max(0, num(sideSizes[tripsSidebet.sidebet_id] ?? "")) : 0;
+  const tripsPayouts = tripsSidebet
+    ? (tripsPayoutsFromRows(paytableRowsOf(tripsSidebet.sidebet_id)) ?? TRIPS_PAYOUTS_BY_BADBEAT)
+    : TRIPS_PAYOUTS_BY_BADBEAT;
 
   const bbjSize = bbjSidebet ? num(sideSizes[bbjSidebet.sidebet_id] ?? "") : 0;
   const bbjAction = bbjSidebet ? sideActionOf(bbjSidebet.sidebet_id) : 0;
-  const bbjCap = bbjSize > 0 ? bankForBbj / bbjSize : Infinity;
+  const bbjSfCap = bbjSize > 0 ? badBeatHitMultipleAfterTrips(bankAmount, tripsSize, bbjSize, "straightFlush", tripsPayouts) : Infinity;
   const bbjBaseEdge = realizedBadBeatEdge(BAD_BEAT_PROBABILITIES, Infinity, bbjPayouts);
-  const bbjEdge = bbjSidebet && bbjAction > 0 ? badBeatEdgeForCoverage(bankForBbj, bbjSize, bbjPayouts) : null;
+  const bbjEdge =
+    bbjSidebet && bbjAction > 0
+      ? realizedBadBeatEdgeAfterTrips(bankAmount, tripsSize, bbjSize, bbjPayouts, tripsPayouts)
+      : null;
 
   const sideLayers = [
-    ...baccaratCappedLayers,
     ...otherSideLayers,
     ...(bbjSidebet && bbjAction > 0 && bbjEdge !== null
       ? [
@@ -246,26 +241,15 @@ export default function EvCalculatorPage() {
             actionOffered: bbjAction,
             edge: bbjEdge,
             exposureMult: 1, // fully booked; the coverage cap (not an exposure reserve) models the risk
-            sigma: badBeatSigma(BAD_BEAT_PROBABILITIES, bbjCap, bbjPayouts),
+            sigma: badBeatSigmaAfterTrips(bankAmount, tripsSize, bbjSize, bbjPayouts, tripsPayouts),
           },
         ]
       : []),
   ];
 
-  const baccaratMainCoverage = isBaccarat
-    ? [
-        ...(baccaratPlayerAmount > 0
-          ? [cappedBaccaratLayer("player", "Player line", "player", baccaratPlayerAmount, BACCARAT_BET_PAYOUTS.player, bankAmount)]
-          : []),
-        ...(baccaratBankerAmount > 0
-          ? [cappedBaccaratLayer("banker", "Banker line", "banker", baccaratBankerAmount, BACCARAT_BET_PAYOUTS.banker, bankAmount)]
-          : []),
-      ]
-    : [];
-
   // Collection tiers use base table action (TTA); side bets are separate settlement layers.
   // Tie is a base wager (Player/Banker/Tie), so it counts toward the fee schedule.
-  const feeBasisTta = isBaccarat ? baseAction + baccaratTieAmount : baseAction;
+  const feeBasisTta = isBaccarat ? baseAction + baccaratBets.tie : baseAction;
   const feeTier = feeTiers.length > 0 ? findTierForAction(feeTiers, feeBasisTta) : null;
   const collection = feeTier ? feeTier.pdFee.toNumber() : 0;
   const cliff = feeTiers.length > 0 ? describeCliff(feeBasisTta, feeTiers) : null;
@@ -277,13 +261,17 @@ export default function EvCalculatorPage() {
         bank: bankAmount,
         collection,
         base: {
-          actionOffered: baseAction,
+          actionOffered: isBaccarat ? baccaratBets.player + baccaratBets.banker + baccaratBets.tie + baccaratBets.dragon + baccaratBets.pandaKoi : baseAction,
           edge: game.edge_pct,
           exposureMult: game.exposure_mult || 1,
           sigma: mainSigmaValue,
-          exactMoments: baccaratMoments,
+            exactMoments: baccaratMomentsSettled
+            ? { ev: baccaratMomentsSettled.ev, variance: baccaratMomentsSettled.variance, ignoreCoverage: true }
+            : undefined,
         },
-        sides: sideLayers.map((l) => ({ actionOffered: l.actionOffered, edge: l.edge, exposureMult: l.exposureMult, sigma: l.sigma })),
+        sides: isBaccarat
+          ? []
+          : sideLayers.map((l) => ({ actionOffered: l.actionOffered, edge: l.edge, exposureMult: l.exposureMult, sigma: l.sigma })),
         spots: isBaccarat ? 1 : n,
         rho: rhoVal,
       })
@@ -292,10 +280,25 @@ export default function EvCalculatorPage() {
   // A finished simulation is only valid for the inputs it ran on. Key it to those inputs and only show
   // it while the key still matches, so the panel never displays ruin/drawdown that predates an edit.
   const simKey = `${gameId}|${players}|${bank}|${mainSize}|${baccaratPlayerAction}|${baccaratBankerAction}|${baccaratTieAction}|${JSON.stringify(sideSizes)}|${selectedFeeCasino}|${selectedFeeOption}|${mainSigma}|${sideSigma}|${rho}|${roundsPerSession}`;
-  const simResult = !isBaccarat && sim && sim.key === simKey ? sim.result : null;
+  const simResult = sim && sim.key === simKey ? sim.result : null;
 
   function runSim() {
     if (!result) return;
+    if (isBaccarat) {
+      setSim({
+        key: simKey,
+        result: simulateBaccaratSessions({
+          bank: bankAmount,
+          collection,
+          bets: baccaratBets,
+          sessions: SIM_SESSIONS,
+          roundsPerSession: Math.max(1, Math.round(num(roundsPerSession, 50))),
+          seed: 0x9e3779b1,
+          payouts: baccaratPayouts,
+        }),
+      });
+      return;
+    }
     const layers = [
       { booked: result.base.booked.toNumber(), edge: game!.edge_pct, sigma: mainSigmaValue },
       ...result.sides.map((s, i) => ({ booked: s.booked.toNumber(), edge: sideLayers[i].edge, sigma: sideLayers[i].sigma })),
@@ -321,8 +324,7 @@ export default function EvCalculatorPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">EV &amp; SD calculator</h1>
         <p className="text-sm text-muted">
           Pick a game, set each bet size, and get the per-round expectation and volatility — with underbanking modeled
-          by settlement order (base funds first, side bets get the leftover bank) and the collection pulled from the
-          fee schedule.
+          from how the hand actually pays, and the collection pulled from the fee schedule.
         </p>
       </div>
 
@@ -370,7 +372,7 @@ export default function EvCalculatorPage() {
             title="Main bet"
             subtitle={
               isBaccarat
-                ? `exact 8-deck closed form · exposure ×${game.exposure_mult}`
+                ? `8-deck deal · settle each hand · exposure ×${game.exposure_mult}`
                 : `edge ${(game.edge_pct * 100).toFixed(3)}% · exposure ×${game.exposure_mult}`
             }
           >
@@ -388,8 +390,8 @@ export default function EvCalculatorPage() {
                       ; Tie = <span className="num text-muted-strong">{formatMoney(baccaratTieAmount)}</span>
                     </>
                   ) : null}
-                  . Player/Banker EV uses the exact imbalance formula; Tie, Dragon, and Panda/Koi use coverage-capped
-                  payouts like the UTH bad beat.
+                  . Each hand is dealt and paid in filing order (Player, Banker, Tie, Panda/Koi, Dragon) from the
+                  buy-in. Dragon 7 does not pay Banker, and collecting Player does not fund the 40:1.
                 </p>
               </>
             ) : (
@@ -416,7 +418,7 @@ export default function EvCalculatorPage() {
                         sb === bbjSidebet
                           ? `tail ×${(sideExposure.get(sb.sidebet_id) ?? 1).toLocaleString()} · edge from Monte Carlo`
                           : isBaccarat && matchBaccaratSidebet(sb.name)
-                            ? `tail ×${(sideExposure.get(sb.sidebet_id) ?? 1).toLocaleString()} · edge from coverage`
+                            ? `tail ×${(sideExposure.get(sb.sidebet_id) ?? 1).toLocaleString()} · edge from hand settlement`
                             : `tail ×${(sideExposure.get(sb.sidebet_id) ?? 1).toLocaleString()} · edge ${(sb.edge_pct * 100).toFixed(2)}%`
                       }
                       value={sideSizes[sb.sidebet_id] ?? ""}
@@ -426,36 +428,38 @@ export default function EvCalculatorPage() {
                 ))}
                 <p className="text-xs text-muted">
                   {isBaccarat
-                    ? "Sizes are total table action, not per-player. Dragon and Panda/Koi use coverage-capped edge like the UTH bad beat. Blank size = not offered."
+                    ? "Sizes are total table action, not per-player. Dragon and Panda/Koi are paid from the bank left on the hand they actually hit. Blank size = not offered."
                     : "Side edge uses each bet's recorded edge_pct (0 = unknown; set it on the game page). Blank size = not offered."}
                 </p>
               </div>
             )}
           </Panel>
 
-          {/* Baccarat — coverage-capped edges, same model as the UTH Bad Beat Jackpot */}
-          {isBaccarat && (baccaratMainCoverage.length > 0 || baccaratCappedLayers.length > 0) ? (
-            <Panel title="Baccarat coverage edges" subtitle="capped by leftover bank">
+          {isBaccarat && baccaratCoverageRows.length > 0 ? (
+            <Panel title="Baccarat coverage edges" subtitle="settled per hand">
               <div className="space-y-3">
-                {[...baccaratMainCoverage, ...baccaratCappedLayers].map((layer) => {
-                  const raised = layer.edge > layer.baseEdge + 0.002;
+                {baccaratCoverageRows.map((row) => {
+                  const raised = row.edge > row.baseEdge + 0.002;
+                  const full = row.hitMultiple + 0.01 >= row.payout;
                   return (
-                    <div key={layer.id} className="space-y-2 rounded-xl border border-border bg-surface-inset px-3 py-3">
+                    <div key={row.id} className="space-y-2 rounded-xl border border-border bg-surface-inset px-3 py-3">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-xs font-medium text-foreground">{layer.name}</span>
+                        <span className="text-xs font-medium text-foreground">{row.name}</span>
                         <span className="num text-[11px] text-muted">
-                          covers ×{Number.isFinite(layer.cap) ? Math.floor(layer.cap).toLocaleString() : "∞"} of {layer.payout}:1
+                          {full
+                            ? `pays full ${row.payout}:1 on a hit`
+                            : `pays ×${row.hitMultiple.toFixed(1)} of ${row.payout}:1 on a hit`}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <Metric
                           label="Full-coverage edge"
-                          value={`${(layer.baseEdge * 100).toFixed(layer.baseEdge < 0.03 ? 3 : 1)}%`}
+                          value={`${(row.baseEdge * 100).toFixed(row.baseEdge < 0.03 ? 3 : 1)}%`}
                           base="fully banked"
                         />
                         <Metric
                           label="Realized edge (this setup)"
-                          value={`${(layer.edge * 100).toFixed(layer.edge < 0.03 ? 3 : 1)}%`}
+                          value={`${(row.edge * 100).toFixed(row.edge < 0.03 ? 3 : 1)}%`}
                           base={raised ? "raised by underbanking" : "≈ fully banked"}
                           tone={raised ? "warning" : "positive"}
                         />
@@ -465,16 +469,16 @@ export default function EvCalculatorPage() {
                 })}
               </div>
               <p className="text-xs text-muted">
-                Player/Banker settle first at even money (closed-form EV above). Tie, then Panda/Koi, then Dragon 7 take
-                whatever bank is left and pay min(felt line, cap) on a hit — the same coverage cap as the UTH bad beat.
-                A short bank on a 8:1 / 25:1 / 40:1 line keeps the shortfall, so that bet&apos;s edge rises.
+                Winners are paid from the buy-in (gross). Collecting losers on the same hand does not increase what
+                you can pay — $17k cannot cover a $20k Dragon. Panda 8 pays Player first, then Koi from what is left
+                of the tray. Those hits never share a round, so main is not reserved against a Dragon.
               </p>
             </Panel>
           ) : null}
 
           {/* Bad Beat Jackpot — Monte-Carlo edge, computed from coverage rather than a stored constant */}
           {bbjSidebet && bbjAction > 0 && bbjEdge !== null ? (
-            <Panel title="Bad Beat Jackpot edge" subtitle="Monte Carlo · capped by coverage">
+            <Panel title="Bad Beat Jackpot edge" subtitle="Monte Carlo · Trips then BBJ from the tray">
               <div className="grid grid-cols-2 gap-4">
                 <Metric label="Full-coverage edge" value={`${(bbjBaseEdge * 100).toFixed(1)}%`} base="fully banked" />
                 <Metric
@@ -485,11 +489,13 @@ export default function EvCalculatorPage() {
                 />
               </div>
               <p className="text-xs text-muted">
-                Bank left for the BBJ after base + other side bets settle:{" "}
-                <span className="num text-muted-strong">{formatMoney(bankForBbj)}</span> → covers{" "}
-                <span className="num text-muted-strong">×{Number.isFinite(bbjCap) ? Math.floor(bbjCap).toLocaleString() : "∞"}</span> per $1
-                bet (vs the 7,500× straight-flush top). Validated against the published ~14.8% house edge; edge rises as the
-                bank can&apos;t fully pay a hit.
+                Underbanking is Trips then BBJ from the buy-in — main is not reserved. On a straight-flush hit,
+                Trips {tripsSize > 0 ? `(${formatMoney(tripsSize)} × ${tripsPayouts.straightFlush}:1)` : "off"} is paid
+                first; the tray then covers{" "}
+                <span className="num text-muted-strong">
+                  ×{Number.isFinite(bbjSfCap) ? Math.floor(bbjSfCap).toLocaleString() : "∞"}
+                </span>{" "}
+                of 7,500:1. Validated ~14.8% fully banked; edge rises when a line cannot be paid in full.
               </p>
             </Panel>
           ) : null}
@@ -580,8 +586,12 @@ export default function EvCalculatorPage() {
               </div>
               <div className="flex items-center justify-between rounded-xl border border-border bg-surface-inset px-3 py-2">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Coverage</span>
-                <span className={`num text-sm font-semibold ${result.fullyBanked ? "text-emerald-400" : "text-amber-400"}`}>
-                  {result.coveragePct.times(100).toFixed(1)}%{result.fullyBanked ? "" : " · underbanked"}
+                <span className={`num text-sm font-semibold ${(isBaccarat ? !baccaratUnderbanked : result.fullyBanked) ? "text-emerald-400" : "text-amber-400"}`}>
+                  {isBaccarat
+                    ? baccaratUnderbanked
+                      ? "underbanked on a hit"
+                      : "hits fully paid"
+                    : `${result.coveragePct.times(100).toFixed(1)}%${result.fullyBanked ? "" : " · underbanked"}`}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -597,8 +607,7 @@ export default function EvCalculatorPage() {
             </section>
           ) : null}
 
-          {/* Baccarat has an exact closed form and must not be simulated. */}
-          {!isBaccarat ? <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+          <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Monte Carlo</h2>
@@ -631,19 +640,15 @@ export default function EvCalculatorPage() {
                   <Metric label="Median max drawdown" value={formatMoney(simResult.medianMaxDrawdown)} />
                 </div>
                 <p className="text-xs text-muted">
-                  The simulated EV should match the analytic EV above (a consistency check); the value the sim adds is
-                  the distribution — ruin, drawdown, and the P5–P95 spread over a finite session. Normal-approximation
-                  caveat applies to side-bet tails.
+                  {isBaccarat
+                    ? "Each round is a dealt hand settled from the running bank (Player, Banker, Tie, Panda/Koi, Dragon), minus collection. Ruin is the bank touching zero; coverage gets worse as the stack shrinks."
+                    : "The simulated EV should match the analytic EV above (a consistency check); the value the sim adds is the distribution — ruin, drawdown, and the P5–P95 spread over a finite session. Normal-approximation caveat applies to side-bet tails."}
                 </p>
               </div>
             ) : (
               <p className="text-xs text-muted">Run to estimate ruin, drawdown, and the session P&amp;L spread for this setup.</p>
             )}
-          </section> : (
-            <p className="rounded-2xl border border-border bg-surface p-4 text-xs text-muted">
-              Baccarat uses the exact 8-deck expectation and variance above; Monte Carlo is intentionally disabled.
-            </p>
-          )}
+          </section>
         </>
       )}
     </main>

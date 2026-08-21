@@ -1,5 +1,6 @@
 import "server-only";
 import { google, sheets_v4 } from "googleapis";
+import { normalizePrivateKey } from "@/lib/repositories/sheets/privateKey";
 
 /**
  * Service-account auth per CLAUDE.md's architecture decision. This module must never be imported from
@@ -24,7 +25,7 @@ export function getSheetsClient(): sheets_v4.Sheets {
 
   const auth = new google.auth.JWT({
     email,
-    key: key.replace(/\\n/g, "\n"),
+    key: normalizePrivateKey(key),
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 

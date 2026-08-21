@@ -6,7 +6,6 @@ import { SyncStatusBar } from "@/components/sync/SyncStatusBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import type { AuthUser } from "@/lib/auth/types";
-import { logout } from "@/app/login/actions";
 
 export function AppShell({ user, children }: { user: AuthUser; children: ReactNode }) {
   return (
@@ -17,7 +16,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: ReactNo
             <span>
               {user.name} · {user.role === "demo" ? "public read-only demo" : user.role}
             </span>
-            <form action={logout}>
+            <form action="/api/logout" method="POST">
               <button type="submit" className="min-h-9 px-2 text-muted-strong active:text-foreground">
                 Sign out
               </button>

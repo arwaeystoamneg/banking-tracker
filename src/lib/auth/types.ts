@@ -1,5 +1,12 @@
 export type AuthRole = "admin" | "individual" | "demo";
 
+export class AuthConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthConfigError";
+  }
+}
+
 export interface AuthUser {
   role: AuthRole;
   userId: string;

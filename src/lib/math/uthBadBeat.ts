@@ -69,8 +69,8 @@ function topRanksExcept(rankCount: number[], exclude: number[], count: number): 
   return out;
 }
 
-/** Returns { category, rank } where rank is a total order (higher wins). Cards are 0..51. */
-export function evaluate7(cards: number[]): { category: number; rank: number } {
+/** Returns { category, rank, top } where rank is a total order (higher wins). Cards are 0..51. `top` is the primary kicker (straight-flush high, quad rank, …). */
+export function evaluate7(cards: number[]): { category: number; rank: number; top: number } {
   const rankCount = new Array(15).fill(0);
   const suitCount = [0, 0, 0, 0];
   const suitRanks: number[][] = [[], [], [], []];
@@ -95,26 +95,26 @@ export function evaluate7(cards: number[]): { category: number; rank: number } {
       sf = Math.max(sf, straightHigh(present));
     }
   }
-  if (sf) return { category: 8, rank: encode(8, [sf]) };
+  if (sf) return { category: 8, rank: encode(8, [sf]), top: sf };
 
   const byCount: Record<number, number[]> = { 1: [], 2: [], 3: [], 4: [] };
   for (let r = 14; r >= 2; r -= 1) if (rankCount[r]) byCount[rankCount[r]].push(r);
 
   if (byCount[4].length) {
     const q = byCount[4][0];
-    return { category: 7, rank: encode(7, [q, topRanksExcept(rankCount, [q], 1)[0]]) };
+    return { category: 7, rank: encode(7, [q, topRanksExcept(rankCount, [q], 1)[0]]), top: q };
   }
 
   if (byCount[3].length && (byCount[2].length || byCount[3].length > 1)) {
     const t = byCount[3][0];
     const p = byCount[2].length ? byCount[2][0] : byCount[3][1];
-    return { category: 6, rank: encode(6, [t, p]) };
+    return { category: 6, rank: encode(6, [t, p]), top: t };
   }
 
   for (let s = 0; s < 4; s += 1) {
     if (suitCount[s] >= 5) {
       const top5 = suitRanks[s].slice().sort((a, b) => b - a).slice(0, 5);
-      return { category: 5, rank: encode(5, top5) };
+      return { category: 5, rank: encode(5, top5), top: top5[0] };
     }
   }
 
@@ -126,21 +126,22 @@ export function evaluate7(cards: number[]): { category: number; rank: number } {
     }
   }
   const st = straightHigh(present);
-  if (st) return { category: 4, rank: encode(4, [st]) };
+  if (st) return { category: 4, rank: encode(4, [st]), top: st };
 
   if (byCount[3].length) {
     const t = byCount[3][0];
-    return { category: 3, rank: encode(3, [t, ...topRanksExcept(rankCount, [t], 2)]) };
+    return { category: 3, rank: encode(3, [t, ...topRanksExcept(rankCount, [t], 2)]), top: t };
   }
   if (byCount[2].length >= 2) {
     const [p1, p2] = byCount[2];
-    return { category: 2, rank: encode(2, [p1, p2, topRanksExcept(rankCount, [p1, p2], 1)[0]]) };
+    return { category: 2, rank: encode(2, [p1, p2, topRanksExcept(rankCount, [p1, p2], 1)[0]]), top: p1 };
   }
   if (byCount[2].length === 1) {
     const p = byCount[2][0];
-    return { category: 1, rank: encode(1, [p, ...topRanksExcept(rankCount, [p], 3)]) };
+    return { category: 1, rank: encode(1, [p, ...topRanksExcept(rankCount, [p], 3)]), top: p };
   }
-  return { category: 0, rank: encode(0, topRanksExcept(rankCount, [], 5)) };
+  const highs = topRanksExcept(rankCount, [], 5);
+  return { category: 0, rank: encode(0, highs), top: highs[0] ?? 0 };
 }
 
 function mulberry32(seed: number): () => number {
@@ -286,6 +287,100 @@ export const BAD_BEAT_PROBABILITIES: Record<BadBeatCategory, number> = {
 
 /** Fully-banked (uncapped) house edge ≈ 0.147. */
 export const BAD_BEAT_BASE_EDGE = realizedBadBeatEdge(BAD_BEAT_PROBABILITIES, Infinity);
+
+/** Common UTH Trips schedule, keyed by the same categories as the bad beat (royal is filed as SF). */
+export const TRIPS_PAYOUTS_BY_BADBEAT: Record<BadBeatCategory, number> = {
+  straightFlush: 40,
+  quads: 30,
+  fullHouse: 9,
+  flush: 7,
+  straight: 4,
+  trips: 3,
+};
+
+export function tripsPayoutsFromRows(
+  rows: { outcome: string; payout: string }[],
+): Record<BadBeatCategory, number> | null {
+  const parsed = badBeatPayoutsFromRows(rows);
+  if (!parsed) return null;
+  const out = { ...TRIPS_PAYOUTS_BY_BADBEAT };
+  for (const cat of Object.keys(parsed) as BadBeatCategory[]) {
+    if ((parsed[cat] ?? 0) > 0) out[cat] = parsed[cat];
+  }
+  return out;
+}
+
+function capAfterTrips(
+  bank: number,
+  tripsSize: number,
+  bbjSize: number,
+  cat: BadBeatCategory,
+  tripsPayouts: Record<BadBeatCategory, number>,
+): number {
+  if (bbjSize <= 0) return Infinity;
+  const tripsOwed = Math.max(0, tripsSize) * (tripsPayouts[cat] ?? 0);
+  return Math.max(0, bank - tripsOwed) / bbjSize;
+}
+
+/**
+ * BBJ edge when the only prior payout on a hit is Trips at that hand's category (gross, from the
+ * buy-in). Main is ignored: UTH underbanking is the Trips + BBJ tail, not Ante/Play.
+ */
+export function realizedBadBeatEdgeAfterTrips(
+  bank: number,
+  tripsSize: number,
+  bbjSize: number,
+  bbjPayouts: Record<BadBeatCategory, number> = BAD_BEAT_PAYOUTS,
+  tripsPayouts: Record<BadBeatCategory, number> = TRIPS_PAYOUTS_BY_BADBEAT,
+  probabilities: Record<BadBeatCategory, number> = BAD_BEAT_PROBABILITIES,
+): number {
+  if (bbjSize <= 0) return realizedBadBeatEdge(probabilities, Infinity, bbjPayouts);
+  let grossWin = 0;
+  let winProb = 0;
+  for (const cat of Object.keys(probabilities) as BadBeatCategory[]) {
+    const p = probabilities[cat] ?? 0;
+    winProb += p;
+    const cap = capAfterTrips(bank, tripsSize, bbjSize, cat, tripsPayouts);
+    grossWin += p * Math.min(bbjPayouts[cat] ?? 0, cap);
+  }
+  return 1 - winProb - grossWin;
+}
+
+export function badBeatSigmaAfterTrips(
+  bank: number,
+  tripsSize: number,
+  bbjSize: number,
+  bbjPayouts: Record<BadBeatCategory, number> = BAD_BEAT_PAYOUTS,
+  tripsPayouts: Record<BadBeatCategory, number> = TRIPS_PAYOUTS_BY_BADBEAT,
+  probabilities: Record<BadBeatCategory, number> = BAD_BEAT_PROBABILITIES,
+): number {
+  let firstMoment = 0;
+  let secondMoment = 0;
+  let winProb = 0;
+  for (const cat of Object.keys(probabilities) as BadBeatCategory[]) {
+    const p = probabilities[cat] ?? 0;
+    const cap = capAfterTrips(bank, tripsSize, bbjSize, cat, tripsPayouts);
+    const payout = Math.min(bbjPayouts[cat] ?? 0, cap);
+    winProb += p;
+    firstMoment += p * payout;
+    secondMoment += p * payout * payout;
+  }
+  const loseProb = 1 - winProb;
+  const mean = firstMoment - loseProb;
+  const meanSquare = secondMoment + loseProb;
+  return Math.sqrt(Math.max(0, meanSquare - mean * mean));
+}
+
+/** To-1 multiple the tray can pay on a given BBJ line after that hand's Trips. */
+export function badBeatHitMultipleAfterTrips(
+  bank: number,
+  tripsSize: number,
+  bbjSize: number,
+  cat: BadBeatCategory,
+  tripsPayouts: Record<BadBeatCategory, number> = TRIPS_PAYOUTS_BY_BADBEAT,
+): number {
+  return capAfterTrips(bank, tripsSize, bbjSize, cat, tripsPayouts);
+}
 
 /**
  * Realized BBJ edge for the EV calculator: cap = the bank left for the side bet (after base wagers

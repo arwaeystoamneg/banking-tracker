@@ -67,24 +67,39 @@ function loadFromDisk(): MockTables {
   return seeded;
 }
 
-function persistToDisk(tables: MockTables): void {
-  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  const tempPath = `${STORE_PATH}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(tables, null, 2), "utf-8");
+function isReadOnlyFsError(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "EROFS" || error.code === "EACCES" || error.code === "EPERM"),
+  );
+}
 
+function persistToDisk(tables: MockTables): void {
   try {
-    if (fs.existsSync(STORE_PATH)) {
-      // Only replace the recovery copy when the current store is known to be valid.
-      try {
-        readTables(STORE_PATH);
-        fs.copyFileSync(STORE_PATH, BACKUP_PATH);
-      } catch {
-        // The new temp file is still safe to promote when the old store is already corrupt.
+    fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
+    const tempPath = `${STORE_PATH}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(tables, null, 2), "utf-8");
+
+    try {
+      if (fs.existsSync(STORE_PATH)) {
+        // Only replace the recovery copy when the current store is known to be valid.
+        try {
+          readTables(STORE_PATH);
+          fs.copyFileSync(STORE_PATH, BACKUP_PATH);
+        } catch {
+          // The new temp file is still safe to promote when the old store is already corrupt.
+        }
       }
+      fs.renameSync(tempPath, STORE_PATH);
+    } finally {
+      fs.rmSync(tempPath, { force: true });
     }
-    fs.renameSync(tempPath, STORE_PATH);
-  } finally {
-    fs.rmSync(tempPath, { force: true });
+  } catch (error) {
+    // Vercel’s filesystem is read-only except /tmp. Keep the in-memory store rather than 500ing.
+    if (isReadOnlyFsError(error)) return;
+    throw error;
   }
 }
 

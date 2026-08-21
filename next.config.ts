@@ -14,7 +14,8 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // googleapis uses Node crypto/TLS; bundling it for serverless often breaks JWT auth on Vercel.
+  serverExternalPackages: ["googleapis", "google-auth-library"],
 };
 
 export default withSerwist(nextConfig);

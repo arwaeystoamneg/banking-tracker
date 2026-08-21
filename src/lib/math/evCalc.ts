@@ -30,7 +30,7 @@ export interface EVLayerInput {
   /** Per-$1 standard deviation of the wager outcome (volatility). */
   sigma: Decimal.Value;
   /** Exact fully-offered moments for games such as baccarat; scaled by booked coverage. */
-  exactMoments?: { ev: Decimal.Value; variance: Decimal.Value };
+  exactMoments?: { ev: Decimal.Value; variance: Decimal.Value; /** Already the booked-dollar moments; do not scale by B/m coverage. */ ignoreCoverage?: boolean };
   /** Optional label for UI echo-back. */
   label?: string;
 }
@@ -94,13 +94,16 @@ function bookLayer(layer: EVLayerInput, availableBank: Decimal, spots: number, r
   remainingBank: Decimal;
 } {
   const offered = d(layer.actionOffered);
-  const booked = actionBooked(offered, availableBank, layer.exposureMult);
-  const bankUsed = booked.times(layer.exposureMult);
-  const coverage = coverageOf(booked, offered);
+  const ignoreCoverage = Boolean(layer.exactMoments?.ignoreCoverage);
+  const booked = ignoreCoverage ? offered : actionBooked(offered, availableBank, layer.exposureMult);
+  const bankUsed = ignoreCoverage ? d(0) : booked.times(layer.exposureMult);
+  const coverage = ignoreCoverage ? d(1) : coverageOf(booked, offered);
   const variance = layer.exactMoments
-    ? d(layer.exactMoments.variance).times(coverage.pow(2))
+    ? d(layer.exactMoments.variance).times(ignoreCoverage ? 1 : coverage.pow(2))
     : layerVariance(booked, layer.sigma, spots, rho);
-  const ev = layer.exactMoments ? d(layer.exactMoments.ev).times(coverage) : d(layer.edge).times(booked);
+  const ev = layer.exactMoments
+    ? d(layer.exactMoments.ev).times(ignoreCoverage ? 1 : coverage)
+    : d(layer.edge).times(booked);
   return {
     result: {
       label: layer.label,
