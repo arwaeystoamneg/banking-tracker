@@ -21,9 +21,12 @@ export async function refreshTabCache(tab: QueueTab): Promise<unknown[]> {
         (rows as Record<string, unknown>[]).map((row) => [String(row[idField]), row]),
       );
       const principalId = getActivePrincipalId();
-      const queued = (await database.writeQueue.where("tab").equals(tab).sortBy("createdAt")).filter(
-        (item) => Boolean(principalId) && queueItemMatchesPrincipal(item, principalId),
-      );
+      const queued =
+        principalId == null
+          ? []
+          : (await database.writeQueue.where("tab").equals(tab).sortBy("createdAt")).filter((item) =>
+              queueItemMatchesPrincipal(item, principalId),
+            );
 
       for (const item of queued) {
         if (item.op === "create") {
