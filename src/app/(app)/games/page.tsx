@@ -7,6 +7,7 @@ import { useSidebets } from "@/hooks/useSidebets";
 import { usePaytables } from "@/hooks/usePaytables";
 import { searchGames } from "@/lib/search";
 import { canonicalCasino, normalizeCasinoKey } from "@/lib/names";
+import { maxPayoutMultiple } from "@/lib/payout";
 import { GameCard } from "@/components/games/GameCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -37,6 +38,23 @@ export default function GamesPage() {
     for (const sb of sidebets) counts.set(sb.game_id, (counts.get(sb.game_id) ?? 0) + 1);
     return counts;
   }, [sidebets]);
+
+  // Worst-case bank tail per game = largest funded payout multiple across its side bets' paytables.
+  const maxTails = useMemo(() => {
+    const payoutsBySidebet = new Map<string, string[]>();
+    for (const pt of paytables) {
+      const list = payoutsBySidebet.get(pt.sidebet_id) ?? [];
+      list.push(pt.payout);
+      payoutsBySidebet.set(pt.sidebet_id, list);
+    }
+    const byGame = new Map<string, number>();
+    for (const sb of sidebets) {
+      const m = maxPayoutMultiple(payoutsBySidebet.get(sb.sidebet_id) ?? []);
+      if (m === null) continue;
+      byGame.set(sb.game_id, Math.max(byGame.get(sb.game_id) ?? 0, m));
+    }
+    return byGame;
+  }, [sidebets, paytables]);
 
   const results = useMemo(
     () => searchGames(games, sidebets, paytables, query, casino),
@@ -97,7 +115,12 @@ export default function GamesPage() {
             </p>
           ) : null}
           {results.map((game) => (
-            <GameCard key={game.game_id} game={game} sidebetCount={sidebetCounts.get(game.game_id) ?? 0} />
+            <GameCard
+              key={game.game_id}
+              game={game}
+              sidebetCount={sidebetCounts.get(game.game_id) ?? 0}
+              maxTail={maxTails.get(game.game_id) ?? null}
+            />
           ))}
         </div>
       )}

@@ -121,6 +121,13 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
       });
 
       // +2: values[] excludes the header row, and Sheets rows are 1-indexed.
+      //
+      // Residual race (accepted): the Sheets values API has no conditional/transactional write, so
+      // between this read and the write below another writer could delete a row *above* this one and
+      // shift its position. The _row_version check above is the primary guard against lost updates on
+      // the same row; this positional write only misfires if a concurrent *delete of a different row*
+      // lands in the sub-second gap, which for a three-person tool is vanishingly rare. Moving to the
+      // batchUpdate "find + update" API wouldn't remove it either — only a real lock would.
       const sheetRowNumber = rowIndexInData + 2;
       await sheets.spreadsheets.values.update({
         spreadsheetId: getSheetId(),

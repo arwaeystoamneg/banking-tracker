@@ -1,4 +1,4 @@
-import { db, setLastSyncedAt, type QueueTab } from "@/offline/db";
+import { db, setLastSyncedAt, type QueueOp, type QueueTab, type WriteQueueItem } from "@/offline/db";
 import { TAB_CLIENT_CONFIG } from "@/offline/tabConfig";
 import { makeId, type IdKind } from "@/lib/ids";
 
@@ -74,6 +74,32 @@ export async function enqueueDelete(tab: QueueTab, id: string): Promise<void> {
   });
 }
 
+type Versionable = { op: QueueOp; tab: QueueTab; targetId: string; expectedVersion?: number; id?: number };
+
+/**
+ * Once a create/update for (tab,targetId) settles at `newVersion`, every *later* queued update to the
+ * same row must expect that version — otherwise a user's own sequential edits (or a create followed by
+ * an edit before it syncs) collide with themselves and surface a spurious conflict. Mutates the later
+ * items in place so the in-flight loop uses the corrected value, and returns their queue ids so the
+ * durable copies can be updated too.
+ */
+export function chainVersionAfterSettle<T extends Versionable>(
+  items: T[],
+  settledIndex: number,
+  newVersion: number,
+): number[] {
+  const settled = items[settledIndex];
+  const touched: number[] = [];
+  for (let i = settledIndex + 1; i < items.length; i += 1) {
+    const later = items[i];
+    if (later.op !== "update" || later.tab !== settled.tab || later.targetId !== settled.targetId) continue;
+    if (later.expectedVersion === newVersion) continue;
+    later.expectedVersion = newVersion;
+    if (later.id !== undefined) touched.push(later.id);
+  }
+  return touched;
+}
+
 let flushing = false;
 
 /** Flushes queued writes FIFO. Safe to call repeatedly — re-entrant calls are no-ops while one is in flight. */
@@ -83,69 +109,95 @@ export async function flushQueue(): Promise<void> {
   // loses the narrowing on `db` once it's read inside an arrow function passed to itself.
   const database = db;
   flushing = true;
+  // Ids handled this pass. Lets us pick up writes enqueued *during* the flush (so they don't wait for
+  // the next interval tick) without re-processing an item that just errored into a tight retry loop.
+  const handled = new Set<number>();
   try {
-    const items = await database.writeQueue.where("status").anyOf("pending", "error").sortBy("createdAt");
+    for (;;) {
+      const items = (await database.writeQueue.where("status").anyOf("pending", "error").sortBy("createdAt")).filter(
+        (item): item is WriteQueueItem & { id: number } => item.id !== undefined && !handled.has(item.id),
+      );
+      if (items.length === 0) break;
 
-    for (const item of items) {
-      if (item.id === undefined) continue;
-      await database.writeQueue.update(item.id, { status: "syncing" });
+      for (let idx = 0; idx < items.length; idx += 1) {
+        const item = items[idx];
+        handled.add(item.id);
+        await database.writeQueue.update(item.id, { status: "syncing" });
 
-      try {
-        const { apiPath } = TAB_CLIENT_CONFIG[item.tab];
+        try {
+          const { apiPath } = TAB_CLIENT_CONFIG[item.tab];
 
-        if (item.op === "create") {
-          const res = await fetch(apiPath, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(item.payload),
-          });
-          if (!res.ok) throw new Error(`create failed: ${res.status}`);
-          const serverRow = await res.json();
-
-          // Same id as the optimistic row (see enqueueCreate) — this just refreshes _row_version
-          // and any server-side defaults, it never needs to move the row to a new key.
-          await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
-            await database.table(item.tab).put(serverRow);
-            await database.writeQueue.delete(item.id!);
-          });
-        } else if (item.op === "update") {
-          const res = await fetch(`${apiPath}/${item.targetId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ patch: item.payload, expectedVersion: item.expectedVersion }),
-          });
-
-          if (res.status === 409) {
-            const conflict = await res.json();
-            await database.writeQueue.update(item.id, {
-              status: "conflict",
-              lastError: JSON.stringify(conflict.serverRow ?? {}),
+          if (item.op === "create") {
+            const res = await fetch(apiPath, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(item.payload),
             });
-            continue;
-          }
-          if (!res.ok) throw new Error(`update failed: ${res.status}`);
+            if (!res.ok) throw new Error(`create failed: ${res.status}`);
+            const serverRow = await res.json();
 
-          const serverRow = await res.json();
-          await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
-            await database.table(item.tab).put(serverRow);
-            await database.writeQueue.delete(item.id!);
+            // Same id as the optimistic row (see enqueueCreate) — this just refreshes _row_version
+            // and any server-side defaults, it never needs to move the row to a new key.
+            await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
+              await database.table(item.tab).put(serverRow);
+              await database.writeQueue.delete(item.id);
+            });
+            await applyVersionChain(database, items, idx, serverRow);
+          } else if (item.op === "update") {
+            const res = await fetch(`${apiPath}/${item.targetId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ patch: item.payload, expectedVersion: item.expectedVersion }),
+            });
+
+            if (res.status === 409) {
+              const conflict = await res.json();
+              await database.writeQueue.update(item.id, {
+                status: "conflict",
+                lastError: JSON.stringify(conflict.serverRow ?? {}),
+              });
+              continue;
+            }
+            if (!res.ok) throw new Error(`update failed: ${res.status}`);
+
+            const serverRow = await res.json();
+            await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
+              await database.table(item.tab).put(serverRow);
+              await database.writeQueue.delete(item.id);
+            });
+            await applyVersionChain(database, items, idx, serverRow);
+          } else {
+            const res = await fetch(`${apiPath}/${item.targetId}`, { method: "DELETE" });
+            if (!res.ok && res.status !== 404) throw new Error(`delete failed: ${res.status}`);
+            await database.writeQueue.delete(item.id);
+          }
+        } catch (err) {
+          await database.writeQueue.update(item.id, {
+            status: "error",
+            lastError: err instanceof Error ? err.message : String(err),
           });
-        } else {
-          const res = await fetch(`${apiPath}/${item.targetId}`, { method: "DELETE" });
-          if (!res.ok && res.status !== 404) throw new Error(`delete failed: ${res.status}`);
-          await database.writeQueue.delete(item.id!);
         }
-      } catch (err) {
-        await database.writeQueue.update(item.id, {
-          status: "error",
-          lastError: err instanceof Error ? err.message : String(err),
-        });
       }
     }
 
     await setLastSyncedAt(new Date().toISOString());
   } finally {
     flushing = false;
+  }
+}
+
+/** Persists the expectedVersion advance for later same-row updates after a settle (see chainVersionAfterSettle). */
+async function applyVersionChain(
+  database: NonNullable<typeof db>,
+  items: (WriteQueueItem & { id: number })[],
+  settledIndex: number,
+  serverRow: unknown,
+): Promise<void> {
+  const newVersion = (serverRow as { _row_version?: unknown })?._row_version;
+  if (typeof newVersion !== "number") return;
+  const touched = chainVersionAfterSettle(items, settledIndex, newVersion);
+  for (const queueId of touched) {
+    await database.writeQueue.update(queueId, { expectedVersion: newVersion });
   }
 }
 

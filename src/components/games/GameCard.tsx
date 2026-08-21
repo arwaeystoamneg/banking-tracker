@@ -9,7 +9,16 @@ import { canonicalCasinoList } from "@/lib/names";
  * at). Unverified edges render in warning color — distinguishable at a glance, not on inspection —
  * and keep their hedged `edge_text` (which carries the range) visible rather than a crisp number.
  */
-export function GameCard({ game, sidebetCount = 0 }: { game: Game; sidebetCount?: number }) {
+export function GameCard({
+  game,
+  sidebetCount = 0,
+  maxTail = null,
+}: {
+  game: Game;
+  sidebetCount?: number;
+  /** Largest funded payout multiple across this game's side bets — worst-case bank tail per $1. */
+  maxTail?: number | null;
+}) {
   const positive = game.edge_pct >= 0;
   const edgeTone = !game.verified
     ? "text-amber-400"
@@ -56,9 +65,22 @@ export function GameCard({ game, sidebetCount = 0 }: { game: Game; sidebetCount?
       </div>
 
       {sidebetCount > 0 ? (
-        <p className="mt-3 inline-flex items-center gap-1 rounded-md border border-border bg-surface-inset px-2 py-0.5 text-[11px] text-muted">
-          <span className="text-amber-400">▲</span> {sidebetCount} side bet{sidebetCount === 1 ? "" : "s"} — tail exposure
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-inset px-2 py-0.5 text-muted">
+            {sidebetCount} side bet{sidebetCount === 1 ? "" : "s"}
+          </span>
+          {maxTail !== null && maxTail >= 10 ? (
+            <span
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-medium ${
+                maxTail >= 100
+                  ? "border-red-500/40 bg-red-500/10 text-red-300"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-300"
+              }`}
+            >
+              <span aria-hidden>▲</span> tail ×{maxTail.toLocaleString()} per $1
+            </span>
+          ) : null}
+        </div>
       ) : null}
     </Link>
   );

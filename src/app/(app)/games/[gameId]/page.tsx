@@ -7,7 +7,7 @@ import { useSidebets } from "@/hooks/useSidebets";
 import { usePaytables } from "@/hooks/usePaytables";
 import { useFeeSchedules } from "@/hooks/useFeeSchedules";
 import { EditableField } from "@/components/games/EditableField";
-import { PaytableGrid } from "@/components/games/PaytableGrid";
+import { SidebetCard } from "@/components/games/SidebetCard";
 import { FeeScheduleGrid } from "@/components/games/FeeScheduleGrid";
 import { VerifiedBadge } from "@/components/games/VerifiedBadge";
 import { Badge } from "@/components/ui/Badge";
@@ -94,19 +94,23 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Side bets &amp; paytables</h2>
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Side bets &amp; paytables</h2>
+          <span className="text-xs text-muted">bank liability, not features</span>
+        </div>
         {sidebetsLoading ? (
           <p className="text-xs text-muted">Loading…</p>
+        ) : sidebets.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border bg-surface/50 p-4 text-xs text-muted">
+            No side bets recorded for this game.
+          </p>
         ) : (
           sidebets.map((sb) => (
-            <div key={sb.sidebet_id} className="space-y-2 rounded-2xl border border-border bg-surface p-4">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-medium text-foreground">{sb.name}</h3>
-                <VerifiedBadge verified={sb.verified} />
-              </div>
-              {sb.note ? <p className="text-xs text-amber-400">{sb.note}</p> : null}
-              <PaytableGrid sidebetId={sb.sidebet_id} />
-            </div>
+            <SidebetCard
+              key={sb.sidebet_id}
+              sidebet={sb}
+              rows={paytables.filter((pt) => pt.sidebet_id === sb.sidebet_id)}
+            />
           ))
         )}
       </section>
