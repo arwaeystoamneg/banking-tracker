@@ -55,10 +55,10 @@ describe("chainVersionAfterSettle", () => {
     expect(items[0].expectedVersion).toBe(3);
   });
 
-  it("leaves deletes alone (they don't carry a version)", () => {
-    const items = [item(1, "update", "g1", 3), item(2, "delete", "g1")];
+  it("also advances a later delete to the same row (deletes carry a version)", () => {
+    const items = [item(1, "update", "g1", 3), item(2, "delete", "g1", 3)];
     const touched = chainVersionAfterSettle(items, 0, 4);
-    expect(touched).toEqual([]);
-    expect(items[1].expectedVersion).toBeUndefined();
+    expect(touched).toEqual([2]);
+    expect(items[1].expectedVersion).toBe(4);
   });
 });

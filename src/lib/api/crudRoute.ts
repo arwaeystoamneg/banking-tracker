@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import type { z } from "zod";
-import { getRepositories } from "@/lib/repositories";
+import { z } from "zod";
+import { getRepositoriesForUser } from "@/lib/repositories";
 import type { CrudRepository, Repositories } from "@/lib/repositories/types";
 import { apiError } from "@/lib/api/respond";
+import { requireCurrentUser } from "@/lib/auth/session";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -11,7 +12,7 @@ export function makeListRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
   return {
     GET: async () => {
       try {
-        const repos = await getRepositories();
+        const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;
         return NextResponse.json(await repo.list());
       } catch (err) {
@@ -27,7 +28,7 @@ export function makeListRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
         // the user. See lib/ids.ts.
         const { id, ...rest } = body as Record<string, unknown> & { id?: unknown };
         const data = createSchema.parse(rest);
-        const repos = await getRepositories();
+        const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;
         const created = await repo.create(data, typeof id === "string" ? id : undefined);
         return NextResponse.json(created, { status: 201 });
@@ -48,7 +49,7 @@ export function makeItemRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
     GET: async (_request: NextRequest, { params }: RouteParams) => {
       try {
         const { id } = await params;
-        const repos = await getRepositories();
+        const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;
         const row = await repo.get(id);
         if (!row) return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -63,7 +64,7 @@ export function makeItemRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
         const body = await request.json();
         const parsedPatch = patchSchema.parse(body.patch);
         const expectedVersion = Number(body.expectedVersion);
-        const repos = await getRepositories();
+        const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;
         const updated = await repo.update(id, parsedPatch, expectedVersion);
         return NextResponse.json(updated);
@@ -71,12 +72,14 @@ export function makeItemRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
         return apiError(err);
       }
     },
-    DELETE: async (_request: NextRequest, { params }: RouteParams) => {
+    DELETE: async (request: NextRequest, { params }: RouteParams) => {
       try {
         const { id } = await params;
-        const repos = await getRepositories();
+        const body = await request.json();
+        const expectedVersion = z.number().int().positive().parse(body.expectedVersion);
+        const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;
-        await repo.remove(id);
+        await repo.remove(id, expectedVersion);
         return new NextResponse(null, { status: 204 });
       } catch (err) {
         return apiError(err);

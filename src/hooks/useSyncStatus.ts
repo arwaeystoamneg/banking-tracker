@@ -10,7 +10,8 @@ export interface SyncStatus {
 export function useSyncStatus(): SyncStatus {
   const pendingCount =
     useLiveQuery(() => (db ? db.writeQueue.where("status").anyOf("pending", "syncing", "error").count() : 0), []) ?? 0;
-  const conflictCount = useLiveQuery(() => (db ? db.writeQueue.where("status").equals("conflict").count() : 0), []) ?? 0;
+  const conflictCount =
+    useLiveQuery(() => (db ? db.writeQueue.where("status").anyOf("conflict", "blocked").count() : 0), []) ?? 0;
   const lastSyncedAt = useLiveQuery(async () => (db ? ((await db.meta.get("lastSyncedAt"))?.value ?? null) : null), []) ?? null;
 
   return { pendingCount, conflictCount, lastSyncedAt };

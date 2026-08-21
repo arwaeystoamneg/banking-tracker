@@ -6,6 +6,7 @@ interface EditableFieldProps {
   label: string;
   value: string;
   multiline?: boolean;
+  readOnly?: boolean;
   onSave: (newValue: string) => void | Promise<void>;
 }
 
@@ -14,7 +15,7 @@ interface EditableFieldProps {
  * queue (see useRepoMutations/useGames), so this component doesn't need to handle a conflict response
  * itself — conflicts surface globally via SyncStatusBar/ConflictDialog once the queue tries to flush.
  */
-export function EditableField({ label, value, multiline, onSave }: EditableFieldProps) {
+export function EditableField({ label, value, multiline, readOnly = false, onSave }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -52,13 +53,14 @@ export function EditableField({ label, value, multiline, onSave }: EditableField
         )
       ) : (
         <button
+          disabled={readOnly}
           onClick={() => {
             setDraft(value);
             setEditing(true);
           }}
-          className="min-h-11 w-full rounded-xl border border-transparent px-3 py-2 text-left text-base text-foreground active:border-border active:bg-surface"
+          className="min-h-11 w-full rounded-xl border border-transparent px-3 py-2 text-left text-base text-foreground enabled:active:border-border enabled:active:bg-surface"
         >
-          {value || <span className="text-muted">Tap to add…</span>}
+          {value || <span className="text-muted">{readOnly ? "—" : "Tap to add…"}</span>}
         </button>
       )}
     </div>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <title>Banking Tracker — Offline</title>
+    <style>
+      body { margin: 0; background: #0a0a0b; color: #f5f5f5; font: 16px system-ui, sans-serif; }
+      main { max-width: 32rem; margin: 0 auto; padding: 4rem 1.25rem; }
+      p { color: #a3a3a3; line-height: 1.5; }
+      button { min-height: 3rem; border: 0; border-radius: .75rem; padding: 0 1rem; background: #059669; color: white; font: inherit; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You’re offline</h1>
+      <p>The secure app shell could not be opened without a connection. Reconnect, then retry; queued writes remain on this device.</p>
+      <button type="button" onclick="location.reload()">Retry</button>
+    </main>
+  </body>
+</html>

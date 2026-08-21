@@ -20,6 +20,6 @@ export const config = {
      * - Next internals and static assets
      * - PWA files that must be reachable pre-auth for install/offline shell to work
      */
-    "/((?!login|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/).*)",
+    "/((?!login|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline\\.html|icons/).*)",
   ],
 };

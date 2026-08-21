@@ -1,8 +1,13 @@
 import "server-only";
 import type { z } from "zod";
 import { getSheetId, getSheetsClient } from "@/lib/repositories/sheets/client";
-import { fetchAllTabsRaw, getSheetGridIds } from "@/lib/repositories/sheets/loader";
-import { fullTabRange, objectToSheetRow, sheetRowsToObjects } from "@/lib/repositories/sheets/rowMapper";
+import { fetchAllTabsRaw } from "@/lib/repositories/sheets/loader";
+import {
+  fullTabRange,
+  objectToSheetRow,
+  sheetRowsToObjects,
+  sheetRowsToObjectsWithPositions,
+} from "@/lib/repositories/sheets/rowMapper";
 import type { TabConfig } from "@/lib/repositories/sheets/tabs";
 import { ConflictError, NotFoundError, type CrudRepository } from "@/lib/repositories/types";
 
@@ -17,25 +22,44 @@ function columnLetter(n: number): string {
   return s;
 }
 
+const rowLocks = new Map<string, Promise<void>>();
+
+async function withRowLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = rowLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  rowLocks.set(key, current);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (rowLocks.get(key) === current) rowLocks.delete(key);
+  }
+}
+
 export function createSheetsRepository<T extends { _row_version: number }, TCreate, TPatch>(config: {
   tab: string;
   tabConfig: TabConfig;
   makeId: () => string;
   rowSchema: z.ZodType<T>;
+  spreadsheetId?: string;
 }): CrudRepository<T, TCreate, TPatch> {
-  const { tab, tabConfig, makeId, rowSchema } = config;
+  const { tab, tabConfig, makeId, rowSchema, spreadsheetId = getSheetId() } = config;
 
   async function ensureHeaders(): Promise<string[]> {
     const sheets = getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: getSheetId(),
+      spreadsheetId,
       range: `${tabConfig.tabName}!1:1`,
     });
     const current = ((res.data.values?.[0] as string[] | undefined) ?? []).map((header) => header.trim());
 
     if (current.length === 0) {
       await sheets.spreadsheets.values.update({
-        spreadsheetId: getSheetId(),
+        spreadsheetId,
         range: `${tabConfig.tabName}!A1:${columnLetter(tabConfig.headers.length)}1`,
         valueInputOption: "RAW",
         requestBody: { values: [tabConfig.headers] },
@@ -48,7 +72,7 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
 
     const headers = [...current, ...missing];
     await sheets.spreadsheets.values.update({
-      spreadsheetId: getSheetId(),
+      spreadsheetId,
       range: `${tabConfig.tabName}!${columnLetter(current.length + 1)}1:${columnLetter(headers.length)}1`,
       valueInputOption: "RAW",
       requestBody: { values: [missing] },
@@ -57,7 +81,7 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
   }
 
   async function list(): Promise<T[]> {
-    const allTabs = await fetchAllTabsRaw();
+    const allTabs = await fetchAllTabsRaw(spreadsheetId);
     const raw = allTabs[tabConfig.tabName] ?? [];
     return sheetRowsToObjects(tabConfig, raw).map((r) => rowSchema.parse(r));
   }
@@ -71,37 +95,44 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
     },
 
     async create(data, id) {
-      const sheets = getSheetsClient();
-      const headers = await ensureHeaders();
       const rowId = id ?? makeId();
-      const row = { [tabConfig.idField]: rowId, ...(data as object), _row_version: 1 };
-      const parsed = rowSchema.parse(row);
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: getSheetId(),
-        range: fullTabRange(tabConfig.tabName),
-        valueInputOption: "RAW",
-        insertDataOption: "INSERT_ROWS",
-        requestBody: { values: [objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers)] },
+      return withRowLock(`${spreadsheetId}:${tabConfig.tabName}:${rowId}`, async () => {
+        const sheets = getSheetsClient();
+        const headers = await ensureHeaders();
+        const existing = (await list()).find(
+          (candidate) => (candidate as unknown as Record<string, unknown>)[tabConfig.idField] === rowId,
+        );
+        if (existing) return existing;
+        const row = { [tabConfig.idField]: rowId, ...(data as object), _row_version: 1 };
+        const parsed = rowSchema.parse(row);
+        await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range: fullTabRange(tabConfig.tabName),
+          valueInputOption: "RAW",
+          insertDataOption: "INSERT_ROWS",
+          requestBody: { values: [objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers)] },
+        });
+        return parsed;
       });
-      return parsed;
     },
 
     async update(id, patch, expectedVersion) {
+      return withRowLock(`${spreadsheetId}:${tabConfig.tabName}:${id}`, async () => {
       // Fresh (non-cached) read-modify-write: this deliberately bypasses the per-request batched
       // loader so a write always checks against the row as it exists right now, not a stale
       // request-scoped snapshot.
       const sheets = getSheetsClient();
       const headers = await ensureHeaders();
       const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: getSheetId(),
+        spreadsheetId,
         range: fullTabRange(tabConfig.tabName),
       });
       const values = (res.data.values as string[][] | undefined) ?? [];
-      const objects = sheetRowsToObjects(tabConfig, values);
-      const rowIndexInData = objects.findIndex((r) => r[tabConfig.idField] === id);
-      if (rowIndexInData === -1) throw new NotFoundError(tab, id);
+      const positionedRows = sheetRowsToObjectsWithPositions(tabConfig, values);
+      const positioned = positionedRows.find(({ value }) => value[tabConfig.idField] === id);
+      if (!positioned) throw new NotFoundError(tab, id);
 
-      const existing = objects[rowIndexInData];
+      const existing = positioned.value;
       const existingVersion = existing._row_version as number;
       if (existingVersion !== expectedVersion) {
         throw new ConflictError(tab, id, rowSchema.parse(existing));
@@ -114,63 +145,46 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
         _row_version: existingVersion + 1,
       };
       const parsed = rowSchema.parse(updated);
-      const existingRawRow = values[rowIndexInData + 1] ?? [];
+      const existingRawRow = positioned.rawRow;
       const serialized = objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers);
       headers.forEach((header, index) => {
         if (!tabConfig.headers.includes(header)) serialized[index] = existingRawRow[index] ?? "";
       });
 
-      // +2: values[] excludes the header row, and Sheets rows are 1-indexed.
-      //
-      // Residual race (accepted): the Sheets values API has no conditional/transactional write, so
-      // between this read and the write below another writer could delete a row *above* this one and
-      // shift its position. The _row_version check above is the primary guard against lost updates on
-      // the same row; this positional write only misfires if a concurrent *delete of a different row*
-      // lands in the sub-second gap, which for a three-person tool is vanishingly rare. Moving to the
-      // batchUpdate "find + update" API wouldn't remove it either — only a real lock would.
-      const sheetRowNumber = rowIndexInData + 2;
+      const sheetRowNumber = positioned.sheetRowNumber;
       await sheets.spreadsheets.values.update({
-        spreadsheetId: getSheetId(),
+        spreadsheetId,
         range: `${tabConfig.tabName}!A${sheetRowNumber}:${columnLetter(headers.length)}${sheetRowNumber}`,
         valueInputOption: "RAW",
         requestBody: { values: [serialized] },
       });
 
-      return parsed;
+        return parsed;
+      });
     },
 
-    async remove(id) {
+    async remove(id, expectedVersion) {
+      return withRowLock(`${spreadsheetId}:${tabConfig.tabName}:${id}`, async () => {
       const sheets = getSheetsClient();
       const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: getSheetId(),
+        spreadsheetId,
         range: fullTabRange(tabConfig.tabName),
       });
       const values = (res.data.values as string[][] | undefined) ?? [];
-      const objects = sheetRowsToObjects(tabConfig, values);
-      const rowIndexInData = objects.findIndex((r) => r[tabConfig.idField] === id);
-      if (rowIndexInData === -1) return;
+      const positioned = sheetRowsToObjectsWithPositions(tabConfig, values).find(
+        ({ value }) => value[tabConfig.idField] === id,
+      );
+      if (!positioned) return;
+      if (positioned.value._row_version !== expectedVersion) {
+        throw new ConflictError(tab, id, rowSchema.parse(positioned.value));
+      }
 
-      const gridIds = await getSheetGridIds();
-      const sheetId = gridIds[tabConfig.tabName];
-      if (sheetId === undefined) throw new Error(`Unknown sheet grid id for tab ${tabConfig.tabName}`);
-
-      const sheetRowNumber = rowIndexInData + 2; // 1-indexed, +1 for header
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: getSheetId(),
-        requestBody: {
-          requests: [
-            {
-              deleteDimension: {
-                range: {
-                  sheetId,
-                  dimension: "ROWS",
-                  startIndex: sheetRowNumber - 1, // deleteDimension is 0-indexed
-                  endIndex: sheetRowNumber,
-                },
-              },
-            },
-          ],
-        },
+      // Clear instead of deleting the dimension. Stable physical row numbers prevent concurrent
+      // deletes from shifting another request's target; blank rows are preserved by the mapper.
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId,
+        range: `${tabConfig.tabName}!A${positioned.sheetRowNumber}:${columnLetter(values[0]?.length ?? tabConfig.headers.length)}${positioned.sheetRowNumber}`,
+      });
       });
     },
   };

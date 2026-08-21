@@ -11,6 +11,7 @@ import {
   sidebetSchema,
 } from "@/lib/validation/schemas";
 import { apiError } from "@/lib/api/respond";
+import { AuthorizationError, requireCurrentUser } from "@/lib/auth/session";
 
 const snapshotSchema = z.object({
   games: z.array(gameSchema),
@@ -28,6 +29,9 @@ const snapshotSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireCurrentUser();
+    if (user.role !== "admin") throw new AuthorizationError("Only an admin can restore a snapshot");
+
     if (getActiveBackend() !== "mock") {
       return NextResponse.json(
         { error: "not_implemented", message: "Import is only supported against the mock backend right now." },

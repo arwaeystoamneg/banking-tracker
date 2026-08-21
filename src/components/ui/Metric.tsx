@@ -40,12 +40,3 @@ export function Metric({
     </div>
   );
 }
-
-/** A metric wrapped in its own inset panel — for standalone grids of figures. */
-export function MetricTile(props: Parameters<typeof Metric>[0]) {
-  return (
-    <div className="rounded-xl border border-border bg-surface-inset p-3">
-      <Metric {...props} />
-    </div>
-  );
-}

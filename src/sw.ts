@@ -1,4 +1,4 @@
-import { Serwist, StaleWhileRevalidate, NetworkOnly } from "serwist";
+import { Serwist, NetworkOnly } from "serwist";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 
 declare global {
@@ -11,24 +11,20 @@ declare const self: ServiceWorkerGlobalScope;
 
 /**
  * Caching strategy per CLAUDE.md's offline-behavior section: the app shell is precached so the PWA
- * shell loads offline; reference-data GETs (games/sidebets/paytables/fee-schedules) get a
- * StaleWhileRevalidate cache as a secondary safety net behind the Dexie cache (offline/cache.ts) for
- * the very first offline load. Sessions/Rounds are NetworkOnly here — ALL write-queue logic lives in
- * offline/queue.ts, so a write must never be silently served from (or swallowed by) a SW cache.
+ * shell loads offline. Authenticated API responses are NetworkOnly so the service worker cannot leak
+ * a live account's cached response into the public demo (or vice versa). Role-partitioned Dexie stores
+ * provide offline data, and ALL write-queue logic remains in offline/queue.ts.
  */
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
+  navigateFallback: "/offline.html",
   runtimeCaching: [
     {
-      matcher: ({ url, request }) =>
-        request.method === "GET" && /^\/api\/(games|sidebets|paytables|fee-schedules)(\/|$)/.test(url.pathname),
-      handler: new StaleWhileRevalidate({ cacheName: "reference-data" }),
-    },
-    {
-      matcher: ({ url }) => /^\/api\/(sessions|rounds)(\/|$)/.test(url.pathname),
+      matcher: ({ url }) =>
+        /^\/api\/(games|sidebets|paytables|fee-schedules|sessions|rounds)(\/|$)/.test(url.pathname),
       handler: new NetworkOnly(),
     },
   ],

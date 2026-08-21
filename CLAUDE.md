@@ -11,8 +11,9 @@ A multi-person working tool for California cardroom **player-banked** game banki
 The single source of truth is an existing Google Sheet. The app is a nicer read/write layer over it, not a
 replacement — users must be able to keep editing the sheet directly on mobile when the app is inconvenient.
 
-**This is a personal analysis tool, not a product.** No signups, no billing, no multi-tenancy, no user
-accounts. A small group shares one dataset and records a free-form name in `logged_by`.
+**This is a personal analysis tool, not a product.** No signups, billing, or multi-tenancy. A small,
+environment-configured group shares one live dataset; a separate read-only demo dataset contains only public
+or synthetic data.
 
 ---
 
@@ -94,8 +95,9 @@ Decisions already made — do not relitigate without asking:
   this outgrows three people.
 - **PWA, not native.** Web manifest + service worker, installed via Add to Home Screen. Avoids App Store
   review entirely, which matters because gambling-adjacent apps draw scrutiny even when they handle no money.
-- **Access control is a shared password** (Vercel password protection or a single passphrase in an env var).
-  Do not build user accounts.
+- **Access control uses three roles.** Admin retains the shared `APP_PASSPHRASE` and can change all data.
+  Environment-configured individual accounts can read all live data but mutate only their own games,
+  sessions, and child rows. Demo is read-only and uses `DEMO_SHEET_ID`, never the live sheet.
 
 ### Environment
 
@@ -103,7 +105,10 @@ Decisions already made — do not relitigate without asking:
 GOOGLE_SERVICE_ACCOUNT_EMAIL=...@....iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."   # escape newlines
 SHEET_ID=1CUsxBxTXRzuXKhPfquKen19TBX4j2GATu2d-hwmqW0Y
+DEMO_SHEET_ID=...
 APP_PASSPHRASE=...
+AUTH_COOKIE_SECRET=... # independent random value, at least 32 characters
+APP_USERS_JSON='[{"id":"ray","name":"Ray Tang","password":"..."}]'
 ```
 
 Use `googleapis` (`google.sheets({version:'v4'})`) or `google-spreadsheet`. Batch reads with
@@ -119,7 +124,7 @@ safely in Sheets.
 
 **`Games`**
 `game_id · name · version · casinos (pipe-delimited) · filing · edge_text · edge_pct · verified (TRUE/FALSE) ·
-exposure_mult · fee_text · rules · settlement_order · notes · edited_by · edited_at`
+exposure_mult · fee_text · rules · settlement_order · notes · edited_by · edited_at · owner_id`
 
 **`Sidebets`**
 `sidebet_id · game_id · name · top_payout · limits · edge_pct · verified · note`
@@ -134,7 +139,7 @@ pd_fee · player_fee`
 **`Sessions`**
 `session_id · date · casino · buy_in · buy_out · time_in · time_out · game_id · schedule_option · rounds_banked ·
 action_offered · action_booked · coverage_pct · bonus_action_booked · collection_paid · gross_wl · net_pnl ·
-peak_drawdown · partners · split_terms · notes · logged_by · logged_at`
+peak_drawdown · partners · split_terms · notes · logged_by · logged_at · owner_id`
 
 **`Rounds`** — optional granular capture, one row per banked round
 `round_id · session_id · seq · tta · booked · bonus_action · fee_tier · fee_paid · result · note`
@@ -201,7 +206,7 @@ connection is the worst failure mode this app has.
 ## Non-goals
 
 Real-money handling, payments, live odds feeds, anything that touches an actual wager. Native app builds.
-User accounts. Multi-tenancy.
+Self-service signups, account-management screens, password recovery, and multi-tenancy.
 
 ## Open questions — ask Ray, don't guess
 

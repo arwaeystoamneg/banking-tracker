@@ -9,6 +9,7 @@ import { CliffWarning } from "@/components/fees/CliffWarning";
 import { describeCliff, findTierForAction, isNearCliff, type FeeTier } from "@/lib/fees/cliff";
 import { formatMoney } from "@/lib/decimal";
 import type { Session } from "@/lib/validation/schemas";
+import { normalizeCasinoKey } from "@/lib/names";
 
 export function RoundLogger({ session }: { session: Session }) {
   const { rounds, create } = useRounds(session.session_id);
@@ -20,13 +21,18 @@ export function RoundLogger({ session }: { session: Session }) {
   const [result, setResult] = useState("");
   const [feePaidOverride, setFeePaidOverride] = useState("");
   const [note, setNote] = useState("");
+  const [error, setError] = useState("");
 
   const tiers: FeeTier[] = useMemo(
     () =>
       feeSchedules
-        .filter((f) => (f.option_label || "(unlabeled)") === (session.schedule_option || "(unlabeled)"))
+        .filter(
+          (f) =>
+            (f.option_label || "(unlabeled)") === (session.schedule_option || "(unlabeled)") &&
+            (!f.casino || normalizeCasinoKey(f.casino) === normalizeCasinoKey(session.casino)),
+        )
         .map((f) => ({ scheduleId: f.schedule_id, basis: f.basis, tierMin: f.tier_min, tierMax: f.tier_max, pdFee: f.pd_fee })),
-    [feeSchedules, session.schedule_option],
+    [feeSchedules, session.casino, session.schedule_option],
   );
 
   const ttaNum = Number(tta);
@@ -40,17 +46,36 @@ export function RoundLogger({ session }: { session: Session }) {
     e.preventDefault();
     if (tta === "" || booked === "" || result === "") return;
 
-    const feePaid = computedFee ? computedFee.toNumber() : Number(feePaidOverride) || 0;
+    const ttaAmount = Number(tta);
+    const bookedAmount = Number(booked);
+    const bonusAmount = bonusAction === "" ? null : Number(bonusAction);
+    const resultAmount = Number(result);
+    const feePaid = computedFee ? computedFee.toNumber() : feePaidOverride === "" ? 0 : Number(feePaidOverride);
+    if (
+      !Number.isFinite(ttaAmount) ||
+      ttaAmount < 0 ||
+      !Number.isFinite(bookedAmount) ||
+      bookedAmount < 0 ||
+      bookedAmount > ttaAmount ||
+      (bonusAmount !== null && (!Number.isFinite(bonusAmount) || bonusAmount < 0)) ||
+      !Number.isFinite(resultAmount) ||
+      !Number.isFinite(feePaid) ||
+      feePaid < 0
+    ) {
+      setError("Use finite nonnegative amounts, keep booked action at or below TTA, and enter a valid result.");
+      return;
+    }
+    setError("");
 
     await create({
       session_id: session.session_id,
       seq: rounds.length + 1,
-      tta: Number(tta),
-      booked: Number(booked),
-      bonus_action: bonusAction === "" ? null : Number(bonusAction),
+      tta: ttaAmount,
+      booked: bookedAmount,
+      bonus_action: bonusAmount,
       fee_tier: autoTier ? `$${autoTier.tierMin.toFixed(0)}${autoTier.tierMax ? `-${autoTier.tierMax.toFixed(0)}` : "+"}` : "",
       fee_paid: feePaid,
-      result: Number(result),
+      result: resultAmount,
       note,
     });
 
@@ -104,6 +129,7 @@ export function RoundLogger({ session }: { session: Session }) {
         </div>
 
         <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" />
+        {error ? <p className="text-xs text-red-400">{error}</p> : null}
 
         <Button type="submit" className="w-full">
           Log round #{rounds.length + 1}

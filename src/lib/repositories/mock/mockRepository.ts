@@ -36,6 +36,8 @@ export function createMockRepository<T extends RowVersioned, TCreate, TPatch>(co
 
     async create(data, id) {
       const rowId = id ?? makeId();
+      const existing = rows().find((row) => row[idField] === rowId);
+      if (existing) return rowSchema.parse(existing);
       const row = { [idField]: rowId, ...(data as object), _row_version: 1 } as unknown as Record<string, unknown>;
       const parsed = rowSchema.parse(row);
       rows().push(parsed as unknown as Record<string, unknown>);
@@ -63,10 +65,14 @@ export function createMockRepository<T extends RowVersioned, TCreate, TPatch>(co
       return parsed;
     },
 
-    async remove(id) {
+    async remove(id, expectedVersion) {
       const list = rows();
       const index = list.findIndex((r) => r[idField] === id);
       if (index === -1) return;
+      const existing = list[index];
+      if ((existing._row_version as number) !== expectedVersion) {
+        throw new ConflictError(tab, id, rowSchema.parse(existing));
+      }
       list.splice(index, 1);
       saveMockStore();
     },

@@ -9,11 +9,11 @@ import { fullTabRange } from "@/lib/repositories/sheets/rowMapper";
  * render that touches multiple repositories (e.g. games + sidebets + paytables) issues one
  * spreadsheets.values.batchGet call instead of one per repository, respecting the 60 req/min/user quota.
  */
-export const fetchAllTabsRaw = cache(async (): Promise<Record<string, string[][]>> => {
+export const fetchAllTabsRaw = cache(async (spreadsheetId = getSheetId()): Promise<Record<string, string[][]>> => {
   const sheets = getSheetsClient();
   const ranges = ALL_TABS.map((t) => fullTabRange(t.tabName));
   const res = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId: getSheetId(),
+    spreadsheetId,
     ranges,
   });
 
@@ -26,13 +26,16 @@ export const fetchAllTabsRaw = cache(async (): Promise<Record<string, string[][]
 
 // Sheet structure (which tab has which numeric grid id) changes rarely, so this is memoized globally
 // rather than per-request.
-const globalForGridIds = globalThis as unknown as { __sheetGridIds?: Promise<Record<string, number>> };
+const globalForGridIds = globalThis as unknown as {
+  __sheetGridIds?: Map<string, Promise<Record<string, number>>>;
+};
 
-export function getSheetGridIds(): Promise<Record<string, number>> {
-  if (!globalForGridIds.__sheetGridIds) {
-    globalForGridIds.__sheetGridIds = (async () => {
+export function getSheetGridIds(spreadsheetId = getSheetId()): Promise<Record<string, number>> {
+  if (!globalForGridIds.__sheetGridIds) globalForGridIds.__sheetGridIds = new Map();
+  if (!globalForGridIds.__sheetGridIds.has(spreadsheetId)) {
+    globalForGridIds.__sheetGridIds.set(spreadsheetId, (async () => {
       const sheets = getSheetsClient();
-      const res = await sheets.spreadsheets.get({ spreadsheetId: getSheetId() });
+      const res = await sheets.spreadsheets.get({ spreadsheetId });
       const map: Record<string, number> = {};
       for (const sheet of res.data.sheets ?? []) {
         const title = sheet.properties?.title;
@@ -42,7 +45,7 @@ export function getSheetGridIds(): Promise<Record<string, number>> {
         }
       }
       return map;
-    })();
+    })());
   }
-  return globalForGridIds.__sheetGridIds;
+  return globalForGridIds.__sheetGridIds.get(spreadsheetId)!;
 }

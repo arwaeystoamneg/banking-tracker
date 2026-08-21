@@ -10,6 +10,7 @@ const withSerwist = withSerwistInit({
   // Registration is handled explicitly so development can remove stale workers from localhost.
   register: false,
   reloadOnOnline: true,
+  additionalPrecacheEntries: [{ url: "/offline.html", revision: "1" }],
 });
 
 const nextConfig: NextConfig = {

@@ -7,15 +7,17 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { nowIso } from "@/lib/dates";
 import { d } from "@/lib/decimal";
-import { getRememberedLoggedBy } from "@/lib/loggedInAs";
+import { useCurrentUser } from "@/components/providers/AuthProvider";
 
 export function GameForm() {
+  const user = useCurrentUser();
   const router = useRouter();
   const { create } = useGames();
   const [name, setName] = useState("");
   const [casinos, setCasinos] = useState("");
   const [edgePercent, setEdgePercent] = useState("");
   const [verified, setVerified] = useState(false);
+  const [exposure, setExposure] = useState("1");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -23,8 +25,17 @@ export function GameForm() {
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const edge = Number(edgePercent);
-    if (!name.trim() || edgePercent === "" || !Number.isFinite(edge) || edge < -100 || edge > 100) {
-      setError("Game name and a valid edge percentage are required.");
+    const exposureAmount = Number(exposure);
+    if (
+      !name.trim() ||
+      edgePercent === "" ||
+      !Number.isFinite(edge) ||
+      edge < -100 ||
+      edge > 100 ||
+      !Number.isFinite(exposureAmount) ||
+      exposureAmount <= 0
+    ) {
+      setError("Game name, a valid edge percentage, and a positive exposure multiple are required.");
       return;
     }
 
@@ -40,13 +51,14 @@ export function GameForm() {
         edge_text: `${verified ? "" : "~"}${d(edgePercent).toString()}%${verified ? "" : " (unverified)"}`,
         edge_pct: d(edgePercent).dividedBy(100).toNumber(),
         verified,
-        exposure_mult: 1,
+        exposure_mult: exposureAmount,
         fee_text: "",
         rules: "",
         settlement_order: "",
         notes: notes.trim(),
-        edited_by: getRememberedLoggedBy(),
+        edited_by: user.name,
         edited_at: nowIso(),
+        owner_id: user.userId,
       });
       router.push(`/games/${id}`);
     } catch {
@@ -84,6 +96,18 @@ export function GameForm() {
           required
         />
         <span className="block text-xs text-muted">Enter 1.25 for 1.25%. Negative values are allowed.</span>
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted">Exposure multiple</span>
+        <Input
+          value={exposure}
+          onChange={(event) => setExposure(event.target.value)}
+          inputMode="decimal"
+          min="0.01"
+          step="0.01"
+          required
+        />
       </label>
 
       <label className="flex min-h-12 items-center gap-3 rounded-xl border border-border bg-surface px-3 text-sm text-foreground">

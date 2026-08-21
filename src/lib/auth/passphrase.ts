@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { AuthUser } from "@/lib/auth/types";
+
 export const AUTH_COOKIE_NAME = "cbt_auth";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90; // ~90 days — three known users, rarely need to re-enter it
 const encoder = new TextEncoder();
@@ -8,6 +10,13 @@ function getSecret(): string {
   const secret = process.env.APP_PASSPHRASE;
   if (!secret) throw new Error("APP_PASSPHRASE is not set");
   return secret;
+}
+
+function getSigningSecret(): string {
+  const secret = process.env.AUTH_COOKIE_SECRET;
+  if (secret && secret.length >= 32) return secret;
+  if (process.env.NODE_ENV !== "production") return `development-only:${getSecret()}`;
+  throw new Error("AUTH_COOKIE_SECRET must be set to at least 32 random characters");
 }
 
 function toHex(bytes: ArrayBuffer): string {
@@ -27,10 +36,28 @@ async function digest(value: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
 }
 
+function base64UrlEncode(value: string): string {
+  const bytes = encoder.encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlDecode(value: string): string | null {
+  try {
+    const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const binary = atob(padded);
+    return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
+  } catch {
+    return null;
+  }
+}
+
 async function sign(payload: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(getSecret()),
+    encoder.encode(getSigningSecret()),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
@@ -38,25 +65,74 @@ async function sign(payload: string): Promise<string> {
   return toHex(await crypto.subtle.sign("HMAC", key, encoder.encode(payload)));
 }
 
-/** Constant-work comparison against the shared passphrase — avoids a timing side-channel on login. */
+export async function makeCredentialVersion(credential: string): Promise<string> {
+  return sign(`credential:${credential}`);
+}
+
+/** Constant-work comparison for credentials — avoids a timing side-channel on login. */
+export async function checkSecret(candidate: string, expectedSecret: string): Promise<boolean> {
+  const [expected, actual] = await Promise.all([digest(expectedSecret), digest(candidate)]);
+  return fixedTimeEqual(expected, actual);
+}
+
 export async function checkPassphrase(candidate: string): Promise<boolean> {
-  const [expected, actual] = await Promise.all([digest(getSecret()), digest(candidate)]);
-  return fixedTimeEqual(expected, actual);
+  return checkSecret(candidate, getSecret());
 }
 
-/** Builds the signed cookie value: `${issuedAt}.${hmac}`. No session store — verified per request. */
-export async function makeAuthToken(): Promise<string> {
-  const issuedAt = Date.now().toString();
-  return `${issuedAt}.${await sign(issuedAt)}`;
+interface AuthTokenPayload extends AuthUser {
+  issuedAt: number;
+  expiresAt: number;
+  accountVersion?: string;
 }
 
-export async function verifyAuthToken(token: string | undefined | null): Promise<boolean> {
-  if (!token) return false;
-  const [issuedAt, signature] = token.split(".");
-  if (!issuedAt || !signature) return false;
-  const expected = encoder.encode(await sign(issuedAt));
+/** Builds a signed, stateless role/identity cookie. */
+export async function makeAuthToken(user: AuthUser): Promise<string> {
+  const issuedAt = Date.now();
+  const payload = base64UrlEncode(
+    JSON.stringify({
+      ...user,
+      issuedAt,
+      expiresAt: issuedAt + COOKIE_MAX_AGE_SECONDS * 1000,
+    } satisfies AuthTokenPayload),
+  );
+  return `${payload}.${await sign(payload)}`;
+}
+
+export async function verifyAuthToken(token: string | undefined | null): Promise<AuthUser | null> {
+  if (!token) return null;
+  const [payload, signature, extra] = token.split(".");
+  if (!payload || !signature || extra) return null;
+  const expected = encoder.encode(await sign(payload));
   const actual = encoder.encode(signature);
-  return fixedTimeEqual(expected, actual);
+  if (!fixedTimeEqual(expected, actual)) return null;
+
+  const decoded = base64UrlDecode(payload);
+  if (!decoded) return null;
+
+  try {
+    const value = JSON.parse(decoded) as Partial<AuthTokenPayload>;
+    if (
+      (value.role !== "admin" && value.role !== "individual" && value.role !== "demo") ||
+      typeof value.userId !== "string" ||
+      !value.userId ||
+      typeof value.name !== "string" ||
+      !value.name ||
+      typeof value.issuedAt !== "number" ||
+      typeof value.expiresAt !== "number" ||
+      value.expiresAt <= Date.now() ||
+      (value.role !== "demo" && (typeof value.accountVersion !== "string" || !value.accountVersion))
+    ) {
+      return null;
+    }
+    return {
+      role: value.role,
+      userId: value.userId,
+      name: value.name,
+      ...(value.accountVersion ? { accountVersion: value.accountVersion } : {}),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export const AUTH_COOKIE_OPTIONS = {

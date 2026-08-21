@@ -3,21 +3,33 @@ import type { TabConfig } from "@/lib/repositories/sheets/tabs";
 
 /** Reads header row + data rows for a tab and turns them into typed objects, matched by header name. */
 export function sheetRowsToObjects(config: TabConfig, values: string[][]): Record<string, unknown>[] {
+  return sheetRowsToObjectsWithPositions(config, values).map(({ value }) => value);
+}
+
+export interface PositionedSheetRow {
+  value: Record<string, unknown>;
+  rawRow: string[];
+  sheetRowNumber: number;
+}
+
+/** Preserves physical row numbers so blank rows cannot shift update/delete targets. */
+export function sheetRowsToObjectsWithPositions(config: TabConfig, values: string[][]): PositionedSheetRow[] {
   if (values.length === 0) return [];
   const [headerRow, ...dataRows] = values;
   const headerIndex = new Map<string, number>();
   headerRow.forEach((h, i) => headerIndex.set(h.trim(), i));
 
   return dataRows
-    .filter((row) => row.some((cell) => cell !== undefined && cell !== ""))
-    .map((row) => {
+    .map((row, index) => ({ row, sheetRowNumber: index + 2 }))
+    .filter(({ row }) => row.some((cell) => cell !== undefined && cell !== ""))
+    .map(({ row, sheetRowNumber }) => {
       const obj: Record<string, unknown> = {};
       for (const header of config.headers) {
         const colIndex = headerIndex.get(header);
         const raw = colIndex === undefined ? "" : (row[colIndex] ?? "");
         obj[header] = coerceCell(header, raw, config);
       }
-      return obj;
+      return { value: obj, rawRow: row, sheetRowNumber };
     });
 }
 

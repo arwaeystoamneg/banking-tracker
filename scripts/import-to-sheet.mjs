@@ -10,31 +10,15 @@
 // Requires APP_PASSPHRASE in .env.local (used to mint the auth cookie).
 
 import { readFileSync } from "node:fs";
-import { createHmac } from "node:crypto";
+import { mintAdminCookie } from "./auth-cookie.mjs";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 const PACE_MS = Number(process.env.PACE_MS ?? 1200);
 
-function readEnvPassphrase() {
-  if (process.env.APP_PASSPHRASE) return process.env.APP_PASSPHRASE;
-  const line = readFileSync(new URL("../.env.local", import.meta.url), "utf8")
-    .split("\n")
-    .find((l) => l.startsWith("APP_PASSPHRASE="));
-  if (!line) throw new Error("APP_PASSPHRASE not found in env or .env.local");
-  return line.slice("APP_PASSPHRASE=".length).trim().replace(/^["']|["']$/g, "");
-}
-
-function mintCookie() {
-  const secret = readEnvPassphrase();
-  const issuedAt = Date.now().toString();
-  const mac = createHmac("sha256", secret).update(issuedAt).digest("hex");
-  return `cbt_auth=${issuedAt}.${mac}`;
-}
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const cookie = mintCookie();
+  const cookie = mintAdminCookie();
   const headers = { "Content-Type": "application/json", cookie };
   const data = JSON.parse(readFileSync(new URL("./games-import.json", import.meta.url), "utf8"));
 

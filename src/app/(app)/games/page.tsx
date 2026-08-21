@@ -11,8 +11,10 @@ import { maxPayoutMultiple } from "@/lib/payout";
 import { GameCard } from "@/components/games/GameCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { useCurrentUser } from "@/components/providers/AuthProvider";
 
 export default function GamesPage() {
+  const user = useCurrentUser();
   const { games, isLoading } = useGames();
   const { sidebets } = useSidebets();
   const { paytables } = usePaytables();
@@ -70,9 +72,11 @@ export default function GamesPage() {
             {isLoading ? "Loading…" : `${games.length} game${games.length === 1 ? "" : "s"} on file`}
           </p>
         </div>
-        <Link href="/games/new">
-          <Button className="h-10 px-4 text-sm">+ Add</Button>
-        </Link>
+        {user.role !== "demo" ? (
+          <Link href="/games/new">
+            <Button className="h-10 px-4 text-sm">+ Add</Button>
+          </Link>
+        ) : null}
       </div>
 
       {/* Search + filters stay pinned so they remain reachable one-handed while scrolling the list. */}
@@ -106,7 +110,7 @@ export default function GamesPage() {
           ))}
         </div>
       ) : results.length === 0 ? (
-        <EmptyState query={query} />
+        <EmptyState query={query} canAdd={user.role !== "demo"} />
       ) : (
         <div className="space-y-3">
           {query || casino ? (
@@ -143,13 +147,13 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-function EmptyState({ query }: { query: string }) {
+function EmptyState({ query, canAdd }: { query: string; canAdd: boolean }) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-surface/50 px-4 py-10 text-center">
       <p className="text-sm text-muted">
         {query ? `No games match “${query}”.` : "No games yet."}
       </p>
-      {!query ? (
+      {!query && canAdd ? (
         <Link href="/games/new" className="mt-3 inline-block">
           <Button variant="secondary" className="h-10 px-4 text-sm">
             Add the first game

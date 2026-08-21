@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useGames } from "@/hooks/useGames";
 import { useSidebets } from "@/hooks/useSidebets";
 import { usePaytables } from "@/hooks/usePaytables";
-import { useFeeSchedules } from "@/hooks/useFeeSchedules";
 import { EditableField } from "@/components/games/EditableField";
 import { SidebetCard } from "@/components/games/SidebetCard";
 import { FeeScheduleGrid } from "@/components/games/FeeScheduleGrid";
@@ -14,14 +13,16 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Metric } from "@/components/ui/Metric";
 import { formatPercent } from "@/lib/decimal";
+import { useCurrentUser } from "@/components/providers/AuthProvider";
+import { ownsGame } from "@/lib/auth/permissions";
 
 export default function GameDetailPage({ params }: { params: Promise<{ gameId: string }> }) {
+  const user = useCurrentUser();
   const { gameId } = use(params);
   const router = useRouter();
   const { games, isLoading, update, remove: removeGame } = useGames();
-  const { sidebets, isLoading: sidebetsLoading, remove: removeSidebet } = useSidebets(gameId);
-  const { paytables, remove: removePaytable } = usePaytables();
-  const { feeSchedules, remove: removeFeeSchedule } = useFeeSchedules(gameId);
+  const { sidebets, isLoading: sidebetsLoading, create: createSidebet } = useSidebets(gameId);
+  const { paytables } = usePaytables();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
@@ -29,6 +30,7 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
 
   if (isLoading) return <p className="px-4 pt-4 text-sm text-muted">Loading…</p>;
   if (!game) return <p className="px-4 pt-4 text-sm text-muted">Game not found (try syncing).</p>;
+  const canEdit = ownsGame(user, game);
 
   function save<K extends string>(field: K) {
     return (value: string) => void update(gameId, { [field]: value } as never, game!._row_version);
@@ -40,10 +42,6 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
     setDeleting(true);
     setDeleteError("");
     try {
-      const sidebetIds = new Set(sidebets.map((sidebet) => sidebet.sidebet_id));
-      await Promise.all(paytables.filter((paytable) => sidebetIds.has(paytable.sidebet_id)).map((paytable) => removePaytable(paytable.paytable_id)));
-      await Promise.all(sidebets.map((sidebet) => removeSidebet(sidebet.sidebet_id)));
-      await Promise.all(feeSchedules.map((schedule) => removeFeeSchedule(schedule.schedule_id)));
       await removeGame(gameId);
       router.replace("/games");
     } catch {
@@ -82,15 +80,57 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">Details — tap any field to edit</p>
-        <EditableField label="Name" value={game.name} onSave={save("name")} />
-        <EditableField label="Casinos (pipe-delimited)" value={game.casinos} onSave={save("casinos")} />
-        <EditableField label="Version" value={game.version} onSave={save("version")} />
-        <EditableField label="Filing" value={game.filing} onSave={save("filing")} />
-        <EditableField label="Edge (text)" value={game.edge_text} onSave={save("edge_text")} />
-        <EditableField label="Rules" value={game.rules} multiline onSave={save("rules")} />
-        <EditableField label="Settlement order" value={game.settlement_order} multiline onSave={save("settlement_order")} />
-        <EditableField label="Notes" value={game.notes} multiline onSave={save("notes")} />
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">
+          {canEdit ? "Details — tap any field to edit" : "Details — view only"}
+        </p>
+        <EditableField label="Name" value={game.name} readOnly={!canEdit} onSave={save("name")} />
+        <EditableField label="Casinos (pipe-delimited)" value={game.casinos} readOnly={!canEdit} onSave={save("casinos")} />
+        <EditableField label="Version" value={game.version} readOnly={!canEdit} onSave={save("version")} />
+        <EditableField label="Filing" value={game.filing} readOnly={!canEdit} onSave={save("filing")} />
+        <EditableField label="Edge (text)" value={game.edge_text} readOnly={!canEdit} onSave={save("edge_text")} />
+        <label className="block space-y-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted">Numeric edge (%)</span>
+          <input
+            defaultValue={game.edge_pct * 100}
+            inputMode="decimal"
+            readOnly={!canEdit}
+            onBlur={(event) => {
+              const value = Number(event.target.value);
+              if (canEdit && Number.isFinite(value) && value / 100 !== game.edge_pct) {
+                void update(gameId, { edge_pct: value / 100 }, game._row_version);
+              }
+            }}
+            className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-base text-foreground outline-none focus:border-neutral-500"
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted">Exposure multiple</span>
+          <input
+            defaultValue={game.exposure_mult}
+            inputMode="decimal"
+            readOnly={!canEdit}
+            onBlur={(event) => {
+              const value = Number(event.target.value);
+              if (canEdit && Number.isFinite(value) && value > 0 && value !== game.exposure_mult) {
+                void update(gameId, { exposure_mult: value }, game._row_version);
+              }
+            }}
+            className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-base text-foreground outline-none focus:border-neutral-500"
+          />
+        </label>
+        <label className="flex min-h-11 items-center gap-3 px-3 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={game.verified}
+            disabled={!canEdit}
+            onChange={(event) => void update(gameId, { verified: event.target.checked }, game._row_version)}
+            className="h-5 w-5 accent-emerald-600"
+          />
+          Numeric edge verified
+        </label>
+        <EditableField label="Rules" value={game.rules} multiline readOnly={!canEdit} onSave={save("rules")} />
+        <EditableField label="Settlement order" value={game.settlement_order} multiline readOnly={!canEdit} onSave={save("settlement_order")} />
+        <EditableField label="Notes" value={game.notes} multiline readOnly={!canEdit} onSave={save("notes")} />
       </section>
 
       <section className="space-y-3">
@@ -110,27 +150,47 @@ export default function GameDetailPage({ params }: { params: Promise<{ gameId: s
               key={sb.sidebet_id}
               sidebet={sb}
               rows={paytables.filter((pt) => pt.sidebet_id === sb.sidebet_id)}
+              readOnly={!canEdit}
             />
           ))
         )}
+        {canEdit ? (
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() =>
+              void createSidebet({
+                game_id: gameId,
+                name: "New side bet",
+                top_payout: "",
+                limits: "",
+                edge_pct: 0,
+                verified: false,
+                note: "",
+              })
+            }
+          >
+            + Add side bet
+          </Button>
+        ) : null}
       </section>
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-foreground">Fee schedule</h2>
-          <Badge>Used by the fee calculator</Badge>
+          <Badge>Used by round logging</Badge>
         </div>
-        <FeeScheduleGrid gameId={gameId} />
+        <FeeScheduleGrid gameId={gameId} readOnly={!canEdit} />
       </section>
 
-      <section className="space-y-2 rounded-2xl border border-red-900/70 bg-red-950/20 p-4">
+      {canEdit ? <section className="space-y-2 rounded-2xl border border-red-900/70 bg-red-950/20 p-4">
         <h2 className="text-sm font-semibold text-red-300">Delete game</h2>
         <p className="text-xs text-muted">This also removes its side bets, paytables, and fee schedules.</p>
         {deleteError ? <p className="text-xs text-red-400">{deleteError}</p> : null}
         <Button variant="danger" onClick={handleDelete} disabled={deleting} className="w-full">
           {deleting ? "Deleting…" : "Delete game"}
         </Button>
-      </section>
+      </section> : null}
     </main>
   );
 }

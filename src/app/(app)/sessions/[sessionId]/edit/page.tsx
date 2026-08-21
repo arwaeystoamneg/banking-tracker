@@ -4,14 +4,20 @@ import { use } from "react";
 import Link from "next/link";
 import { SessionForm } from "@/components/sessions/SessionForm";
 import { useSessions } from "@/hooks/useSessions";
+import { useCurrentUser } from "@/components/providers/AuthProvider";
+import { ownsSession } from "@/lib/auth/permissions";
 
 export default function EditSessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
+  const user = useCurrentUser();
   const { sessionId } = use(params);
   const { sessions, isLoading } = useSessions();
   const session = sessions.find((item) => item.session_id === sessionId);
 
   if (isLoading) return <p className="px-4 pt-4 text-sm text-muted">Loading…</p>;
   if (!session) return <p className="px-4 pt-4 text-sm text-muted">Session not found (try syncing).</p>;
+  if (!ownsSession(user, session)) {
+    return <p className="px-4 pt-4 text-sm text-muted">This session belongs to another person and cannot be edited.</p>;
+  }
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">

@@ -17,6 +17,11 @@ describe("payoutMultiple", () => {
     expect(payoutMultiple("50")).toBe(50);
   });
 
+  it("tolerates thousands separators (hand-entered on a phone)", () => {
+    expect(payoutMultiple("7,500")).toBe(7500);
+    expect(payoutMultiple("1,000:1")).toBe(1000);
+  });
+
   it("returns null for non-numeric outcomes", () => {
     expect(payoutMultiple("push")).toBeNull();
     expect(payoutMultiple("TBD")).toBeNull();

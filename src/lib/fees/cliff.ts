@@ -102,7 +102,7 @@ export interface CliffBoundary {
   marginalRake: Decimal;
 }
 
-/** Convenience bundle for the fee calculator UI — everything it needs about the upcoming boundary. */
+/** Convenience bundle for round-logging cliff warnings. */
 export function describeCliff(tta: Decimal.Value, tiers: FeeTier[]): CliffBoundary | null {
   const ttaD = d(tta);
   const sorted = normalize(tiers);

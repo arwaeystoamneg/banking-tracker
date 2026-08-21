@@ -10,10 +10,11 @@ import { currentTimeString } from "@/lib/dates";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 import type { Session } from "@/lib/validation/schemas";
 
-export function SessionSummaryCard({ session }: { session: Session }) {
+export function SessionSummaryCard({ session, readOnly = false }: { session: Session; readOnly?: boolean }) {
   const { rounds } = useRounds(session.session_id);
   const { update } = useSessions();
   const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState("");
   const [buyOut, setBuyOut] = useState(session.buy_out === null ? "" : String(session.buy_out));
   const [timeOut, setTimeOut] = useState(session.time_out);
 
@@ -37,23 +38,29 @@ export function SessionSummaryCard({ session }: { session: Session }) {
   async function handleClose() {
     if (!canClose) return;
     setClosing(true);
-    await update(
-      session.session_id,
-      {
-        rounds_banked: rounds.length,
-        action_offered: totals.actionOffered.toNumber(),
-        action_booked: totals.actionBooked.toNumber(),
-        coverage_pct: totals.coveragePct!.toNumber(),
-        bonus_action_booked: totals.bonusAction.toNumber(),
-        collection_paid: totals.collectionPaid.toNumber(),
-        gross_wl: totals.grossWl.toNumber(),
-        net_pnl: totals.netPnl.toNumber(),
-        buy_out: buyOutAmount,
-        time_out: timeOut,
-      },
-      session._row_version,
-    );
-    setClosing(false);
+    setCloseError("");
+    try {
+      await update(
+        session.session_id,
+        {
+          rounds_banked: rounds.length,
+          action_offered: totals.actionOffered.toNumber(),
+          action_booked: totals.actionBooked.toNumber(),
+          coverage_pct: totals.coveragePct!.toNumber(),
+          bonus_action_booked: totals.bonusAction.toNumber(),
+          collection_paid: totals.collectionPaid.toNumber(),
+          gross_wl: totals.grossWl.toNumber(),
+          net_pnl: totals.netPnl.toNumber(),
+          buy_out: buyOutAmount,
+          time_out: timeOut,
+        },
+        session._row_version,
+      );
+    } catch {
+      setCloseError("Could not close the session. Check sync status and try again.");
+    } finally {
+      setClosing(false);
+    }
   }
 
   return (
@@ -67,7 +74,7 @@ export function SessionSummaryCard({ session }: { session: Session }) {
         <Stat label="Net PnL" value={formatMoney(totals.netPnl)} tone={totals.netPnl.isNegative() ? "danger" : "accent"} />
       </div>
 
-      {open ? (
+      {open && !readOnly ? (
         <>
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1 text-xs text-muted">
@@ -98,13 +105,14 @@ export function SessionSummaryCard({ session }: { session: Session }) {
               Enter buy-out and time-out, and log at least one round before closing.
             </p>
           ) : null}
+          {closeError ? <p className="text-xs text-red-400">{closeError}</p> : null}
           <Button onClick={handleClose} disabled={!canClose || closing} className="w-full">
             {closing ? "Closing…" : "Close session"}
           </Button>
         </>
-      ) : (
+      ) : !open ? (
         <p className="text-center text-xs text-muted">Session closed.</p>
-      )}
+      ) : null}
     </div>
   );
 }

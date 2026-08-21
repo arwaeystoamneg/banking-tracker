@@ -8,8 +8,11 @@ import { SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 import { formatDateForDisplay } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
+import { useCurrentUser } from "@/components/providers/AuthProvider";
+import { ownsSession } from "@/lib/auth/permissions";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ sessionId: string }> }) {
+  const user = useCurrentUser();
   const { sessionId } = use(params);
   const { sessions, isLoading } = useSessions();
 
@@ -17,6 +20,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
 
   if (isLoading) return <p className="px-4 pt-4 text-sm text-muted">Loading…</p>;
   if (!session) return <p className="px-4 pt-4 text-sm text-muted">Session not found (try syncing).</p>;
+  const canEdit = ownsSession(user, session);
 
   return (
     <main className="mx-auto max-w-lg space-y-5 px-4 pt-4 pb-8">
@@ -28,12 +32,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
             {session.time_out ? `–${session.time_out}` : ""}
           </p>
         </div>
-        <Link
+        {canEdit ? <Link
           href={`/sessions/${session.session_id}/edit`}
           className="flex h-10 min-w-12 items-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-foreground active:bg-neutral-800"
         >
           Edit
-        </Link>
+        </Link> : null}
       </div>
 
       <section className="space-y-2 rounded-2xl border border-border bg-surface p-4 text-sm">
@@ -54,10 +58,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
         {session.notes ? <p className="border-t border-border pt-2 whitespace-pre-wrap text-foreground">{session.notes}</p> : null}
       </section>
 
-      <SessionSummaryCard session={session} />
+      <SessionSummaryCard session={session} readOnly={!canEdit} />
 
-      {isSessionOpen(session) ? (
+      {isSessionOpen(session) && canEdit ? (
         <RoundLogger session={session} />
+      ) : isSessionOpen(session) ? (
+        <p className="text-sm text-muted">This session belongs to another person and is view only.</p>
       ) : (
         <p className="text-sm text-muted">This session is closed. Rounds can no longer be logged against it.</p>
       )}

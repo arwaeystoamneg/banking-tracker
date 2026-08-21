@@ -18,34 +18,51 @@ import {
   sessionSchema,
   sidebetSchema,
 } from "@/lib/validation/schemas";
+import { getSheetId } from "@/lib/repositories/sheets/client";
 
-export function createSheetsRepositories(): Repositories {
+export function createSheetsRepositories(spreadsheetId = getSheetId()): Repositories {
   return {
-    games: createSheetsRepository({ tab: "Games", tabConfig: GAMES_TAB, makeId: () => makeId("game"), rowSchema: gameSchema }),
+    games: createSheetsRepository({
+      tab: "Games",
+      tabConfig: GAMES_TAB,
+      makeId: () => makeId("game"),
+      rowSchema: gameSchema,
+      spreadsheetId,
+    }),
     sidebets: createSheetsRepository({
       tab: "Sidebets",
       tabConfig: SIDEBETS_TAB,
       makeId: () => makeId("sidebet"),
       rowSchema: sidebetSchema,
+      spreadsheetId,
     }),
     paytables: createSheetsRepository({
       tab: "Paytables",
       tabConfig: PAYTABLES_TAB,
       makeId: () => makeId("paytable"),
       rowSchema: paytableSchema,
+      spreadsheetId,
     }),
     feeSchedules: createSheetsRepository({
       tab: "FeeSchedules",
       tabConfig: FEE_SCHEDULES_TAB,
       makeId: () => makeId("feeSchedule"),
       rowSchema: feeScheduleSchema,
+      spreadsheetId,
     }),
     sessions: createSheetsRepository({
       tab: "Sessions",
       tabConfig: SESSIONS_TAB,
       makeId: () => makeId("session"),
       rowSchema: sessionSchema,
+      spreadsheetId,
     }),
-    rounds: createSheetsRepository({ tab: "Rounds", tabConfig: ROUNDS_TAB, makeId: () => makeId("round"), rowSchema: roundSchema }),
+    rounds: createSheetsRepository({
+      tab: "Rounds",
+      tabConfig: ROUNDS_TAB,
+      makeId: () => makeId("round"),
+      rowSchema: roundSchema,
+      spreadsheetId,
+    }),
   };
 }

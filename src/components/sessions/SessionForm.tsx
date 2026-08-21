@@ -8,11 +8,19 @@ import { Button } from "@/components/ui/Button";
 import { currentTimeString, todayDateString, nowIso } from "@/lib/dates";
 import { getRememberedLoggedBy, rememberLoggedBy } from "@/lib/loggedInAs";
 import type { Session } from "@/lib/validation/schemas";
+import { useCurrentUser } from "@/components/providers/AuthProvider";
+import { isSessionOpen } from "@/lib/sessionHelpers";
+import { useGames } from "@/hooks/useGames";
+import { useFeeSchedules } from "@/hooks/useFeeSchedules";
+import { normalizeCasinoKey } from "@/lib/names";
 
 export function SessionForm({ session }: { session?: Session }) {
+  const user = useCurrentUser();
   const router = useRouter();
   const { create, update } = useSessions();
+  const { games } = useGames();
   const editing = session !== undefined;
+  const closeFieldsReadOnly = !session || isSessionOpen(session);
 
   const [date, setDate] = useState(() => session?.date ?? todayDateString());
   const [casino, setCasino] = useState(() => session?.casino ?? "");
@@ -21,9 +29,26 @@ export function SessionForm({ session }: { session?: Session }) {
   const [timeIn, setTimeIn] = useState(() => session?.time_in ?? currentTimeString());
   const [timeOut, setTimeOut] = useState(() => session?.time_out ?? "");
   const [notes, setNotes] = useState(() => session?.notes ?? "");
-  const [loggedBy, setLoggedBy] = useState(() => session?.logged_by ?? getRememberedLoggedBy());
+  const [gameId, setGameId] = useState(() => session?.game_id ?? "");
+  const [scheduleOption, setScheduleOption] = useState(() => session?.schedule_option ?? "");
+  const [loggedBy, setLoggedBy] = useState(() =>
+    session?.logged_by ?? (user.role === "individual" ? user.name : getRememberedLoggedBy()),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const { feeSchedules } = useFeeSchedules(gameId || undefined);
+  const scheduleOptions = Array.from(
+    new Set(
+      feeSchedules
+        .filter(
+          (schedule) =>
+            !schedule.casino ||
+            !casino ||
+            normalizeCasinoKey(schedule.casino) === normalizeCasinoKey(casino),
+        )
+        .map((schedule) => schedule.option_label || "(unlabeled)"),
+    ),
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,18 +70,23 @@ export function SessionForm({ session }: { session?: Session }) {
 
     setSubmitting(true);
     setError("");
-    rememberLoggedBy(loggedBy.trim());
+    if (user.role === "admin") rememberLoggedBy(loggedBy.trim());
 
     try {
       const fields = {
         date,
         casino: casino.trim(),
         buy_in: buyInAmount,
-        buy_out: buyOutAmount,
         time_in: timeIn,
-        time_out: timeOut,
         notes: notes.trim(),
         logged_by: loggedBy.trim(),
+        game_id: gameId,
+        schedule_option: scheduleOption,
+        ...(session && !isSessionOpen(session)
+          ? { buy_out: buyOutAmount, time_out: timeOut }
+          : session
+            ? {}
+            : { buy_out: null, time_out: "" }),
       };
 
       if (session) {
@@ -67,8 +97,6 @@ export function SessionForm({ session }: { session?: Session }) {
 
       const id = await create({
         ...fields,
-        game_id: "",
-        schedule_option: "",
         rounds_banked: null,
         action_offered: null,
         action_booked: null,
@@ -81,6 +109,7 @@ export function SessionForm({ session }: { session?: Session }) {
         partners: "",
         split_terms: "",
         logged_at: nowIso(),
+        owner_id: user.userId,
       });
 
       router.push(`/sessions/${id}`);
@@ -106,6 +135,43 @@ export function SessionForm({ session }: { session?: Session }) {
         <Input value={casino} onChange={(e) => setCasino(e.target.value)} placeholder="Casino name" required />
       </label>
 
+      <label className="block space-y-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted">Game (optional)</span>
+        <select
+          value={gameId}
+          onChange={(event) => {
+            setGameId(event.target.value);
+            setScheduleOption("");
+          }}
+          className="h-12 w-full rounded-xl border border-border bg-surface px-3 text-base text-foreground outline-none focus:border-neutral-500"
+        >
+          <option value="">No game selected</option>
+          {games.map((game) => (
+            <option key={game.game_id} value={game.game_id}>
+              {game.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {gameId && scheduleOptions.length > 0 ? (
+        <label className="block space-y-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted">Fee schedule</span>
+          <select
+            value={scheduleOption}
+            onChange={(event) => setScheduleOption(event.target.value)}
+            className="h-12 w-full rounded-xl border border-border bg-surface px-3 text-base text-foreground outline-none focus:border-neutral-500"
+          >
+            <option value="">Select a schedule</option>
+            {scheduleOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
           <span className="text-xs font-medium uppercase tracking-wide text-muted">Buy in</span>
@@ -120,6 +186,7 @@ export function SessionForm({ session }: { session?: Session }) {
             min="0"
             step="0.01"
             placeholder="At session end"
+            readOnly={closeFieldsReadOnly}
           />
         </label>
       </div>
@@ -131,7 +198,7 @@ export function SessionForm({ session }: { session?: Session }) {
         </label>
         <label className="block space-y-1">
           <span className="text-xs font-medium uppercase tracking-wide text-muted">Time out</span>
-          <Input type="time" value={timeOut} onChange={(e) => setTimeOut(e.target.value)} />
+          <Input type="time" value={timeOut} onChange={(e) => setTimeOut(e.target.value)} readOnly={closeFieldsReadOnly} />
         </label>
       </div>
 
@@ -148,7 +215,13 @@ export function SessionForm({ session }: { session?: Session }) {
 
       <label className="block space-y-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted">Logged by</span>
-        <Input value={loggedBy} onChange={(e) => setLoggedBy(e.target.value)} placeholder="Name" required />
+        <Input
+          value={loggedBy}
+          onChange={(e) => setLoggedBy(e.target.value)}
+          placeholder="Name"
+          readOnly={user.role === "individual"}
+          required
+        />
       </label>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}

@@ -29,10 +29,9 @@ const ITEMS: { href: string; label: string; icon: ReactNode }[] = [
     icon: <Icon path={<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 4v16" /></>} />,
   },
   {
-    // The fee calculator is the highest-value at-the-table lookup; it belongs in the primary nav.
-    href: "/fees",
-    label: "Fees",
-    icon: <Icon path={<><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6M9 11h6M9 15h3" /></>} />,
+    href: "/ev",
+    label: "EV",
+    icon: <Icon path={<><path d="M3 20c3 0 4-14 9-14s6 14 9 14" /><path d="M3 20h18" /></>} />,
   },
   {
     href: "/sessions",

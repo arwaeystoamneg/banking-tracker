@@ -24,6 +24,7 @@ export const gameSchema = z
     notes: z.string().default(""),
     edited_by: z.string().default(""),
     edited_at: z.string().default(""),
+    owner_id: z.string().default(""),
   })
   .merge(rowVersion);
 export type Game = z.infer<typeof gameSchema>;
@@ -38,6 +39,7 @@ export const gameCreateSchema = gameSchema.omit({ game_id: true, _row_version: t
   notes: true,
   edited_by: true,
   edited_at: true,
+  owner_id: true,
   verified: true,
 });
 export const gamePatchSchema = gameSchema.omit({ game_id: true, _row_version: true }).partial();
@@ -125,6 +127,7 @@ export const sessionSchema = z
     notes: z.string().default(""),
     logged_by: z.string(),
     logged_at: z.string(),
+    owner_id: z.string().default(""),
   })
   .merge(rowVersion);
 export type Session = z.infer<typeof sessionSchema>;
@@ -149,6 +152,7 @@ export const sessionCreateSchema = sessionSchema
     partners: true,
     split_terms: true,
     notes: true,
+    owner_id: true,
   })
   .extend({
     casino: z.string().trim().min(1),
@@ -158,24 +162,42 @@ export const sessionCreateSchema = sessionSchema
   });
 export const sessionPatchSchema = sessionSchema.omit({ session_id: true, _row_version: true }).partial();
 
-export const roundSchema = z
+export const roundFieldsSchema = z
   .object({
     round_id: z.string(),
     session_id: z.string(),
-    seq: z.number().int(),
-    tta: z.number(),
-    booked: z.number(),
-    bonus_action: z.number().nullable().default(null),
+    seq: z.number().int().positive(),
+    tta: z.number().nonnegative(),
+    booked: z.number().nonnegative(),
+    bonus_action: z.number().nonnegative().nullable().default(null),
     fee_tier: z.string().default(""),
-    fee_paid: z.number(),
+    fee_paid: z.number().nonnegative(),
     result: z.number(), // signed PD result for the round
     note: z.string().default(""),
   })
   .merge(rowVersion);
+
+function bookedCannotExceedTta(
+  round: { booked: number; tta: number },
+  context: z.RefinementCtx,
+): void {
+  if (round.booked > round.tta) {
+    context.addIssue({
+      code: "custom",
+      path: ["booked"],
+      message: "Booked action cannot exceed offered TTA",
+    });
+  }
+}
+
+export const roundSchema = roundFieldsSchema.superRefine(bookedCannotExceedTta);
 export type Round = z.infer<typeof roundSchema>;
-export const roundCreateSchema = roundSchema.omit({ round_id: true, _row_version: true }).partial({
-  bonus_action: true,
-  fee_tier: true,
-  note: true,
-});
-export const roundPatchSchema = roundSchema.omit({ round_id: true, _row_version: true }).partial();
+export const roundCreateSchema = roundFieldsSchema
+  .omit({ round_id: true, _row_version: true })
+  .partial({
+    bonus_action: true,
+    fee_tier: true,
+    note: true,
+  })
+  .superRefine(bookedCannotExceedTta);
+export const roundPatchSchema = roundFieldsSchema.omit({ round_id: true, _row_version: true }).partial();

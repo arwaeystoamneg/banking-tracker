@@ -33,7 +33,7 @@ export interface CrudRepository<T, TCreate, TPatch> {
   /** `id`, when given, is used verbatim instead of generating a new one — see lib/ids.ts. */
   create(data: TCreate, id?: string): Promise<T>;
   update(id: string, patch: TPatch, expectedVersion: number): Promise<T>;
-  remove(id: string): Promise<void>;
+  remove(id: string, expectedVersion: number): Promise<void>;
 }
 
 import type {

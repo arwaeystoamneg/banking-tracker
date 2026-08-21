@@ -9,27 +9,33 @@ function NumberCell({
   onCommit,
   placeholder,
   width = "w-20",
+  readOnly = false,
 }: {
   value: number | null;
   onCommit: (n: number | null) => void;
   placeholder?: string;
   width?: string;
+  readOnly?: boolean;
 }) {
   return (
     <input
       defaultValue={value ?? ""}
       placeholder={placeholder}
       inputMode="decimal"
+      readOnly={readOnly}
       onBlur={(e) => {
+        if (readOnly) return;
         const raw = e.target.value.trim();
-        onCommit(raw === "" ? null : Number(raw));
+        const next = raw === "" ? null : Number(raw);
+        if (next !== null && !Number.isFinite(next)) return;
+        if (next !== value) onCommit(next);
       }}
       className={`h-10 ${width} rounded-lg border border-border bg-surface px-2 text-sm text-foreground outline-none focus:border-neutral-500`}
     />
   );
 }
 
-export function FeeScheduleGrid({ gameId }: { gameId: string }) {
+export function FeeScheduleGrid({ gameId, readOnly = false }: { gameId: string; readOnly?: boolean }) {
   const { feeSchedules, isLoading, create, update, remove } = useFeeSchedules(gameId);
   const rows = [...feeSchedules].sort((a, b) => a.tier_min - b.tier_min);
 
@@ -54,31 +60,35 @@ export function FeeScheduleGrid({ gameId }: { gameId: string }) {
             <div key={row.schedule_id} className="rounded-xl border border-border bg-surface p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <input
+                  readOnly={readOnly}
                   defaultValue={row.option_label}
                   placeholder="Option label"
                   onBlur={(e) => e.target.value !== row.option_label && patch(row, { option_label: e.target.value })}
                   className="h-9 flex-1 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-neutral-500"
                 />
-                <button onClick={() => void remove(row.schedule_id)} className="h-9 w-9 text-muted active:text-red-400">
-                  ✕
-                </button>
+                {!readOnly ? (
+                  <button onClick={() => void remove(row.schedule_id)} className="h-9 w-9 text-muted active:text-red-400">
+                    ✕
+                  </button>
+                ) : null}
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <label className="text-xs text-muted">
                   Min
-                  <NumberCell value={row.tier_min} onCommit={(n) => patch(row, { tier_min: n ?? 0 })} width="w-full" />
+                  <NumberCell value={row.tier_min} onCommit={(n) => patch(row, { tier_min: n ?? 0 })} width="w-full" readOnly={readOnly} />
                 </label>
                 <label className="text-xs text-muted">
                   Max (blank = open)
-                  <NumberCell value={row.tier_max} onCommit={(n) => patch(row, { tier_max: n })} width="w-full" />
+                  <NumberCell value={row.tier_max} onCommit={(n) => patch(row, { tier_max: n })} width="w-full" readOnly={readOnly} />
                 </label>
                 <label className="text-xs text-muted">
                   PD fee
-                  <NumberCell value={row.pd_fee} onCommit={(n) => patch(row, { pd_fee: n ?? 0 })} width="w-full" />
+                  <NumberCell value={row.pd_fee} onCommit={(n) => patch(row, { pd_fee: n ?? 0 })} width="w-full" readOnly={readOnly} />
                 </label>
                 <label className="text-xs text-muted">
                   Basis
                   <select
+                    disabled={readOnly}
                     defaultValue={row.basis}
                     onChange={(e) => patch(row, { basis: e.target.value as "flat" | "tta" })}
                     className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-neutral-500"
@@ -93,14 +103,14 @@ export function FeeScheduleGrid({ gameId }: { gameId: string }) {
         </div>
       )}
 
-      <Button
+      {!readOnly ? <Button
         variant="secondary"
         className="h-9 text-xs"
         onClick={() =>
           void create({
             game_id: gameId,
             casino: "",
-            option_label: `Option ${rows.length + 1}`,
+            option_label: rows[0]?.option_label || "Option 1",
             table_limit: "",
             basis: "tta",
             tier_min: 0,
@@ -111,7 +121,7 @@ export function FeeScheduleGrid({ gameId }: { gameId: string }) {
         }
       >
         + Add fee tier
-      </Button>
+      </Button> : null}
     </div>
   );
 }

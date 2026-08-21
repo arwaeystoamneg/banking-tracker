@@ -1,5 +1,6 @@
 import { Decimal, d } from "@/lib/decimal";
 import type { Session } from "@/lib/validation/schemas";
+import { isSessionOpen } from "@/lib/sessionHelpers";
 import { canonicalPerson, normalizePersonKey } from "@/lib/names";
 
 export interface PersonStats {
@@ -55,7 +56,7 @@ export function computePersonStats(sessions: Session[]): PersonStats[] {
     if (session.date < current.firstDate) current.firstDate = session.date;
     if (session.date > current.lastDate) current.lastDate = session.date;
 
-    if (session.buy_out !== null) {
+    if (!isSessionOpen(session) && session.buy_out !== null) {
       const result = d(session.buy_out).minus(session.buy_in);
       current.completedCount += 1;
       current.totalBuyIn = current.totalBuyIn.plus(session.buy_in);

@@ -1,0 +1,37 @@
+{
+  "_readme": "Applied by scripts/extras-import.mjs. Bicycle collection schedule (user-provided) attached to each Bicycle game as the 'Bicycle' fee option, and the UTH Progressive side bet reworked into a Bad Beat Jackpot. Tiers use the 1-unit gap convention (max 100, next min 101) that the cliff math expects.",
+  "feeSchedules": [
+    { "id": "fs_bike_baccarat_bicycle_1", "game_id": "gm_baccarat_bicycle", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1, "tier_max": 100, "pd_fee": 1, "player_fee": 0 },
+    { "id": "fs_bike_baccarat_bicycle_2", "game_id": "gm_baccarat_bicycle", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 101, "tier_max": 400, "pd_fee": 3, "player_fee": 0 },
+    { "id": "fs_bike_baccarat_bicycle_3", "game_id": "gm_baccarat_bicycle", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 401, "tier_max": 1000, "pd_fee": 7, "player_fee": 0 },
+    { "id": "fs_bike_baccarat_bicycle_4", "game_id": "gm_baccarat_bicycle", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1001, "tier_max": null, "pd_fee": 15, "player_fee": 0 },
+
+    { "id": "fs_bike_3cp_1", "game_id": "gm_3cp", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1, "tier_max": 100, "pd_fee": 1, "player_fee": 0 },
+    { "id": "fs_bike_3cp_2", "game_id": "gm_3cp", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 101, "tier_max": 400, "pd_fee": 3, "player_fee": 0 },
+    { "id": "fs_bike_3cp_3", "game_id": "gm_3cp", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 401, "tier_max": 1000, "pd_fee": 7, "player_fee": 0 },
+    { "id": "fs_bike_3cp_4", "game_id": "gm_3cp", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1001, "tier_max": null, "pd_fee": 15, "player_fee": 0 },
+
+    { "id": "fs_bike_paigow_1", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1, "tier_max": 100, "pd_fee": 1, "player_fee": 0 },
+    { "id": "fs_bike_paigow_2", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 101, "tier_max": 400, "pd_fee": 3, "player_fee": 0 },
+    { "id": "fs_bike_paigow_3", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 401, "tier_max": 1000, "pd_fee": 7, "player_fee": 0 },
+    { "id": "fs_bike_paigow_4", "game_id": "gm_paigow", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1001, "tier_max": null, "pd_fee": 15, "player_fee": 0 },
+
+    { "id": "fs_bike_baccarat_21c_1", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1, "tier_max": 100, "pd_fee": 1, "player_fee": 0 },
+    { "id": "fs_bike_baccarat_21c_2", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 101, "tier_max": 400, "pd_fee": 3, "player_fee": 0 },
+    { "id": "fs_bike_baccarat_21c_3", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 401, "tier_max": 1000, "pd_fee": 7, "player_fee": 0 },
+    { "id": "fs_bike_baccarat_21c_4", "game_id": "gm_baccarat_21c", "casino": "Bicycle", "option_label": "Bicycle", "basis": "tta", "tier_min": 1001, "tier_max": null, "pd_fee": 15, "player_fee": 0 }
+  ],
+  "badBeat": {
+    "sidebetId": "sb_uth_progressive",
+    "expectNameNot": "Bad Beat Jackpot",
+    "patch": {
+      "name": "Bad Beat Jackpot",
+      "top_payout": "Straight flush 7,500",
+      "note": "Progressive/bad-beat jackpot on a $1 side wager. Straight flush pays ~7,500 (user-provided); royal flush takes the progressive top. IMPORTANT: bad-beat/progressive jackpots are normally funded from the side-bet pool, NOT by the player-dealer — confirm who covers this before treating the 7,500 line as PD tail exposure. Lower lines not captured — VERIFY the felt."
+    },
+    "paytables": [
+      { "id": "pt_uth_bbj_1", "sidebet_id": "sb_uth_progressive", "ordinal": 1, "outcome": "Royal flush", "payout": "Progressive jackpot" },
+      { "id": "pt_uth_bbj_2", "sidebet_id": "sb_uth_progressive", "ordinal": 2, "outcome": "Straight flush", "payout": "7500" }
+    ]
+  }
+}

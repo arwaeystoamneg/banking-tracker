@@ -7,7 +7,8 @@
  * ("push", "TBD", "Room-specific", "").
  */
 export function payoutMultiple(payout: string): number | null {
-  const s = payout.trim().toLowerCase();
+  // Strip thousands separators so "7,500" and "1,000:1" parse (values are entered by hand on a phone).
+  const s = payout.trim().toLowerCase().replace(/,/g, "");
   if (!s) return null;
 
   const ratio = s.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
