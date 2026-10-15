@@ -23,6 +23,12 @@ export interface AuthUser {
   accountVersion?: string;
 }
 
+/** A configured account as other people see it: enough to pick them as a session's player. */
+export interface TeamMember {
+  id: string;
+  name: string;
+}
+
 /**
  * Privileged = can see and write the banking dataset (games, sessions, EV). Demo is the only
  * role that is not. Review of loss reports stays admin-only.

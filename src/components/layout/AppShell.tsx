@@ -5,11 +5,11 @@ import { QueryProvider } from "@/components/providers/QueryProvider";
 import { SyncStatusBar } from "@/components/sync/SyncStatusBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthProvider } from "@/components/providers/AuthProvider";
-import type { AuthUser } from "@/lib/auth/types";
+import type { AuthUser, TeamMember } from "@/lib/auth/types";
 
-export function AppShell({ user, children }: { user: AuthUser; children: ReactNode }) {
+export function AppShell({ user, team, children }: { user: AuthUser; team: TeamMember[]; children: ReactNode }) {
   return (
-    <AuthProvider user={user}>
+    <AuthProvider user={user} team={team}>
       <QueryProvider>
         <div className="flex min-h-dvh flex-col">
           <div className="flex min-h-9 items-center justify-between border-b border-border bg-surface px-4 text-xs text-muted">

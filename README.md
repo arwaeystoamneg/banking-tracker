@@ -33,6 +33,10 @@ the first write. For older rows without `owner_id`, an individual can claim thei
 configured `name` exactly matches the row's `edited_by` or `logged_by` value; the stable account id is stamped
 on the next edit.
 
+Sessions also have `player` and `player_id` columns, added automatically on the first write. Anyone with an
+account can log a session for themselves, for a teammate, or for someone outside the team. The person who
+logged it, the teammate it was logged for, and admin can update it.
+
 ## Getting Started
 
 First, run the development server:

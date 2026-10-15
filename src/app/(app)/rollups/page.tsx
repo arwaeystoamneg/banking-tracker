@@ -20,7 +20,7 @@ export default function RollupsPage() {
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Stats</h1>
-        <p className="text-sm text-muted">All-time session totals grouped by the name entered in Logged by.</p>
+        <p className="text-sm text-muted">All-time session totals for each player.</p>
       </div>
 
       {isLoading ? <p className="text-sm text-muted">Loading…</p> : null}

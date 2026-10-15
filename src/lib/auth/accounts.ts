@@ -8,6 +8,7 @@ import {
   CONFIGURED_ACCOUNT_ROLES,
   isConfiguredAccountRole,
   type AuthUser,
+  type TeamMember,
 } from "@/lib/auth/types";
 import { checkSecret, makeCredentialVersion } from "@/lib/auth/passphrase";
 
@@ -85,6 +86,16 @@ function configuredAccounts(): Account[] {
   const file = process.env.APP_USERS_FILE?.trim();
   if (file) return readAccountsFile(file);
   return [];
+}
+
+/** Names and ids of every configured account — never passwords. Used to pick who played a session. */
+export function listTeamMembers(): TeamMember[] {
+  try {
+    return configuredAccounts().map((account) => ({ id: account.id.toLowerCase(), name: account.name }));
+  } catch (error) {
+    if (error instanceof AuthConfigError) return [];
+    throw error;
+  }
 }
 
 export async function authenticateAccount(username: string, password: string): Promise<AuthUser | null> {

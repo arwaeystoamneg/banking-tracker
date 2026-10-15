@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAuthorizedRepositories } from "@/lib/repositories/authorized";
+import { createAuthorizedRepositories, resolveSessionPlayer } from "@/lib/repositories/authorized";
 import { ConflictError, type CrudRepository, type Repositories } from "@/lib/repositories/types";
 import { toAppendOnly, toLossReportRepository } from "@/lib/repositories/appendOnly";
 import {
@@ -18,10 +18,15 @@ import {
   type Session,
   type Sidebet,
 } from "@/lib/validation/schemas";
-import type { AuthUser } from "@/lib/auth/types";
+import type { AuthUser, TeamMember } from "@/lib/auth/types";
 
 const ray: AuthUser = { role: "individual", userId: "ray", name: "Ray Tang" };
 const admin: AuthUser = { role: "admin", userId: "admin", name: "Admin" };
+const dana: AuthUser = { role: "employee", userId: "dana", name: "Dana Reyes" };
+const team: TeamMember[] = [
+  { id: "ray", name: "Ray Tang" },
+  { id: "dana", name: "Dana Reyes" },
+];
 
 function memoryRepo<T extends { _row_version: number }>(
   rows: T[],
@@ -175,5 +180,79 @@ describe("authorized repositories", () => {
     const updated = await repos.sessions.update("s1", { logged_by: "Other Person", notes: "hi" }, 1);
     expect(updated.logged_by).toBe("Ray Tang");
     expect(updated.notes).toBe("hi");
+  });
+
+  it("lets a teammate log a session for another player, who can then cash it out", async () => {
+    const inner = fixtureRepos({});
+    const asRay = createAuthorizedRepositories(inner, ray, team);
+    const created = await asRay.sessions.create(
+      { date: "2026-10-15", casino: "Commerce", buy_in: 2000, time_in: "20:00", logged_by: "x", logged_at: "t", player_id: "dana" },
+      "s-for-dana",
+    );
+    expect(created).toMatchObject({ player: "Dana Reyes", player_id: "dana", logged_by: "Ray Tang", owner_id: "ray" });
+
+    const asDana = createAuthorizedRepositories(inner, dana, team);
+    const closed = await asDana.sessions.update("s-for-dana", { buy_out: 2600, time_out: "23:30" }, 1);
+    expect(closed).toMatchObject({ buy_out: 2600, time_out: "23:30", casino: "Commerce" });
+  });
+
+  it("defaults the player to the account logging it", async () => {
+    const inner = fixtureRepos({});
+    const repos = createAuthorizedRepositories(inner, dana, team);
+    const created = await repos.sessions.create(
+      { date: "2026-10-15", casino: "Bike", buy_in: 500, time_in: "12:00", logged_by: "x", logged_at: "t" },
+      "s-own",
+    );
+    expect(created).toMatchObject({ player: "Dana Reyes", player_id: "dana" });
+  });
+
+  it("logs a finished cash session in one step, with no rounds", async () => {
+    const inner = fixtureRepos({});
+    const repos = createAuthorizedRepositories(inner, admin, team);
+    const created = await repos.sessions.create(
+      {
+        date: "2026-10-14",
+        casino: "Commerce",
+        buy_in: 1000,
+        buy_out: 1400,
+        time_in: "18:00",
+        time_out: "22:00",
+        logged_by: "Office",
+        logged_at: "t",
+        player: "Walk-in Backer",
+      },
+      "s-done",
+    );
+    expect(created).toMatchObject({ player: "Walk-in Backer", player_id: "", buy_out: 1400 });
+  });
+
+  it("closes an open cash session without rounds, but not one whose rounds lack coverage", async () => {
+    const inner = fixtureRepos({
+      sessions: [{ ...session, owner_id: "ray" }, { ...session, session_id: "s2", owner_id: "ray" }],
+      rounds: [
+        { round_id: "r1", session_id: "s2", seq: 1, tta: 100, booked: 100, bonus_action: null, fee_tier: "", fee_paid: 1, result: 5, note: "", _row_version: 1 },
+      ],
+    });
+    const repos = createAuthorizedRepositories(inner, ray, team);
+    await expect(repos.sessions.update("s1", { buy_out: 900, time_out: "11:00" }, 1)).resolves.toMatchObject({ buy_out: 900 });
+    await expect(repos.sessions.update("s2", { buy_out: 900, time_out: "11:00" }, 1)).rejects.toThrow(/round totals/);
+    await expect(
+      repos.sessions.update("s2", { buy_out: 900, time_out: "11:00", rounds_banked: 1, coverage_pct: 1, collection_paid: 1 }, 1),
+    ).resolves.toMatchObject({ coverage_pct: 1 });
+  });
+
+  it("keeps the player from reassigning a session someone else logged", async () => {
+    const inner = fixtureRepos({ sessions: [{ ...session, owner_id: "ray", player: "Dana Reyes", player_id: "dana" }] });
+    const asDana = createAuthorizedRepositories(inner, dana, team);
+    await expect(asDana.sessions.update("s1", { player_id: "ray" }, 1)).rejects.toThrow(/who played/);
+    await expect(asDana.sessions.update("s1", { player_id: "dana", notes: "ok" }, 1)).resolves.toMatchObject({ notes: "ok" });
+  });
+});
+
+describe("resolveSessionPlayer", () => {
+  it("rejects an unknown account id and links a typed teammate name", () => {
+    expect(() => resolveSessionPlayer({ player_id: "nobody" }, ray, team, "")).toThrow(/Unknown player/);
+    expect(resolveSessionPlayer({ player: "dana reyes" }, admin, team, "")).toEqual({ player: "Dana Reyes", player_id: "dana" });
+    expect(resolveSessionPlayer({}, admin, team, "Office")).toEqual({ player: "Office", player_id: "" });
   });
 });

@@ -23,7 +23,19 @@ export function ownsGame(user: AuthUser, game: Game): boolean {
   return isGameRecordOwner(user, game);
 }
 
+/**
+ * May change the session and its rounds: the person who logged it, the player it was logged for, or an
+ * admin. A teammate logging on someone's behalf must not lock the player out of their own session.
+ */
 export function ownsSession(user: AuthUser, session: Session): boolean {
+  if (user.role === "admin") return true;
+  if (!isConfiguredAccountRole(user.role)) return false;
+  if (session.player_id.trim() && sameIdentity(session.player_id, user)) return true;
+  return isSessionRecordOwner(user, session);
+}
+
+/** Reassigning who played is reserved for whoever logged it (or an admin), not the player. */
+export function canReassignSessionPlayer(user: AuthUser, session: Session): boolean {
   if (user.role === "admin") return true;
   if (!isConfiguredAccountRole(user.role)) return false;
   return isSessionRecordOwner(user, session);

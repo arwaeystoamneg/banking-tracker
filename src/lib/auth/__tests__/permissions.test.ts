@@ -6,6 +6,7 @@ import {
   ownsGame,
   ownsLossReport,
   ownsSession,
+  canReassignSessionPlayer,
 } from "@/lib/auth/permissions";
 import { gameSchema, sessionSchema } from "@/lib/validation/schemas";
 import type { AuthUser } from "@/lib/auth/types";
@@ -94,5 +95,12 @@ describe("loss-report permissions", () => {
     expect(canSeeAllLossReports(demo)).toBe(false);
     expect(ownsLossReport(employee, report)).toBe(true);
     expect(ownsLossReport(ray, report)).toBe(false);
+  });
+
+  it("lets the player a session was logged for update it, without owning reassignment", () => {
+    const forEmployee = { ...session, owner_id: "ray", player: "Dana Reyes", player_id: "dana" };
+    expect(ownsSession(employee, forEmployee)).toBe(true);
+    expect(canReassignSessionPlayer(employee, forEmployee)).toBe(false);
+    expect(canReassignSessionPlayer(ray, forEmployee)).toBe(true);
   });
 });

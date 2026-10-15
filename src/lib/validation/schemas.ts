@@ -125,9 +125,14 @@ export const sessionSchema = z
     partners: z.string().default(""),
     split_terms: z.string().default(""),
     notes: z.string().default(""),
+    /** Who entered the row. Not necessarily who played — see `player`. */
     logged_by: z.string(),
     logged_at: z.string(),
     owner_id: z.string().default(""),
+    /** Who actually played. Blank on legacy rows, which fall back to logged_by (see sessionPlayerName). */
+    player: z.string().default(""),
+    /** Account id of the player when they have a login; blank for someone outside the team. */
+    player_id: z.string().default(""),
   })
   .merge(rowVersion);
 export type Session = z.infer<typeof sessionSchema>;
@@ -153,6 +158,8 @@ export const sessionCreateSchema = sessionSchema
     split_terms: true,
     notes: true,
     owner_id: true,
+    player: true,
+    player_id: true,
   })
   .extend({
     casino: z.string().trim().min(1),

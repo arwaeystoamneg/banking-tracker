@@ -1,7 +1,8 @@
 import "server-only";
 
-import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
-import { ownsGame, ownsSession } from "@/lib/auth/permissions";
+import { isConfiguredAccountRole, type AuthUser, type TeamMember } from "@/lib/auth/types";
+import { canReassignSessionPlayer, ownsGame, ownsSession } from "@/lib/auth/permissions";
+import { listTeamMembers } from "@/lib/auth/accounts";
 import { AuthorizationError, InputError } from "@/lib/auth/session";
 import type { Repositories } from "@/lib/repositories/types";
 import { ConflictError, NotFoundError } from "@/lib/repositories/types";
@@ -70,10 +71,42 @@ function claimMissingOwnerId(user: AuthUser, ownerId: string, implicitOwner: str
 }
 
 /**
+ * Decides who played. A known account id wins and takes its configured name; a typed name that matches
+ * a teammate is linked to their account; anything else is kept as a free-text player outside the team.
+ * With nothing given, a configured account is logging its own session and admin falls back to logged_by.
+ */
+export function resolveSessionPlayer(
+  input: { player?: string; player_id?: string },
+  user: AuthUser,
+  team: TeamMember[],
+  fallbackName: string,
+): { player: string; player_id: string } {
+  const id = input.player_id?.trim().toLowerCase() ?? "";
+  if (id) {
+    const member =
+      team.find((candidate) => candidate.id === id) ??
+      (isConfiguredAccountRole(user.role) && id === user.userId ? { id, name: user.name } : undefined);
+    if (!member) throw new InputError("Unknown player account");
+    return { player: member.name, player_id: member.id };
+  }
+  const name = input.player?.trim() ?? "";
+  if (!name) {
+    if (isConfiguredAccountRole(user.role)) return { player: user.name, player_id: user.userId };
+    return { player: fallbackName.trim(), player_id: "" };
+  }
+  const byName = team.find((candidate) => candidate.name.trim().toLowerCase() === name.toLowerCase());
+  return byName ? { player: byName.name, player_id: byName.id } : { player: name, player_id: "" };
+}
+
+/**
  * Wraps the data layer so every mutation is authorized even if a route handler is later
  * added outside proxy coverage. Reads remain shared for every real account.
  */
-export function createAuthorizedRepositories(repos: Repositories, user: AuthUser): Repositories {
+export function createAuthorizedRepositories(
+  repos: Repositories,
+  user: AuthUser,
+  team: TeamMember[] = listTeamMembers(),
+): Repositories {
   if (user.role === "demo") throw new AuthorizationError("Demo data must use the isolated demo repository");
 
   const lossRepositories = createLossRepositories(repos, user);
@@ -221,26 +254,44 @@ export function createAuthorizedRepositories(repos: Repositories, user: AuthUser
               owner_id: user.userId,
             }
           : { ...data, owner_id: user.userId };
-        const candidate = sessionSchema.parse({ session_id: id ?? "pending", ...stamped, _row_version: 1 });
-        if (!isSessionOpen(candidate) && candidate.coverage_pct === null) {
-          throw new InputError("A session cannot be created closed without coverage data");
+        const withPlayer = { ...stamped, ...resolveSessionPlayer(data, user, team, stamped.logged_by) };
+        const candidate = sessionSchema.parse({ session_id: id ?? "pending", ...withPlayer, _row_version: 1 });
+        // A finished cash session (buy-out + time-out) may be logged in one step. Round totals without
+        // coverage may not: coverage is what separates a bad game from an underbanked one.
+        if (!isSessionOpen(candidate) && candidate.rounds_banked !== null && candidate.coverage_pct === null) {
+          throw new InputError("Round totals need coverage data");
         }
-        return repos.sessions.create(stamped, id);
+        return repos.sessions.create(withPlayer, id);
       },
       async update(id: string, patch: SessionPatch, expectedVersion: number) {
         const session = await requiredSession(repos, id);
         assertOwnsSession(user, session);
         assertVersion("Sessions", id, session, expectedVersion);
-        const safePatch = withoutKeys(patch, [
+        let safePatch: SessionPatch = withoutKeys(patch, [
           "owner_id",
           "logged_at",
+          "player",
+          "player_id",
           ...(user.role === "admin" ? [] : ["logged_by"]),
         ]);
+        if ("player" in patch || "player_id" in patch) {
+          const next = resolveSessionPlayer(
+            { player: patch.player ?? "", player_id: patch.player_id ?? "" },
+            user,
+            team,
+            session.logged_by,
+          );
+          const changed = next.player !== session.player || next.player_id !== session.player_id;
+          if (changed && !canReassignSessionPlayer(user, session)) {
+            throw new AuthorizationError("Only the person who logged this session or an admin can change who played");
+          }
+          if (changed) safePatch = { ...safePatch, ...next };
+        }
         const candidate = sessionSchema.parse({ ...session, ...safePatch });
         if (isSessionOpen(session) && !isSessionOpen(candidate)) {
           const roundCount = (await repos.rounds.list()).filter((round) => round.session_id === id).length;
-          if (roundCount === 0 || candidate.coverage_pct === null) {
-            throw new InputError("Close sessions through the round summary with at least one round and coverage");
+          if (roundCount > 0 && candidate.coverage_pct === null) {
+            throw new InputError("This session has rounds; cash out from the session page so round totals are saved");
           }
         }
         return repos.sessions.update(

@@ -40,6 +40,17 @@ export function makeListRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
 }
 
 /**
+ * Patch schemas are `.partial()` views of row schemas whose fields carry `.default()`s, and zod still
+ * applies a default to a key that is absent. Without this filter a one-field patch arrives with every
+ * other defaulted field reset (casino "", buy_in 0, notes "", …) and the merge wipes the row.
+ */
+export function providedKeysOnly<T>(parsed: T, raw: unknown): T {
+  if (!parsed || typeof parsed !== "object" || !raw || typeof raw !== "object") return parsed;
+  const provided = new Set(Object.keys(raw));
+  return Object.fromEntries(Object.entries(parsed).filter(([key]) => provided.has(key))) as T;
+}
+
+/**
  * Generic item route (GET one / PATCH / DELETE) shared by every tab's /api/<tab>/[id] route.
  * PATCH body shape: `{ patch: Partial<T>, expectedVersion: number }` — the offline write queue
  * (offline/queue.ts) always sends this shape so conflict detection is uniform across tabs.
@@ -62,7 +73,7 @@ export function makeItemRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
       try {
         const { id } = await params;
         const body = await request.json();
-        const parsedPatch = patchSchema.parse(body.patch);
+        const parsedPatch = providedKeysOnly(patchSchema.parse(body.patch), body.patch);
         const expectedVersion = Number(body.expectedVersion);
         const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;

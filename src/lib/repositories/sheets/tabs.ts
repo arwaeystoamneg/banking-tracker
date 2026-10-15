@@ -110,6 +110,9 @@ export const SESSIONS_TAB: TabConfig = {
     "logged_at",
     "owner_id",
     "_row_version",
+    // Appended after _row_version: the adapter adds missing headers at the end of an existing sheet.
+    "player",
+    "player_id",
   ],
   numberFields: ["buy_in", "_row_version"],
   nullableNumberFields: [

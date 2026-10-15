@@ -49,4 +49,11 @@ describe("computePersonStats", () => {
     expect(damon?.netCash.toNumber()).toBe(-50);
     expect(damon?.totalMinutes).toBe(150);
   });
+
+  it("credits the player, not the teammate who logged it", () => {
+    const forDana = { ...session("x", "Ray Tang", 1000, 1500, "2026-10-01", "18:00", "20:00"), player: "Dana Reyes" };
+    const result = computePersonStats([forDana]);
+    expect(result.map((person) => person.name)).toEqual(["Dana Reyes"]);
+    expect(result[0].netCash.toNumber()).toBe(500);
+  });
 });

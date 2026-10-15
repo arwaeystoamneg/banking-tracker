@@ -1,6 +1,6 @@
 import { Decimal, d } from "@/lib/decimal";
 import type { Session } from "@/lib/validation/schemas";
-import { isSessionOpen } from "@/lib/sessionHelpers";
+import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
 import { canonicalPerson, normalizePersonKey } from "@/lib/names";
 
 export interface PersonStats {
@@ -32,7 +32,8 @@ export function computePersonStats(sessions: Session[]): PersonStats[] {
   const byPerson = new Map<string, PersonStats>();
 
   for (const session of sessions) {
-    const name = session.logged_by.trim();
+    // Credit the person who played, not whoever typed the session in.
+    const name = sessionPlayerName(session);
     if (!name) continue;
     // Group case/spacing/punctuation variants of the same name together, and display one
     // consistent form regardless of how any single session happened to be typed.

@@ -139,14 +139,19 @@ pd_fee · player_fee`
 **`Sessions`**
 `session_id · date · casino · buy_in · buy_out · time_in · time_out · game_id · schedule_option · rounds_banked ·
 action_offered · action_booked · coverage_pct · bonus_action_booked · collection_paid · gross_wl · net_pnl ·
-peak_drawdown · partners · split_terms · notes · logged_by · logged_at · owner_id`
+peak_drawdown · partners · split_terms · notes · logged_by · logged_at · owner_id · player · player_id`
+
+`player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
+someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);
+legacy rows with a blank `player` fall back to `logged_by`. The logger, the linked player, and admin may
+update a session; only the logger or admin may change who played. Stats group by player.
 
 **`Rounds`** — optional granular capture, one row per banked round
 `round_id · session_id · seq · tta · booked · bonus_action · fee_tier · fee_paid · result · note`
 
 `coverage_pct = action_booked / action_offered` is the most diagnostically valuable field in the schema. It
-is what distinguishes "this game is bad" from "$8k never reached the side-bet layer." Never let a session be
-saved without it.
+is what distinguishes "this game is bad" from "$8k never reached the side-bet layer." Never let a session
+that has rounds be closed without it. Cash-only sessions (buy-in/buy-out, no rounds) close without it.
 
 Seed data for `Games`, `Sidebets`, and `Paytables` is in `seed-games.json` — five games across Hollywood Park,
 Commerce, and The Bicycle, with filed BGC numbers and captured paytables. Import it once on first setup.
@@ -167,7 +172,8 @@ Commerce, and The Bicycle, with filed BGC numbers and captured paytables. Import
    that option 15 steps in $1 increments while 16–19 step in $5, so the cliff math is not uniform across
    schedules — derive it from `FeeSchedules`, never hardcode. This is the highest-value feature on a phone at
    a live table.
-4. **Session logging.** Start a session, log rounds as you go, close it out with totals. Must work offline.
+4. **Session logging.** Pick who played (yourself or a teammate), start it live or enter it already finished,
+   optionally log rounds, cash out. Must work offline.
 5. **Roll-ups.** Realized edge, fee load, net edge, $/banked round, and an N₀ significance check. Under
    |t| ≈ 2, show the result as *not yet meaningful* rather than as a verdict — small samples here are
    overwhelmingly noise.

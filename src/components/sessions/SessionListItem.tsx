@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import { isSessionOpen } from "@/lib/sessionHelpers";
+import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay } from "@/lib/dates";
 import { canonicalCasino } from "@/lib/names";
 import { d, formatMoney } from "@/lib/decimal";
@@ -20,14 +20,13 @@ export function SessionListItem({ session }: { session: Session }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-base font-medium text-foreground">
-            {session.casino ? canonicalCasino(session.casino) : "Casino session"}
-          </p>
-          <p className="text-sm text-muted">
+          <p className="truncate text-base font-medium text-foreground">{sessionPlayerName(session) || "Unknown player"}</p>
+          <p className="truncate text-sm text-muted">
+            {session.casino ? canonicalCasino(session.casino) : "No casino"} ·{" "}
             <span className="num">{formatDateForDisplay(session.date)}</span> · {session.time_in || "—"}
             {session.time_out ? `–${session.time_out}` : ""}
           </p>
-          <p className="text-xs text-muted">Logged by {session.logged_by || "—"}</p>
+          {loggedOnBehalf(session) ? <p className="text-xs text-muted">Logged by {session.logged_by}</p> : null}
         </div>
         {open ? <Badge tone="warning">Open</Badge> : <Badge tone="accent">Closed</Badge>}
       </div>
