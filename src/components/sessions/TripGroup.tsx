@@ -26,7 +26,7 @@ export function TripGroup({ trip, defaultOpen = false }: { trip: Trip; defaultOp
         <div className="min-w-0">
           <p className="num text-sm font-semibold text-foreground">{dateLabel}</p>
           <p className="truncate text-xs text-muted">
-            {trip.casinos.length ? trip.casinos.join(" · ") : "No casino"} ·{" "}
+            {trip.casinos.length ? `${trip.casinos.join(" · ")} · ` : ""}
             <span className="num">{trip.sessionCount}</span> session{trip.sessionCount === 1 ? "" : "s"}
             {trip.openCount > 0 ? <span className="text-amber-400"> · {trip.openCount} open</span> : null}
           </p>

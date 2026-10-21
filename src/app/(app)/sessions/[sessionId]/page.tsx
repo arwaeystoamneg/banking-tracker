@@ -3,9 +3,7 @@
 import { use } from "react";
 import Link from "next/link";
 import { useSessions } from "@/hooks/useSessions";
-import { useRounds } from "@/hooks/useRounds";
-import { RoundLogger } from "@/components/sessions/RoundLogger";
-import { CashOutCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
+import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { Badge } from "@/components/ui/Badge";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay } from "@/lib/dates";
@@ -21,7 +19,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
   const user = useCurrentUser();
   const { sessionId } = use(params);
   const { sessions, isLoading } = useSessions();
-  const { rounds } = useRounds(sessionId);
 
   const session = sessions.find((s) => s.session_id === sessionId);
 
@@ -40,7 +37,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
             {open ? <Badge tone="warning">Open</Badge> : <Badge tone="accent">Closed</Badge>}
           </div>
           <p className="text-sm text-muted">
-            {session.casino ? canonicalCasino(session.casino) : "No casino"} · {formatDateForDisplay(session.date)} ·{" "}
+            {session.casino ? `${canonicalCasino(session.casino)} · ` : ""}
+            {formatDateForDisplay(session.date)} ·{" "}
             {session.time_in || "—"}
             {session.time_out ? `–${session.time_out}` : ""}
           </p>
@@ -73,28 +71,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
         ) : null}
       </section>
 
-      {open && canEdit ? <CashOutCard session={session} /> : null}
+      {open && canEdit ? <EndSessionCard session={session} /> : null}
       {open && !canEdit ? (
         <p className="text-sm text-muted">Only {sessionPlayerName(session)}, whoever logged it, or an admin can update this session.</p>
       ) : null}
 
       <SessionSummaryCard session={session} />
-
-      {open && canEdit ? (
-        <details className="group rounded-2xl border border-border bg-surface" open={rounds.length > 0 || Boolean(session.game_id)}>
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-muted-strong">
-            <span>
-              Log rounds <span className="font-normal text-muted">(optional)</span>
-            </span>
-            <span className="text-muted transition-transform group-open:rotate-90" aria-hidden>
-              ▸
-            </span>
-          </summary>
-          <div className="border-t border-border p-3">
-            <RoundLogger session={session} />
-          </div>
-        </details>
-      ) : null}
     </main>
   );
 }

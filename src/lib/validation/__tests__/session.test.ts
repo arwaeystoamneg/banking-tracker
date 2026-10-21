@@ -21,7 +21,7 @@ describe("session schemas", () => {
     expect(parsed).not.toHaveProperty("bank_posted");
   });
 
-  it("requires the fields needed to start a casino session", () => {
+  it("requires a buy-in and time in to start a session", () => {
     const valid = {
       date: "2026-08-20",
       casino: "Commerce",
@@ -32,7 +32,7 @@ describe("session schemas", () => {
     };
 
     expect(sessionCreateSchema.parse(valid)).toMatchObject(valid);
-    expect(() => sessionCreateSchema.parse({ ...valid, casino: "" })).toThrow();
+    expect(sessionCreateSchema.parse({ ...valid, casino: undefined }).casino).toBe("");
     expect(() => sessionCreateSchema.parse({ ...valid, buy_in: -1 })).toThrow();
   });
 

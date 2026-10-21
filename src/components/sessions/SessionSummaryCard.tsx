@@ -6,9 +6,9 @@ import { useSessions } from "@/hooks/useSessions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { d, formatMoney, formatPercent } from "@/lib/decimal";
-import { currentTimeString } from "@/lib/dates";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 import type { Round, Session } from "@/lib/validation/schemas";
+import { useLiveTime } from "@/hooks/useLiveTime";
 
 export function roundTotals(rounds: Round[]) {
   const actionOffered = rounds.reduce((sum, r) => sum.plus(d(r.tta)), d(0));
@@ -21,12 +21,12 @@ export function roundTotals(rounds: Round[]) {
   return { actionOffered, actionBooked, bonusAction, collectionPaid, grossWl, netPnl, coveragePct };
 }
 
-/** Cash-out for an open session. Rounds are optional; when there are any, their totals are saved too. */
-export function CashOutCard({ session }: { session: Session }) {
+/** Ends an open session. Legacy sessions with logged rounds also get their round totals saved. */
+export function EndSessionCard({ session }: { session: Session }) {
   const { rounds } = useRounds(session.session_id);
   const { update } = useSessions();
   const [buyOut, setBuyOut] = useState(session.buy_out === null ? "" : String(session.buy_out));
-  const [timeOut, setTimeOut] = useState(session.time_out || currentTimeString());
+  const [timeOut, setTimeOut, timeOutForSave] = useLiveTime(session.time_out);
   const [closing, setClosing] = useState(false);
   const [closeError, setCloseError] = useState("");
 
@@ -35,7 +35,7 @@ export function CashOutCard({ session }: { session: Session }) {
   const validBuyOut = buyOut !== "" && Number.isFinite(buyOutAmount) && buyOutAmount >= 0;
   // Rounds with no offered action would close without coverage, which round analytics depend on.
   const roundsMissingCoverage = rounds.length > 0 && totals.coveragePct === null;
-  const canClose = validBuyOut && timeOut !== "" && !roundsMissingCoverage;
+  const canClose = validBuyOut && !roundsMissingCoverage;
   const preview = validBuyOut ? d(buyOutAmount).minus(session.buy_in) : null;
 
   async function handleClose() {
@@ -47,7 +47,7 @@ export function CashOutCard({ session }: { session: Session }) {
         session.session_id,
         {
           buy_out: buyOutAmount,
-          time_out: timeOut,
+          time_out: timeOutForSave(),
           ...(rounds.length > 0
             ? {
                 rounds_banked: rounds.length,
@@ -64,7 +64,7 @@ export function CashOutCard({ session }: { session: Session }) {
         session._row_version,
       );
     } catch {
-      setCloseError("Could not cash out. Check sync status and try again.");
+      setCloseError("Could not end the session. Check sync status and try again.");
     } finally {
       setClosing(false);
     }
@@ -72,14 +72,13 @@ export function CashOutCard({ session }: { session: Session }) {
 
   return (
     <section className="space-y-3 rounded-2xl border border-emerald-500/30 bg-surface p-4">
-      <h2 className="text-sm font-semibold text-foreground">Cash out</h2>
       <div className="grid grid-cols-2 gap-2">
         <label className="space-y-1 text-xs text-muted">
           Buy out
           <Input value={buyOut} onChange={(event) => setBuyOut(event.target.value)} inputMode="decimal" placeholder="0" />
         </label>
         <label className="space-y-1 text-xs text-muted">
-          Ended
+          Time out
           <Input type="time" value={timeOut} onChange={(event) => setTimeOut(event.target.value)} />
         </label>
       </div>
@@ -95,8 +94,8 @@ export function CashOutCard({ session }: { session: Session }) {
         <p className="text-xs text-amber-400">Logged rounds have no offered action, so coverage can&apos;t be computed.</p>
       ) : null}
       {closeError ? <p className="text-xs text-red-400">{closeError}</p> : null}
-      <Button onClick={handleClose} disabled={!canClose || closing} className="w-full">
-        {closing ? "Saving…" : "Cash out & close"}
+      <Button onClick={handleClose} disabled={!canClose || closing} className="h-14 w-full text-base">
+        {closing ? "Saving…" : "End session"}
       </Button>
     </section>
   );

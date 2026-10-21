@@ -162,7 +162,8 @@ export const sessionCreateSchema = sessionSchema
     player_id: true,
   })
   .extend({
-    casino: z.string().trim().min(1),
+    // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.
+    casino: z.string().trim().default(""),
     buy_in: z.number().nonnegative(),
     time_in: z.string().min(1),
     logged_by: z.string().trim().min(1),

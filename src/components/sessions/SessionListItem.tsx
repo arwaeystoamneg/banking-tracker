@@ -22,7 +22,7 @@ export function SessionListItem({ session }: { session: Session }) {
         <div className="min-w-0">
           <p className="truncate text-base font-medium text-foreground">{sessionPlayerName(session) || "Unknown player"}</p>
           <p className="truncate text-sm text-muted">
-            {session.casino ? canonicalCasino(session.casino) : "No casino"} ·{" "}
+            {session.casino ? `${canonicalCasino(session.casino)} · ` : ""}
             <span className="num">{formatDateForDisplay(session.date)}</span> · {session.time_in || "—"}
             {session.time_out ? `–${session.time_out}` : ""}
           </p>
