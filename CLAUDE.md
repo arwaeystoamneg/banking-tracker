@@ -146,6 +146,14 @@ someone's behalf. `player_id` links the player to a configured account (blank fo
 legacy rows with a blank `player` fall back to `logged_by`. The logger, the linked player, and admin may
 update a session; only the logger or admin may change who played. Stats group by player.
 
+**`Reimbursements`** — money someone fronted for the team and is owed back
+`reimbursement_id · date · payee · payee_id · amount · reason · session_id · status (owed|paid) · paid_at · paid_by ·
+requested_by · requested_at · owner_id`
+
+`payee` is who is owed; `requested_by` is who filed it. New rows are always `owed`; only individuals and admin
+mark them paid (the server stamps `paid_by`/`paid_at`). The filer, the payee, and admin edit while owed; paid
+rows are locked except to admin. Not part of P&L math.
+
 **`Rounds`** — optional granular capture, one row per banked round
 `round_id · session_id · seq · tta · booked · bonus_action · fee_tier · fee_paid · result · note`
 

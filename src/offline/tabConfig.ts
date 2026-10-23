@@ -11,6 +11,7 @@ export const TAB_CLIENT_CONFIG: Record<CacheTab, { apiPath: string; idField: str
   lossReports: { apiPath: "/api/losses", idField: "loss_id" },
   lossEvidence: { apiPath: "/api/evidence", idField: "evidence_id" },
   auditLog: { apiPath: "/api/audit", idField: "entry_id" },
+  reimbursements: { apiPath: "/api/reimbursements", idField: "reimbursement_id" },
 };
 
 export const QUEUE_TAB_CONFIG: Record<QueueTab, { apiPath: string; idField: string }> = {
@@ -20,6 +21,7 @@ export const QUEUE_TAB_CONFIG: Record<QueueTab, { apiPath: string; idField: stri
   feeSchedules: TAB_CLIENT_CONFIG.feeSchedules,
   sessions: TAB_CLIENT_CONFIG.sessions,
   rounds: TAB_CLIENT_CONFIG.rounds,
+  reimbursements: TAB_CLIENT_CONFIG.reimbursements,
 };
 
 export function isQueueTab(tab: CacheTab): tab is QueueTab {

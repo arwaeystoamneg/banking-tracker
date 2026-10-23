@@ -200,6 +200,30 @@ export const AUDIT_LOG_TAB: TabConfig = {
   booleanFields: [],
 };
 
+export const REIMBURSEMENTS_TAB: TabConfig = {
+  tabName: "Reimbursements",
+  idField: "reimbursement_id",
+  headers: [
+    "reimbursement_id",
+    "date",
+    "payee",
+    "payee_id",
+    "amount",
+    "reason",
+    "session_id",
+    "status",
+    "paid_at",
+    "paid_by",
+    "requested_by",
+    "requested_at",
+    "owner_id",
+    "_row_version",
+  ],
+  numberFields: ["amount", "_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
 export const ALL_TABS = [
   GAMES_TAB,
   SIDEBETS_TAB,
@@ -210,4 +234,5 @@ export const ALL_TABS = [
   LOSS_REPORTS_TAB,
   LOSS_EVIDENCE_TAB,
   AUDIT_LOG_TAB,
+  REIMBURSEMENTS_TAB,
 ];

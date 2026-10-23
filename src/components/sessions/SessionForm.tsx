@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSessions } from "@/hooks/useSessions";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
 import { todayDateString, nowIso } from "@/lib/dates";
 import { useLiveTime } from "@/hooks/useLiveTime";
 import { getRememberedLoggedBy, getRememberedPlayer, rememberLoggedBy, rememberPlayer } from "@/lib/loggedInAs";
@@ -221,21 +222,4 @@ function initialPlayerChoice(
 function rememberedOtherName(): string {
   const remembered = getRememberedPlayer();
   return remembered.startsWith("name:") ? remembered.slice(5) : "";
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors disabled:opacity-60 ${
-        active
-          ? "border-emerald-500/70 bg-emerald-600/20 text-foreground"
-          : "border-border bg-surface text-muted-strong active:bg-surface-raised"
-      }`}
-    >
-      {children}
-    </button>
-  );
 }

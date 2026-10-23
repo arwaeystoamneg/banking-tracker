@@ -217,6 +217,49 @@ export const roundPatchSchema = roundFieldsSchema.omit({ round_id: true, _row_ve
  * enforced at the type level rather than by convention.
  * ---------------------------------------------------------------------------------------------- */
 
+export const REIMBURSEMENT_STATUSES = ["owed", "paid"] as const;
+export type ReimbursementStatus = (typeof REIMBURSEMENT_STATUSES)[number];
+
+/**
+ * Money someone fronted for the team (a buy-in from their own pocket, travel, food) and is owed back.
+ * `requested_by` is who entered it; `payee` is who gets paid — they differ when a teammate files it.
+ */
+export const reimbursementSchema = z
+  .object({
+    reimbursement_id: z.string(),
+    /** When the money was spent. */
+    date: z.string(),
+    payee: z.string(),
+    /** Account id of the payee when they have a login; blank for someone outside the team. */
+    payee_id: z.string().default(""),
+    amount: z.number().nonnegative(),
+    reason: z.string().default(""),
+    session_id: z.string().default(""),
+    // Lenient so "Paid" typed directly into the sheet still reads; anything unrecognized stays owed.
+    status: z
+      .preprocess((value) => (typeof value === "string" ? value.trim().toLowerCase() : value), z.enum(REIMBURSEMENT_STATUSES))
+      .catch("owed"),
+    paid_at: z.string().default(""),
+    paid_by: z.string().default(""),
+    requested_by: z.string(),
+    requested_at: z.string(),
+    owner_id: z.string().default(""),
+  })
+  .merge(rowVersion);
+export type Reimbursement = z.infer<typeof reimbursementSchema>;
+export const reimbursementCreateSchema = reimbursementSchema
+  .omit({ reimbursement_id: true, _row_version: true, status: true, paid_at: true, paid_by: true })
+  .partial({ payee: true, payee_id: true, reason: true, session_id: true, owner_id: true, requested_at: true })
+  .extend({
+    date: z.string().min(1),
+    amount: z.number().positive(),
+    requested_by: z.string().trim().min(1),
+  });
+export const reimbursementPatchSchema = reimbursementSchema
+  .omit({ reimbursement_id: true, _row_version: true })
+  .partial()
+  .extend({ amount: z.number().positive().optional() });
+
 export const LOSS_STATUSES = ["submitted", "in_review", "verified", "disputed", "rejected"] as const;
 export type LossStatus = (typeof LOSS_STATUSES)[number];
 

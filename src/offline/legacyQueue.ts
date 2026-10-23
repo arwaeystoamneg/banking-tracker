@@ -38,6 +38,9 @@ function cachedRow(item: Pick<WriteQueueItem, "tab" | "targetId">, tables: Legac
       return findById(tables.sessions, "session_id", item.targetId) as Record<string, unknown> | undefined;
     case "rounds":
       return findById(tables.rounds, "round_id", item.targetId) as Record<string, unknown> | undefined;
+    case "reimbursements":
+      // Newer than the pre-partition databases, so a legacy cache never holds one.
+      return undefined;
   }
 }
 
@@ -63,6 +66,8 @@ function resolveIdentity(
     }
     case "feeSchedules":
       return gameIdentity(findById(tables.games, "game_id", asString(merged.game_id)));
+    case "reimbursements":
+      return { owner_id: asString(merged.owner_id), person: asString(merged.requested_by) };
   }
 }
 

@@ -1,5 +1,5 @@
 import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
-import type { Game, LossReport, Session } from "@/lib/validation/schemas";
+import type { Game, LossReport, Reimbursement, Session } from "@/lib/validation/schemas";
 
 export function sameIdentity(value: string, user: AuthUser): boolean {
   const normalized = value.trim().toLowerCase();
@@ -64,4 +64,41 @@ export function canSeeAllLossReports(user: AuthUser): boolean {
 export function ownsLossReport(user: AuthUser, report: Pick<LossReport, "owner_id" | "submitted_by">): boolean {
   if (user.role === "demo") return false;
   return report.owner_id.trim() ? sameIdentity(report.owner_id, user) : sameIdentity(report.submitted_by, user);
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Reimbursements. Anyone with a real account can file one; the person who filed it and the person
+ * owed can fix it while it is unpaid; partners (individual accounts) and admin settle them.
+ * ---------------------------------------------------------------------------------------------- */
+
+function isReimbursementRecordOwner(
+  user: AuthUser,
+  item: Pick<Reimbursement, "owner_id" | "requested_by">,
+): boolean {
+  if (user.role === "demo") return false;
+  return item.owner_id.trim() ? sameIdentity(item.owner_id, user) : sameIdentity(item.requested_by, user);
+}
+
+export function canRequestReimbursement(user: AuthUser): boolean {
+  return user.role === "admin" || isConfiguredAccountRole(user.role);
+}
+
+/** Marking paid moves money, so employees can file but not settle — not even their own. */
+export function canSettleReimbursements(user: AuthUser): boolean {
+  return user.role === "admin" || user.role === "individual";
+}
+
+/** May edit or delete: whoever filed it, the person owed, or admin — and only admin once it's paid. */
+export function canEditReimbursement(user: AuthUser, item: Reimbursement): boolean {
+  if (user.role === "admin") return true;
+  if (!isConfiguredAccountRole(user.role) || item.status === "paid") return false;
+  if (item.payee_id.trim() && sameIdentity(item.payee_id, user)) return true;
+  return isReimbursementRecordOwner(user, item);
+}
+
+/** Changing who is owed is reserved for whoever filed it (or admin), not the payee. */
+export function canReassignReimbursementPayee(user: AuthUser, item: Reimbursement): boolean {
+  if (user.role === "admin") return true;
+  if (!isConfiguredAccountRole(user.role) || item.status === "paid") return false;
+  return isReimbursementRecordOwner(user, item);
 }

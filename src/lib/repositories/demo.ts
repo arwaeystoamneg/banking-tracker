@@ -14,6 +14,7 @@ import {
   lossEvidenceSchema,
   lossReportSchema,
   paytableSchema,
+  reimbursementSchema,
   roundSchema,
   sessionSchema,
   sidebetSchema,
@@ -100,6 +101,7 @@ function lockRepositories(base: Repositories): Repositories {
     feeSchedules: lockRepository(base.feeSchedules),
     sessions: lockRepository(base.sessions),
     rounds: lockRepository(base.rounds),
+    reimbursements: lockRepository(base.reimbursements),
     lossReports: lockLossReports(base.lossReports),
     lossEvidence: lockAppendOnly(base.lossEvidence),
     auditLog: lockAppendOnly(base.auditLog),
@@ -131,6 +133,7 @@ export async function getDemoRepositories(): Promise<Repositories> {
     const lossReports = seed.lossReports.map((row) => lossReportSchema.parse(row));
     const lossEvidence = seed.lossEvidence.map((row) => lossEvidenceSchema.parse(row));
     const auditLog = seed.auditLog.map((row) => auditEntrySchema.parse(row));
+    const reimbursements = seed.reimbursements.map((row) => reimbursementSchema.parse(row));
 
     return {
       games: fixtureRepository(games, "game_id"),
@@ -139,6 +142,7 @@ export async function getDemoRepositories(): Promise<Repositories> {
       feeSchedules: fixtureRepository(feeSchedules, "schedule_id"),
       sessions: fixtureRepository(sessions, "session_id"),
       rounds: fixtureRepository(rounds, "round_id"),
+      reimbursements: fixtureRepository(reimbursements, "reimbursement_id"),
       lossReports: {
         ...appendOnlyFixtureRepository(lossReports, "loss_id"),
         recordDecision: async () => {

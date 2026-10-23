@@ -15,6 +15,8 @@ import type {
   lossReportCreateSchema,
   lossEvidenceCreateSchema,
   auditEntryCreateSchema,
+  reimbursementCreateSchema,
+  reimbursementPatchSchema,
 } from "@/lib/validation/schemas";
 
 export type GameCreate = z.infer<typeof gameCreateSchema>;
@@ -29,6 +31,8 @@ export type SessionCreate = z.infer<typeof sessionCreateSchema>;
 export type SessionPatch = z.infer<typeof sessionPatchSchema>;
 export type RoundCreate = z.infer<typeof roundCreateSchema>;
 export type RoundPatch = z.infer<typeof roundPatchSchema>;
+export type ReimbursementCreate = z.infer<typeof reimbursementCreateSchema>;
+export type ReimbursementPatch = z.infer<typeof reimbursementPatchSchema>;
 
 // The loss-reporting tabs are append-only, so there is deliberately no Patch type for them — see
 // lib/repositories/types.ts. The only mutation is a reviewer decision (LossDecisionPatch, exported

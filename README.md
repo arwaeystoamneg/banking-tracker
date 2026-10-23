@@ -37,6 +37,11 @@ Sessions also have `player` and `player_id` columns, added automatically on the 
 account can log a session for themselves, for a teammate, or for someone outside the team. The person who
 logged it, the teammate it was logged for, and admin can update it.
 
+The **Reimbursements** page tracks money someone fronted for the team and is owed back. It lives in a
+`Reimbursements` tab that the app creates on the first write. Anyone with an account can file one for
+themselves or a teammate. Individuals and admin mark them paid; employees can file but not settle. Whoever filed
+it and the person owed can edit or delete it while it's unpaid; a paid one is locked except to admin.
+
 ## Getting Started
 
 First, run the development server:

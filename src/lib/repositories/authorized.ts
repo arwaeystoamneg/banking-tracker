@@ -1,7 +1,15 @@
 import "server-only";
 
 import { isConfiguredAccountRole, type AuthUser, type TeamMember } from "@/lib/auth/types";
-import { canReassignSessionPlayer, ownsGame, ownsSession } from "@/lib/auth/permissions";
+import {
+  canEditReimbursement,
+  canReassignReimbursementPayee,
+  canReassignSessionPlayer,
+  canRequestReimbursement,
+  canSettleReimbursements,
+  ownsGame,
+  ownsSession,
+} from "@/lib/auth/permissions";
 import { listTeamMembers } from "@/lib/auth/accounts";
 import { AuthorizationError, InputError } from "@/lib/auth/session";
 import type { Repositories } from "@/lib/repositories/types";
@@ -14,6 +22,8 @@ import type {
   GamePatch,
   PaytableCreate,
   PaytablePatch,
+  ReimbursementCreate,
+  ReimbursementPatch,
   RoundCreate,
   RoundPatch,
   SessionCreate,
@@ -21,7 +31,14 @@ import type {
   SidebetCreate,
   SidebetPatch,
 } from "@/lib/repositories/inferred";
-import { roundSchema, sessionSchema, type Game, type Session, type Sidebet } from "@/lib/validation/schemas";
+import {
+  roundSchema,
+  sessionSchema,
+  type Game,
+  type Reimbursement,
+  type Session,
+  type Sidebet,
+} from "@/lib/validation/schemas";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 
 function assertOwnsGame(user: AuthUser, game: Game): void {
@@ -44,6 +61,12 @@ async function requiredSidebet(repos: Repositories, id: string): Promise<Sidebet
   const sidebet = await repos.sidebets.get(id);
   if (!sidebet) throw new NotFoundError("Sidebets", id);
   return sidebet;
+}
+
+async function requiredReimbursement(repos: Repositories, id: string): Promise<Reimbursement> {
+  const item = await repos.reimbursements.get(id);
+  if (!item) throw new NotFoundError("Reimbursements", id);
+  return item;
 }
 
 async function requiredSession(repos: Repositories, id: string): Promise<Session> {
@@ -350,6 +373,86 @@ export function createAuthorizedRepositories(
         assertOwnsSession(user, session);
         if (!isSessionOpen(session)) throw new AuthorizationError("Closed sessions cannot accept round changes");
         return repos.rounds.remove(id, expectedVersion);
+      },
+    },
+    reimbursements: {
+      list: () => repos.reimbursements.list(),
+      get: (id) => repos.reimbursements.get(id),
+      async create(data: ReimbursementCreate, id?: string) {
+        if (!canRequestReimbursement(user)) throw new AuthorizationError("This account cannot file reimbursements");
+        const fields = withoutKeys(data, ["status", "paid_at", "paid_by"]);
+        const stamped = isConfiguredAccountRole(user.role)
+          ? { ...fields, requested_by: user.name, requested_at: new Date().toISOString(), owner_id: user.userId }
+          : { ...fields, requested_at: new Date().toISOString(), owner_id: user.userId };
+        const payee = resolveSessionPlayer(
+          { player: data.payee ?? "", player_id: data.payee_id ?? "" },
+          user,
+          team,
+          stamped.requested_by,
+        );
+        if (!payee.player) throw new InputError("Who is owed is required");
+        // A new reimbursement is always owed; only a settle (update) can mark it paid.
+        return repos.reimbursements.create({ ...stamped, payee: payee.player, payee_id: payee.player_id }, id);
+      },
+      async update(id: string, patch: ReimbursementPatch, expectedVersion: number) {
+        const item = await requiredReimbursement(repos, id);
+        assertVersion("Reimbursements", id, item, expectedVersion);
+        let safePatch: ReimbursementPatch = withoutKeys(patch, [
+          "owner_id",
+          "requested_at",
+          "payee",
+          "payee_id",
+          "status",
+          "paid_at",
+          "paid_by",
+          ...(user.role === "admin" ? [] : ["requested_by"]),
+        ]);
+
+        const settling = patch.status !== undefined && patch.status !== item.status;
+        if (settling) {
+          if (!canSettleReimbursements(user)) {
+            throw new AuthorizationError("Only a partner or an admin can mark reimbursements paid");
+          }
+          safePatch = {
+            ...safePatch,
+            ...(patch.status === "paid"
+              ? { status: "paid", paid_at: new Date().toISOString(), paid_by: user.name }
+              : { status: "owed", paid_at: "", paid_by: "" }),
+          };
+        }
+
+        const editsDetails = Object.keys(safePatch).some((key) => !["status", "paid_at", "paid_by"].includes(key));
+        if (editsDetails && !canEditReimbursement(user, item)) {
+          throw new AuthorizationError(
+            item.status === "paid"
+              ? "A paid reimbursement is locked; mark it unpaid first"
+              : "Only whoever filed this, the person owed, or an admin can change it",
+          );
+        }
+
+        if ("payee" in patch || "payee_id" in patch) {
+          const next = resolveSessionPlayer(
+            { player: patch.payee ?? "", player_id: patch.payee_id ?? "" },
+            user,
+            team,
+            item.requested_by,
+          );
+          const changed = next.player !== item.payee || next.player_id !== item.payee_id;
+          if (changed && !canReassignReimbursementPayee(user, item)) {
+            throw new AuthorizationError("Only whoever filed this or an admin can change who is owed");
+          }
+          if (changed) safePatch = { ...safePatch, payee: next.player, payee_id: next.player_id };
+        }
+
+        return repos.reimbursements.update(id, safePatch, expectedVersion);
+      },
+      async remove(id: string, expectedVersion: number) {
+        const item = await requiredReimbursement(repos, id);
+        if (!canEditReimbursement(user, item)) {
+          throw new AuthorizationError("Only whoever filed this, the person owed, or an admin can delete it while unpaid");
+        }
+        assertVersion("Reimbursements", id, item, expectedVersion);
+        return repos.reimbursements.remove(id, expectedVersion);
       },
     },
   };

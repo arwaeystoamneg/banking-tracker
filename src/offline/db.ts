@@ -6,6 +6,7 @@ import type {
   LossEvidence,
   LossReport,
   Paytable,
+  Reimbursement,
   Round,
   Session,
   Sidebet,
@@ -17,7 +18,7 @@ export type QueueOp = "create" | "update" | "delete";
 export type QueueStatus = "pending" | "syncing" | "error" | "conflict" | "blocked";
 
 /** Tabs the write queue is allowed to mutate. Loss tabs are deliberately absent. */
-export type QueueTab = "games" | "sidebets" | "paytables" | "feeSchedules" | "sessions" | "rounds";
+export type QueueTab = "games" | "sidebets" | "paytables" | "feeSchedules" | "sessions" | "rounds" | "reimbursements";
 
 /**
  * Tabs with a Dexie cache. A superset of QueueTab: the loss tabs are readable offline but
@@ -54,6 +55,7 @@ class OfflineDatabase extends Dexie {
   lossReports!: Table<LossReport, string>;
   lossEvidence!: Table<LossEvidence, string>;
   auditLog!: Table<AuditEntry, string>;
+  reimbursements!: Table<Reimbursement, string>;
   writeQueue!: Table<WriteQueueItem, number>;
   meta!: Table<MetaRow, string>;
 
@@ -82,6 +84,9 @@ class OfflineDatabase extends Dexie {
       auditLog: "entry_id, loss_id",
       writeQueue: "++id, tab, status, createdAt",
       meta: "key",
+    });
+    this.version(3).stores({
+      reimbursements: "reimbursement_id, status, payee_id, date",
     });
   }
 }

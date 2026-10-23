@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
-import { canSeeAllLossReports, canSubmitLossReport } from "@/lib/auth/permissions";
+import { canRequestReimbursement, canSeeAllLossReports, canSubmitLossReport } from "@/lib/auth/permissions";
 
 /** Stroked line icons — flat, no fill, so they read in low light without emotional color. */
 function Icon({ path }: { path: ReactNode }) {
@@ -62,13 +62,30 @@ const LOSSES_ITEM: { href: string; label: string; icon: ReactNode } = {
   ),
 };
 
+const REIMBURSEMENTS_ITEM: { href: string; label: string; icon: ReactNode } = {
+  href: "/reimbursements",
+  label: "Reimburse",
+  icon: (
+    <Icon
+      path={
+        <>
+          <rect x="2" y="6" width="20" height="12" rx="2" />
+          <circle cx="12" cy="12" r="2.5" />
+          <path d="M6 12h.01M18 12h.01" />
+        </>
+      }
+    />
+  ),
+};
+
 export function BottomNav() {
   const pathname = usePathname();
   const user = useCurrentUser();
-  const items =
-    canSubmitLossReport(user) || canSeeAllLossReports(user)
-      ? [...BANKING_ITEMS, LOSSES_ITEM]
-      : BANKING_ITEMS;
+  const items = [
+    ...BANKING_ITEMS,
+    ...(canSubmitLossReport(user) || canSeeAllLossReports(user) ? [LOSSES_ITEM] : []),
+    ...(canRequestReimbursement(user) ? [REIMBURSEMENTS_ITEM] : []),
+  ];
 
   return (
     <nav className="sticky bottom-0 z-30 flex border-t border-border bg-surface/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">

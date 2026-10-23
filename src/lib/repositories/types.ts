@@ -6,6 +6,7 @@ import type {
   LossEvidence,
   LossReport,
   Paytable,
+  Reimbursement,
   Round,
   Session,
   Sidebet,
@@ -78,6 +79,8 @@ import type {
   LossReportCreate,
   PaytableCreate,
   PaytablePatch,
+  ReimbursementCreate,
+  ReimbursementPatch,
   RoundCreate,
   RoundPatch,
   SessionCreate,
@@ -93,6 +96,7 @@ export interface Repositories {
   feeSchedules: CrudRepository<FeeSchedule, FeeScheduleCreate, FeeSchedulePatch>;
   sessions: CrudRepository<Session, SessionCreate, SessionPatch>;
   rounds: CrudRepository<Round, RoundCreate, RoundPatch>;
+  reimbursements: CrudRepository<Reimbursement, ReimbursementCreate, ReimbursementPatch>;
   lossReports: LossReportRepository;
   lossEvidence: AppendOnlyRepository<LossEvidence, LossEvidenceCreate>;
   auditLog: AppendOnlyRepository<AuditEntry, AuditEntryCreate>;

@@ -10,7 +10,7 @@ import { formatDateForDisplay } from "@/lib/dates";
 import { d, formatMoney } from "@/lib/decimal";
 import { canonicalCasino } from "@/lib/names";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
-import { canSubmitLossReport, ownsSession } from "@/lib/auth/permissions";
+import { canRequestReimbursement, canSubmitLossReport, ownsSession } from "@/lib/auth/permissions";
 
 const LINK_BUTTON =
   "flex h-10 min-w-12 items-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-foreground active:bg-neutral-800";
@@ -53,6 +53,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
           {canSubmitLossReport(user) ? (
             <Link href={`/losses/new?session_id=${session.session_id}`} className={LINK_BUTTON}>
               Report loss
+            </Link>
+          ) : null}
+          {canRequestReimbursement(user) ? (
+            <Link href={`/reimbursements/new?session_id=${session.session_id}`} className={LINK_BUTTON}>
+              Reimburse
             </Link>
           ) : null}
         </div>

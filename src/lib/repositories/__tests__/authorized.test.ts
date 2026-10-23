@@ -6,6 +6,7 @@ import {
   feeScheduleSchema,
   gameSchema,
   paytableSchema,
+  reimbursementSchema,
   sessionSchema,
   sidebetSchema,
   type AuditEntry,
@@ -14,6 +15,7 @@ import {
   type LossEvidence,
   type LossReport,
   type Paytable,
+  type Reimbursement,
   type Round,
   type Session,
   type Sidebet,
@@ -75,6 +77,7 @@ function fixtureRepos(seed: {
   lossReports?: LossReport[];
   lossEvidence?: LossEvidence[];
   auditLog?: AuditEntry[];
+  reimbursements?: Reimbursement[];
 }): Repositories & {
   games: ReturnType<typeof memoryRepo<Game>>;
   sidebets: ReturnType<typeof memoryRepo<Sidebet>>;
@@ -82,6 +85,7 @@ function fixtureRepos(seed: {
   feeSchedules: ReturnType<typeof memoryRepo<FeeSchedule>>;
   sessions: ReturnType<typeof memoryRepo<Session>>;
   rounds: ReturnType<typeof memoryRepo<Round>>;
+  reimbursements: ReturnType<typeof memoryRepo<Reimbursement>>;
 } {
   return {
     games: memoryRepo(seed.games ?? [], "game_id"),
@@ -93,6 +97,7 @@ function fixtureRepos(seed: {
     lossReports: toLossReportRepository(memoryRepo(seed.lossReports ?? [], "loss_id")),
     lossEvidence: toAppendOnly(memoryRepo(seed.lossEvidence ?? [], "evidence_id")),
     auditLog: toAppendOnly(memoryRepo(seed.auditLog ?? [], "entry_id")),
+    reimbursements: memoryRepo(seed.reimbursements ?? [], "reimbursement_id"),
   };
 }
 
@@ -254,5 +259,119 @@ describe("resolveSessionPlayer", () => {
     expect(() => resolveSessionPlayer({ player_id: "nobody" }, ray, team, "")).toThrow(/Unknown player/);
     expect(resolveSessionPlayer({ player: "dana reyes" }, admin, team, "")).toEqual({ player: "Dana Reyes", player_id: "dana" });
     expect(resolveSessionPlayer({}, admin, team, "Office")).toEqual({ player: "Office", player_id: "" });
+  });
+});
+
+describe("reimbursements", () => {
+  const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
+  const fullTeam: TeamMember[] = [...team, { id: "sam", name: "Sam Park" }];
+
+  function owed(overrides: Partial<Reimbursement> = {}): Reimbursement {
+    return reimbursementSchema.parse({
+      reimbursement_id: "rb1",
+      date: "2026-10-20",
+      payee: "Dana Reyes",
+      payee_id: "dana",
+      amount: 300,
+      reason: "Buy-in from own cash",
+      requested_by: "Dana Reyes",
+      requested_at: "2026-10-20T20:00:00.000Z",
+      owner_id: "dana",
+      _row_version: 1,
+      ...overrides,
+    });
+  }
+
+  it("files for yourself by default and always starts owed", async () => {
+    const repos = fixtureRepos({});
+    const created = await createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.create(
+      { date: "2026-10-20", amount: 40, requested_by: "spoofed", reason: "Gas" },
+      "rb2",
+    );
+    expect(created).toMatchObject({ payee: "Dana Reyes", payee_id: "dana", requested_by: "Dana Reyes", owner_id: "dana" });
+    expect(reimbursementSchema.parse(created).status).toBe("owed");
+  });
+
+  it("lets a teammate file on someone's behalf, linking a typed name to their account", async () => {
+    const repos = fixtureRepos({});
+    const created = await createAuthorizedRepositories(repos, ray, fullTeam).reimbursements.create(
+      { date: "2026-10-20", amount: 40, requested_by: "Ray Tang", payee: "dana reyes" },
+      "rb2",
+    );
+    expect(created).toMatchObject({ payee: "Dana Reyes", payee_id: "dana", requested_by: "Ray Tang" });
+  });
+
+  it("ignores paid status sent on create", async () => {
+    const repos = fixtureRepos({});
+    await createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.create(
+      { date: "2026-10-20", amount: 40, requested_by: "Dana Reyes", status: "paid" } as never,
+      "rb2",
+    );
+    expect(reimbursementSchema.parse((await repos.reimbursements.list())[0]).status).toBe("owed");
+  });
+
+  it("lets partners and admin mark paid, stamping who and when", async () => {
+    const repos = fixtureRepos({ reimbursements: [owed()] });
+    const paid = await createAuthorizedRepositories(repos, ray, fullTeam).reimbursements.update(
+      "rb1",
+      { status: "paid", paid_by: "spoofed" },
+      1,
+    );
+    expect(paid).toMatchObject({ status: "paid", paid_by: "Ray Tang" });
+    expect(paid.paid_at).not.toBe("");
+    const reopened = await createAuthorizedRepositories(repos, admin, fullTeam).reimbursements.update(
+      "rb1",
+      { status: "owed" },
+      2,
+    );
+    expect(reopened).toMatchObject({ status: "owed", paid_at: "", paid_by: "" });
+  });
+
+  it("does not let an employee mark paid, even their own", async () => {
+    const repos = fixtureRepos({ reimbursements: [owed()] });
+    await expect(
+      createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.update("rb1", { status: "paid" }, 1),
+    ).rejects.toThrow("Only a partner or an admin");
+  });
+
+  it("lets the filer and the payee edit while owed, but not other teammates", async () => {
+    const filedByRay = owed({ requested_by: "Ray Tang", owner_id: "ray" });
+    const repos = fixtureRepos({ reimbursements: [filedByRay] });
+    const asPayee = await createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.update(
+      "rb1",
+      { amount: 320 },
+      1,
+    );
+    expect(asPayee.amount).toBe(320);
+    await expect(
+      createAuthorizedRepositories(repos, sam, fullTeam).reimbursements.update("rb1", { amount: 1 }, 2),
+    ).rejects.toThrow("Only whoever filed this");
+    // The payee cannot hand the reimbursement to someone else; the filer can.
+    await expect(
+      createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.update("rb1", { payee_id: "sam" }, 2),
+    ).rejects.toThrow("change who is owed");
+    const moved = await createAuthorizedRepositories(repos, ray, fullTeam).reimbursements.update(
+      "rb1",
+      { payee_id: "sam" },
+      2,
+    );
+    expect(moved).toMatchObject({ payee: "Sam Park", payee_id: "sam" });
+  });
+
+  it("locks a paid reimbursement against edits and deletes except by admin", async () => {
+    const repos = fixtureRepos({ reimbursements: [owed({ status: "paid", paid_by: "Ray Tang" })] });
+    await expect(
+      createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.update("rb1", { amount: 999 }, 1),
+    ).rejects.toThrow("locked");
+    await expect(createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.remove("rb1", 1)).rejects.toThrow(
+      "delete",
+    );
+    await createAuthorizedRepositories(repos, admin, fullTeam).reimbursements.remove("rb1", 1);
+    expect(repos.reimbursements.removed).toEqual(["rb1"]);
+  });
+
+  it("reads a status typed into the sheet by hand", () => {
+    expect(owed({ status: " Paid " as never }).status).toBe("paid");
+    expect(owed({ status: "" as never }).status).toBe("owed");
   });
 });
