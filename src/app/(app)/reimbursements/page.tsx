@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useReimbursements } from "@/hooks/useReimbursements";
 import { Button } from "@/components/ui/Button";
+import { PaySwitcher } from "@/components/payroll/PaySwitcher";
 import { ReimbursementListItem } from "@/components/reimbursements/ReimbursementListItem";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
 import { canRequestReimbursement, sameIdentity } from "@/lib/auth/permissions";
@@ -35,6 +36,7 @@ export default function ReimbursementsPage() {
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
+      <PaySwitcher />
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reimbursements</h1>

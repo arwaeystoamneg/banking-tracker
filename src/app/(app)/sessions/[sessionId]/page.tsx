@@ -9,7 +9,9 @@ import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionH
 import { formatDateForDisplay } from "@/lib/dates";
 import { d, formatMoney } from "@/lib/decimal";
 import { canonicalCasino } from "@/lib/names";
-import { useCurrentUser } from "@/components/providers/AuthProvider";
+import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
+import { PayrollStatus } from "@/components/payroll/PayrollStatus";
+import { employeesOf, sessionEmployee } from "@/lib/payroll";
 import { canRequestReimbursement, canSubmitLossReport, ownsSession } from "@/lib/auth/permissions";
 
 const LINK_BUTTON =
@@ -17,6 +19,7 @@ const LINK_BUTTON =
 
 export default function SessionDetailPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const user = useCurrentUser();
+  const team = useTeam();
   const { sessionId } = use(params);
   const { sessions, isLoading } = useSessions();
 
@@ -75,6 +78,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
           <p className="col-span-3 border-t border-border pt-2 whitespace-pre-wrap text-foreground">{session.notes}</p>
         ) : null}
       </section>
+
+      {sessionEmployee(session, employeesOf(team)) ? <PayrollStatus session={session} /> : null}
 
       {open && canEdit ? <EndSessionCard session={session} /> : null}
       {open && !canEdit ? (

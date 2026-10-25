@@ -26,6 +26,8 @@ function session(overrides: Partial<Session> & { session_id: string; date: strin
     owner_id: "",
     player: "",
     player_id: "",
+    payroll_paid_at: "",
+    payroll_paid_by: "",
     logged_by: "Ray",
     logged_at: `${overrides.date}T20:00:00.000Z`,
     _row_version: 1,

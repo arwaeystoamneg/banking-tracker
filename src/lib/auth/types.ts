@@ -27,6 +27,8 @@ export interface AuthUser {
 export interface TeamMember {
   id: string;
   name: string;
+  /** Lets payroll find employees. Optional so older callers and fixtures still type-check. */
+  role?: ConfiguredAccountRole;
 }
 
 /**

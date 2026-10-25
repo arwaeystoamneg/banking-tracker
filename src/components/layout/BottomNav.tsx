@@ -62,9 +62,11 @@ const LOSSES_ITEM: { href: string; label: string; icon: ReactNode } = {
   ),
 };
 
-const REIMBURSEMENTS_ITEM: { href: string; label: string; icon: ReactNode } = {
-  href: "/reimbursements",
-  label: "Reimburse",
+/** Payroll and reimbursements share one tab; PaySwitcher moves between them. */
+const PAY_ITEM: { href: string; label: string; icon: ReactNode; also?: string[] } = {
+  href: "/payroll",
+  label: "Pay",
+  also: ["/reimbursements"],
   icon: (
     <Icon
       path={
@@ -81,16 +83,17 @@ const REIMBURSEMENTS_ITEM: { href: string; label: string; icon: ReactNode } = {
 export function BottomNav() {
   const pathname = usePathname();
   const user = useCurrentUser();
-  const items = [
+  const items: { href: string; label: string; icon: ReactNode; also?: string[] }[] = [
     ...BANKING_ITEMS,
     ...(canSubmitLossReport(user) || canSeeAllLossReports(user) ? [LOSSES_ITEM] : []),
-    ...(canRequestReimbursement(user) ? [REIMBURSEMENTS_ITEM] : []),
+    ...(canRequestReimbursement(user) ? [PAY_ITEM] : []),
   ];
 
   return (
     <nav className="sticky bottom-0 z-30 flex border-t border-border bg-surface/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
       {items.map((item) => {
-        const active = pathname.startsWith(item.href);
+        const paths = [item.href, ...(item.also ?? [])];
+        const active = paths.some((path) => pathname.startsWith(path));
         return (
           <Link
             key={item.href}

@@ -375,3 +375,57 @@ describe("reimbursements", () => {
     expect(owed({ status: "" as never }).status).toBe("owed");
   });
 });
+
+describe("session payroll", () => {
+  const damonUser: AuthUser = { role: "employee", userId: "damon", name: "Damon" };
+  const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
+  const played = () =>
+    sessionSchema.parse({
+      session_id: "p1",
+      date: "2026-10-10",
+      buy_in: 100,
+      buy_out: 150,
+      time_in: "18:00",
+      time_out: "22:00",
+      logged_by: "Damon",
+      logged_at: "2026-10-10T18:00:00Z",
+      owner_id: "damon",
+      player: "Damon",
+      player_id: "damon",
+      _row_version: 1,
+    });
+
+  it("lets Ray mark someone else's session paid, stamping who and when", async () => {
+    const repos = fixtureRepos({ sessions: [played()] });
+    const paid = await createAuthorizedRepositories(repos, ray, team).sessions.update(
+      "p1",
+      { payroll_paid_at: "x", payroll_paid_by: "spoofed" },
+      1,
+    );
+    expect(paid.payroll_paid_by).toBe("Ray Tang");
+    expect(paid.payroll_paid_at).not.toBe("x");
+  });
+
+  it("refuses everyone else, including the employee and other partners", async () => {
+    for (const user of [damonUser, sam]) {
+      const repos = fixtureRepos({ sessions: [played()] });
+      await expect(
+        createAuthorizedRepositories(repos, user, team).sessions.update("p1", { payroll_paid_at: "x" }, 1),
+      ).rejects.toThrow("Only Ray or an admin");
+    }
+  });
+
+  it("locks a paid session against the employee's edits", async () => {
+    const repos = fixtureRepos({ sessions: [{ ...played(), payroll_paid_at: "2026-10-12", payroll_paid_by: "Ray Tang" }] });
+    await expect(
+      createAuthorizedRepositories(repos, damonUser, team).sessions.update("p1", { time_out: "23:59" }, 1),
+    ).rejects.toThrow("has been paid");
+  });
+
+  it("won't pay a session that is still open", async () => {
+    const repos = fixtureRepos({ sessions: [{ ...played(), buy_out: null, time_out: "" }] });
+    await expect(
+      createAuthorizedRepositories(repos, admin, team).sessions.update("p1", { payroll_paid_at: "x" }, 1),
+    ).rejects.toThrow("End the session");
+  });
+});

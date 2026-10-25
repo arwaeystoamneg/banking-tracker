@@ -91,7 +91,7 @@ function configuredAccounts(): Account[] {
 /** Names and ids of every configured account — never passwords. Used to pick who played a session. */
 export function listTeamMembers(): TeamMember[] {
   try {
-    return configuredAccounts().map((account) => ({ id: account.id.toLowerCase(), name: account.name }));
+    return configuredAccounts().map((account) => ({ id: account.id.toLowerCase(), name: account.name, role: account.role }));
   } catch (error) {
     if (error instanceof AuthConfigError) return [];
     throw error;

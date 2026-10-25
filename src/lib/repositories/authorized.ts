@@ -40,6 +40,9 @@ import {
   type Sidebet,
 } from "@/lib/validation/schemas";
 import { isSessionOpen } from "@/lib/sessionHelpers";
+import { canMarkPayrollPaid } from "@/lib/payroll";
+
+const PAYROLL_KEYS = ["payroll_paid_at", "payroll_paid_by"];
 
 function assertOwnsGame(user: AuthUser, game: Game): void {
   if (!ownsGame(user, game)) throw new AuthorizationError("Only the game owner or an admin can change this game");
@@ -268,7 +271,9 @@ export function createAuthorizedRepositories(
     sessions: {
       list: () => repos.sessions.list(),
       get: (id) => repos.sessions.get(id),
-      async create(data: SessionCreate, id?: string) {
+      async create(input: SessionCreate, id?: string) {
+        // A new session is never already paid; payroll is checked off afterwards.
+        const data = withoutKeys(input, PAYROLL_KEYS);
         const stamped = isConfiguredAccountRole(user.role)
           ? {
               ...data,
@@ -288,9 +293,31 @@ export function createAuthorizedRepositories(
       },
       async update(id: string, patch: SessionPatch, expectedVersion: number) {
         const session = await requiredSession(repos, id);
-        assertOwnsSession(user, session);
+        const touchesPayroll = PAYROLL_KEYS.some((key) => key in patch);
+        const payrollOnly = touchesPayroll && Object.keys(patch).every((key) => PAYROLL_KEYS.includes(key));
+        const approver = canMarkPayrollPaid(user);
+        if (touchesPayroll && !approver) {
+          throw new AuthorizationError("Only Ray or an admin can mark a session paid");
+        }
+        // The approver checks off sessions they don't own; any other change still needs ownership.
+        if (!payrollOnly) assertOwnsSession(user, session);
         assertVersion("Sessions", id, session, expectedVersion);
+        if (!payrollOnly && session.payroll_paid_at && !approver) {
+          throw new AuthorizationError("This session has been paid; ask Ray or an admin to change it");
+        }
+        if (payrollOnly) {
+          const paying = Boolean(patch.payroll_paid_at);
+          if (paying && isSessionOpen(session)) throw new InputError("End the session before marking it paid");
+          return repos.sessions.update(
+            id,
+            paying
+              ? { payroll_paid_at: new Date().toISOString(), payroll_paid_by: user.name }
+              : { payroll_paid_at: "", payroll_paid_by: "" },
+            expectedVersion,
+          );
+        }
         let safePatch: SessionPatch = withoutKeys(patch, [
+          ...PAYROLL_KEYS,
           "owner_id",
           "logged_at",
           "player",

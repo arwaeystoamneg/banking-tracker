@@ -139,7 +139,11 @@ pd_fee · player_fee`
 **`Sessions`**
 `session_id · date · casino · buy_in · buy_out · time_in · time_out · game_id · schedule_option · rounds_banked ·
 action_offered · action_booked · coverage_pct · bonus_action_booked · collection_paid · gross_wl · net_pnl ·
-peak_drawdown · partners · split_terms · notes · logged_by · logged_at · owner_id · player · player_id`
+peak_drawdown · partners · split_terms · notes · logged_by · logged_at · owner_id · player · player_id ·
+payroll_paid_at · payroll_paid_by`
+
+`payroll_paid_at` / `payroll_paid_by` record when an employee was paid for the session. Only Ray and admin may
+set them (see `src/lib/payroll.ts`); sessions before `PAYROLL_START_DATE` count as paid.
 
 `player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
 someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);

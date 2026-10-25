@@ -133,6 +133,9 @@ export const sessionSchema = z
     player: z.string().default(""),
     /** Account id of the player when they have a login; blank for someone outside the team. */
     player_id: z.string().default(""),
+    /** Payroll: when an employee was paid for this session, and who marked it. Blank = unpaid. */
+    payroll_paid_at: z.string().default(""),
+    payroll_paid_by: z.string().default(""),
   })
   .merge(rowVersion);
 export type Session = z.infer<typeof sessionSchema>;
@@ -160,6 +163,8 @@ export const sessionCreateSchema = sessionSchema
     owner_id: true,
     player: true,
     player_id: true,
+    payroll_paid_at: true,
+    payroll_paid_by: true,
   })
   .extend({
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.

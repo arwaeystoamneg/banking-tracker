@@ -113,6 +113,8 @@ export const SESSIONS_TAB: TabConfig = {
     // Appended after _row_version: the adapter adds missing headers at the end of an existing sheet.
     "player",
     "player_id",
+    "payroll_paid_at",
+    "payroll_paid_by",
   ],
   numberFields: ["buy_in", "_row_version"],
   nullableNumberFields: [
