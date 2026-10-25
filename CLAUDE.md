@@ -186,7 +186,9 @@ Commerce, and The Bicycle, with filed BGC numbers and captured paytables. Import
    that option 15 steps in $1 increments while 16–19 step in $5, so the cliff math is not uniform across
    schedules — derive it from `FeeSchedules`, never hardcode. This is the highest-value feature on a phone at
    a live table.
-4. **Session logging.** Deliberately minimal: who played (defaults to you), buy-in and time in → Start session;
+4. **Session logging.** A session's `date` is the day it **started**; most run past midnight and keep that date.
+   New sessions take the date from time in (a time in later than now means it started yesterday).
+   Deliberately minimal: who played (defaults to you), buy-in and time in → Start session;
    buy-out and time out → End session. Times follow the clock until edited. No casino, game, or round entry
    in the UI (older rows keep theirs). Must work offline.
 5. **Roll-ups.** Realized edge, fee load, net edge, $/banked round, and an N₀ significance check. Under

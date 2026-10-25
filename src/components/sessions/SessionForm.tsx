@@ -6,7 +6,7 @@ import { useSessions } from "@/hooks/useSessions";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
-import { todayDateString, nowIso } from "@/lib/dates";
+import { formatDateForDisplay, nowIso, startDateForTimeIn } from "@/lib/dates";
 import { useLiveTime } from "@/hooks/useLiveTime";
 import { getRememberedLoggedBy, getRememberedPlayer, rememberLoggedBy, rememberPlayer } from "@/lib/loggedInAs";
 import type { Session } from "@/lib/validation/schemas";
@@ -41,10 +41,12 @@ export function SessionForm({ session }: { session?: Session }) {
   const [otherName, setOtherName] = useState(() =>
     session ? (initialPlayerChoice(session, people, isAccount, user.userId) === OTHER ? sessionPlayerName(session) : "") : rememberedOtherName(),
   );
-  const [date, setDate] = useState(() => session?.date ?? todayDateString());
+  // Sessions are dated by when they started. A new one follows time in until the date is picked by hand.
+  const [pickedDate, setPickedDate] = useState(() => session?.date ?? "");
   const [buyIn, setBuyIn] = useState(() => (session ? String(session.buy_in) : ""));
   const [buyOut, setBuyOut] = useState(() => (session?.buy_out == null ? "" : String(session.buy_out)));
   const [timeIn, setTimeIn, timeInForSave] = useLiveTime(session?.time_in ?? "");
+  const date = pickedDate || startDateForTimeIn(timeIn);
   const [timeOut, setTimeOut] = useState(() => session?.time_out ?? "");
   const [loggedBy, setLoggedBy] = useState(() => session?.logged_by ?? (isAccount ? user.name : getRememberedLoggedBy()));
   const [submitting, setSubmitting] = useState(false);
@@ -65,10 +67,11 @@ export function SessionForm({ session }: { session?: Session }) {
     const buyInAmount = Number(buyIn);
     const buyOutAmount = Number(buyOut);
     const time = timeInForSave();
+    const startDate = pickedDate || startDateForTimeIn(time);
     const problems: string[] = [];
     if (!player.player) problems.push("who played");
     if (buyIn === "" || !Number.isFinite(buyInAmount) || buyInAmount < 0) problems.push("buy-in");
-    if (!time || !date) problems.push("time in");
+    if (!time || !startDate) problems.push("time in");
     if (closed && (buyOut === "" || !Number.isFinite(buyOutAmount) || buyOutAmount < 0)) problems.push("buy-out");
     if (closed && !timeOut) problems.push("time out");
     if (!isAccount && !loggedBy.trim()) problems.push("your name");
@@ -84,7 +87,7 @@ export function SessionForm({ session }: { session?: Session }) {
 
     try {
       const fields = {
-        date,
+        date: startDate,
         buy_in: buyInAmount,
         time_in: time,
         logged_by: isAccount ? (session?.logged_by ?? user.name) : loggedBy.trim(),
@@ -176,12 +179,15 @@ export function SessionForm({ session }: { session?: Session }) {
         </div>
       ) : null}
 
-      {editing ? (
-        <label className="block space-y-1">
-          <span className={LABEL}>Date</span>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </label>
-      ) : null}
+      <label className="block space-y-1">
+        <span className={LABEL}>Date started</span>
+        <Input type="date" value={date} onChange={(e) => setPickedDate(e.target.value)} />
+        {!editing && !pickedDate ? (
+          <span className="block text-xs text-muted">
+            {formatDateForDisplay(date)} — set from time in. A session that runs past midnight keeps this date.
+          </span>
+        ) : null}
+      </label>
 
       {isAccount ? null : (
         <label className="block space-y-1">
