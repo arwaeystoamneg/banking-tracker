@@ -222,6 +222,25 @@ export const roundPatchSchema = roundFieldsSchema.omit({ round_id: true, _row_ve
  * enforced at the type level rather than by convention.
  * ---------------------------------------------------------------------------------------------- */
 
+/**
+ * Who is on payroll besides employee accounts (which always are). One row per added person; Ray and
+ * admin manage the list from the Payroll page.
+ */
+export const payrollMemberSchema = z
+  .object({
+    membership_id: z.string(),
+    member_id: z.string(),
+    member_name: z.string().default(""),
+    added_by: z.string().default(""),
+    added_at: z.string().default(""),
+  })
+  .merge(rowVersion);
+export type PayrollMember = z.infer<typeof payrollMemberSchema>;
+export const payrollMemberCreateSchema = payrollMemberSchema
+  .omit({ membership_id: true, _row_version: true })
+  .extend({ member_id: z.string().trim().min(1) });
+export const payrollMemberPatchSchema = payrollMemberSchema.omit({ membership_id: true, _row_version: true }).partial();
+
 export const REIMBURSEMENT_STATUSES = ["owed", "paid"] as const;
 export type ReimbursementStatus = (typeof REIMBURSEMENT_STATUSES)[number];
 

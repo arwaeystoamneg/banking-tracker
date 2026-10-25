@@ -9,6 +9,7 @@ const PREFIXES = {
   lossEvidence: "le",
   auditEntry: "ae",
   reimbursement: "rb",
+  payrollMember: "pm",
 } as const;
 
 export type IdKind = keyof typeof PREFIXES;

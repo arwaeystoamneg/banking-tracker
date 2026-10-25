@@ -37,9 +37,11 @@ Sessions also have `player` and `player_id` columns, added automatically on the 
 account can log a session for themselves, for a teammate, or for someone outside the team. The person who
 logged it, the teammate it was logged for, and admin can update it.
 
-The **Pay** tab has two sections. **Payroll** lists sessions played by `employee` accounts with hours (time in
+The **Pay** tab has two sections. **Payroll** lists sessions played by people on payroll with hours (time in
 to time out) and whether each one has been paid. Sessions dated before `PAYROLL_START_DATE` (Oct 1, 2026, in
-`src/lib/payroll.ts`) count as already paid. Only Ray (account id or name `ray`) and admin can check a session
+`src/lib/payroll.ts`) count as already paid. Employee accounts are always on payroll; Ray and admin can add anyone else with an
+account (individuals included) from the "Who's on payroll" list on the Payroll page, which is stored in a
+`PayrollMembers` tab. A session can only be marked paid if whoever played it is on payroll. Only Ray (account id or name `ray`) and admin can check a session
 off as paid; the server stamps who and when into the Sessions columns `payroll_paid_at` / `payroll_paid_by`, and
 a paid session is locked against the employee's edits.
 

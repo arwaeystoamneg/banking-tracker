@@ -143,7 +143,9 @@ peak_drawdown · partners · split_terms · notes · logged_by · logged_at · o
 payroll_paid_at · payroll_paid_by`
 
 `payroll_paid_at` / `payroll_paid_by` record when an employee was paid for the session. Only Ray and admin may
-set them (see `src/lib/payroll.ts`); sessions before `PAYROLL_START_DATE` count as paid.
+set them (see `src/lib/payroll.ts`); sessions before `PAYROLL_START_DATE` count as paid. Who is on payroll =
+employee accounts plus anyone in the `PayrollMembers` tab (`membership_id · member_id · member_name · added_by ·
+added_at`), which only Ray and admin can change.
 
 `player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
 someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);

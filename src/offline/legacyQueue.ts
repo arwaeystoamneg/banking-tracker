@@ -39,6 +39,7 @@ function cachedRow(item: Pick<WriteQueueItem, "tab" | "targetId">, tables: Legac
     case "rounds":
       return findById(tables.rounds, "round_id", item.targetId) as Record<string, unknown> | undefined;
     case "reimbursements":
+    case "payrollMembers":
       // Newer than the pre-partition databases, so a legacy cache never holds one.
       return undefined;
   }
@@ -68,6 +69,9 @@ function resolveIdentity(
       return gameIdentity(findById(tables.games, "game_id", asString(merged.game_id)));
     case "reimbursements":
       return { owner_id: asString(merged.owner_id), person: asString(merged.requested_by) };
+    case "payrollMembers":
+      // Only Ray or admin manage the list; leftovers go to admin like other unattributed writes.
+      return null;
   }
 }
 

@@ -15,6 +15,7 @@ import {
   type LossEvidence,
   type LossReport,
   type Paytable,
+  type PayrollMember,
   type Reimbursement,
   type Round,
   type Session,
@@ -78,6 +79,7 @@ function fixtureRepos(seed: {
   lossEvidence?: LossEvidence[];
   auditLog?: AuditEntry[];
   reimbursements?: Reimbursement[];
+  payrollMembers?: PayrollMember[];
 }): Repositories & {
   games: ReturnType<typeof memoryRepo<Game>>;
   sidebets: ReturnType<typeof memoryRepo<Sidebet>>;
@@ -86,6 +88,7 @@ function fixtureRepos(seed: {
   sessions: ReturnType<typeof memoryRepo<Session>>;
   rounds: ReturnType<typeof memoryRepo<Round>>;
   reimbursements: ReturnType<typeof memoryRepo<Reimbursement>>;
+  payrollMembers: ReturnType<typeof memoryRepo<PayrollMember>>;
 } {
   return {
     games: memoryRepo(seed.games ?? [], "game_id"),
@@ -98,6 +101,7 @@ function fixtureRepos(seed: {
     lossEvidence: toAppendOnly(memoryRepo(seed.lossEvidence ?? [], "evidence_id")),
     auditLog: toAppendOnly(memoryRepo(seed.auditLog ?? [], "entry_id")),
     reimbursements: memoryRepo(seed.reimbursements ?? [], "reimbursement_id"),
+    payrollMembers: memoryRepo(seed.payrollMembers ?? [], "membership_id"),
   };
 }
 
@@ -378,6 +382,11 @@ describe("reimbursements", () => {
 
 describe("session payroll", () => {
   const damonUser: AuthUser = { role: "employee", userId: "damon", name: "Damon" };
+  const team: TeamMember[] = [
+    { id: "ray", name: "Ray Tang", role: "individual" },
+    { id: "damon", name: "Damon", role: "employee" },
+    { id: "sam", name: "Sam Park", role: "individual" },
+  ];
   const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
   const played = () =>
     sessionSchema.parse({
@@ -422,10 +431,53 @@ describe("session payroll", () => {
     ).rejects.toThrow("has been paid");
   });
 
+  it("won't pay someone who isn't on payroll", async () => {
+    const repos = fixtureRepos({ sessions: [{ ...played(), player: "Sam Park", player_id: "sam" }] });
+    await expect(
+      createAuthorizedRepositories(repos, ray, team).sessions.update("p1", { payroll_paid_at: "x" }, 1),
+    ).rejects.toThrow("isn't on payroll");
+  });
+
   it("won't pay a session that is still open", async () => {
     const repos = fixtureRepos({ sessions: [{ ...played(), buy_out: null, time_out: "" }] });
     await expect(
       createAuthorizedRepositories(repos, admin, team).sessions.update("p1", { payroll_paid_at: "x" }, 1),
     ).rejects.toThrow("End the session");
+  });
+});
+
+describe("payroll members", () => {
+  const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
+  const roster: TeamMember[] = [...team, { id: "sam", name: "Sam Park", role: "individual" }];
+  const add = { member_id: "sam", member_name: "", added_by: "", added_at: "" };
+
+  it("lets Ray add an individual, once", async () => {
+    const repos = fixtureRepos({});
+    const authorized = createAuthorizedRepositories(repos, ray, roster);
+    const row = await authorized.payrollMembers.create({ ...add, member_id: "SAM" }, "pm1");
+    expect(row).toMatchObject({ member_id: "sam", member_name: "Sam Park", added_by: "Ray Tang" });
+    await authorized.payrollMembers.create(add, "pm2");
+    expect(await repos.payrollMembers.list()).toHaveLength(1);
+  });
+
+  it("refuses anyone but Ray or admin, and people without an account", async () => {
+    const repos = fixtureRepos({});
+    await expect(createAuthorizedRepositories(repos, sam, roster).payrollMembers.create(add, "pm1")).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    await expect(
+      createAuthorizedRepositories(repos, admin, roster).payrollMembers.create({ ...add, member_id: "stranger" }, "pm1"),
+    ).rejects.toThrow("account");
+  });
+
+  it("only Ray or admin can take someone off", async () => {
+    const repos = fixtureRepos({
+      payrollMembers: [{ membership_id: "pm1", member_id: "sam", member_name: "Sam Park", added_by: "Ray Tang", added_at: "", _row_version: 1 }],
+    });
+    await expect(createAuthorizedRepositories(repos, sam, roster).payrollMembers.remove("pm1", 1)).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    await createAuthorizedRepositories(repos, admin, roster).payrollMembers.remove("pm1", 1);
+    expect(repos.payrollMembers.removed).toEqual(["pm1"]);
   });
 });

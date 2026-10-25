@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useSessions } from "@/hooks/useSessions";
+import { usePayrollMembers } from "@/hooks/usePayrollMembers";
+import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { PaySwitcher } from "@/components/payroll/PaySwitcher";
 import { PayrollSessionRow } from "@/components/payroll/PayrollSessionRow";
@@ -11,7 +13,7 @@ import {
   PAYROLL_START_DATE,
   canMarkPayrollPaid,
   canSeeAllPayroll,
-  employeesOf,
+  payrollPeople,
   formatHours,
   payrollByEmployee,
   type EmployeePayroll,
@@ -21,12 +23,13 @@ export default function PayrollPage() {
   const user = useCurrentUser();
   const team = useTeam();
   const { sessions, isLoading } = useSessions();
+  const { payrollMembers } = usePayrollMembers();
   const canMark = canMarkPayrollPaid(user);
 
   const employees = useMemo(() => {
-    const all = employeesOf(team);
+    const all = payrollPeople(team, payrollMembers);
     return canSeeAllPayroll(user) ? all : all.filter((employee) => employee.id === user.userId);
-  }, [team, user]);
+  }, [team, user, payrollMembers]);
   const summaries = useMemo(() => payrollByEmployee(sessions, employees), [sessions, employees]);
 
   return (
@@ -35,7 +38,7 @@ export default function PayrollPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Payroll</h1>
         <p className="text-sm text-muted">
-          Employee sessions since {formatDateForDisplay(PAYROLL_START_DATE)}. {canMark ? "Check each one off once paid." : "Ray or an admin checks sessions off once paid."}
+          Sessions since {formatDateForDisplay(PAYROLL_START_DATE)}. {canMark ? "Check each one off once paid." : "Ray or an admin checks sessions off once paid."}
         </p>
       </div>
 
@@ -43,12 +46,69 @@ export default function PayrollPage() {
         <p className="text-sm text-muted">Loading…</p>
       ) : employees.length === 0 ? (
         <p className="text-sm text-muted">
-          {user.role === "demo" ? "Payroll isn't part of the demo." : "No employee accounts yet."}
+          {user.role === "demo"
+            ? "Payroll isn't part of the demo."
+            : canMark
+              ? "Nobody is on payroll yet. Add someone below."
+              : "Nobody is on payroll yet."}
         </p>
       ) : (
         summaries.map((summary) => <EmployeeCard key={summary.employee.id} summary={summary} canMark={canMark} />)
       )}
+
+      {canMark && !isLoading ? <PayrollRoster /> : null}
     </main>
+  );
+}
+
+/** Ray and admin choose who's on payroll. Employee accounts are always on and can't be removed here. */
+function PayrollRoster() {
+  const user = useCurrentUser();
+  const team = useTeam();
+  const { payrollMembers, create, remove } = usePayrollMembers();
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  async function toggle(personId: string) {
+    setBusy(personId);
+    setError("");
+    try {
+      const rows = payrollMembers.filter((row) => row.member_id === personId);
+      if (rows.length > 0) {
+        for (const row of rows) await remove(row.membership_id);
+      } else {
+        const person = team.find((member) => member.id === personId);
+        await create({ member_id: personId, member_name: person?.name ?? "", added_by: user.name, added_at: new Date().toISOString() });
+      }
+    } catch {
+      setError("Could not save. Check sync status and try again.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  if (team.length === 0) return null;
+  const added = new Set(payrollMembers.map((row) => row.member_id));
+
+  return (
+    <section className="space-y-2 rounded-2xl border border-border bg-surface p-4">
+      <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Who&apos;s on payroll</h2>
+      <div className="flex flex-wrap gap-2">
+        {team.map((person) =>
+          person.role === "employee" ? (
+            <Chip key={person.id} active onClick={() => undefined}>
+              {person.name} · employee
+            </Chip>
+          ) : (
+            <Chip key={person.id} active={added.has(person.id)} onClick={() => busy || void toggle(person.id)}>
+              {busy === person.id ? "…" : person.name}
+            </Chip>
+          ),
+        )}
+      </div>
+      <p className="text-xs text-muted">Tap a name to add or remove them. Employee accounts are always on payroll.</p>
+      {error ? <p className="text-xs text-red-400">{error}</p> : null}
+    </section>
   );
 }
 

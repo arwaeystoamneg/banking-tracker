@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const user = await requireCurrentUser();
     const repos = await getRepositoriesForUser(user);
-    const [games, sidebets, paytables, feeSchedules, sessions, rounds, lossReports, lossEvidence, auditLog, reimbursements] =
+    const [games, sidebets, paytables, feeSchedules, sessions, rounds, lossReports, lossEvidence, auditLog, reimbursements, payrollMembers] =
       await Promise.all([
         repos.games.list(),
         repos.sidebets.list(),
@@ -20,6 +20,7 @@ export async function GET() {
         repos.lossEvidence.list(),
         repos.auditLog.list(),
         repos.reimbursements.list(),
+        repos.payrollMembers.list(),
       ]);
 
     const snapshot = {
@@ -33,6 +34,7 @@ export async function GET() {
       lossEvidence,
       auditLog,
       reimbursements,
+      payrollMembers,
       exportedAt: new Date().toISOString(),
     };
 

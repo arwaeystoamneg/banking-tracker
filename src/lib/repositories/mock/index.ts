@@ -8,6 +8,7 @@ import {
   lossEvidenceSchema,
   lossReportSchema,
   paytableSchema,
+  payrollMemberSchema,
   reimbursementSchema,
   roundSchema,
   sessionSchema,
@@ -65,6 +66,13 @@ export function createMockRepositories(): Repositories {
       idField: "reimbursement_id",
       makeId: () => makeId("reimbursement"),
       rowSchema: reimbursementSchema,
+    }),
+    payrollMembers: createMockRepository({
+      tab: "PayrollMembers",
+      table: "payrollMembers",
+      idField: "membership_id",
+      makeId: () => makeId("payrollMember"),
+      rowSchema: payrollMemberSchema,
     }),
     lossReports: toLossReportRepository(
       createMockRepository({

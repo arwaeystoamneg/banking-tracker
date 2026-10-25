@@ -16,6 +16,8 @@ import type {
   lossEvidenceCreateSchema,
   auditEntryCreateSchema,
   reimbursementCreateSchema,
+  payrollMemberCreateSchema,
+  payrollMemberPatchSchema,
   reimbursementPatchSchema,
 } from "@/lib/validation/schemas";
 
@@ -31,6 +33,8 @@ export type SessionCreate = z.infer<typeof sessionCreateSchema>;
 export type SessionPatch = z.infer<typeof sessionPatchSchema>;
 export type RoundCreate = z.infer<typeof roundCreateSchema>;
 export type RoundPatch = z.infer<typeof roundPatchSchema>;
+export type PayrollMemberCreate = z.infer<typeof payrollMemberCreateSchema>;
+export type PayrollMemberPatch = z.infer<typeof payrollMemberPatchSchema>;
 export type ReimbursementCreate = z.infer<typeof reimbursementCreateSchema>;
 export type ReimbursementPatch = z.infer<typeof reimbursementPatchSchema>;
 

@@ -2,7 +2,7 @@ import { sameIdentity } from "@/lib/auth/permissions";
 import type { AuthUser, TeamMember } from "@/lib/auth/types";
 import { d, type Decimal } from "@/lib/decimal";
 import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
-import type { Session } from "@/lib/validation/schemas";
+import type { PayrollMember, Session } from "@/lib/validation/schemas";
 
 /**
  * Payroll tracking starts here. Everything an employee played before this date was paid outside the
@@ -19,13 +19,18 @@ export function canMarkPayrollPaid(user: AuthUser): boolean {
   return PAYROLL_APPROVERS.some((approver) => sameIdentity(approver, user));
 }
 
-/** Employees see their own payroll; partners and admin see everyone's. */
+/** Partners and admin see everyone's payroll; employees see only their own. */
 export function canSeeAllPayroll(user: AuthUser): boolean {
   return user.role === "admin" || user.role === "individual";
 }
 
-export function employeesOf(team: TeamMember[]): TeamMember[] {
-  return team.filter((member) => member.role === "employee");
+/**
+ * Everyone on payroll: employee accounts always, plus anyone (an individual included) Ray or admin added
+ * on the Payroll page. Added people who no longer have an account drop off.
+ */
+export function payrollPeople(team: TeamMember[], members: Pick<PayrollMember, "member_id">[]): TeamMember[] {
+  const added = new Set(members.map((member) => member.member_id.trim().toLowerCase()));
+  return team.filter((person) => person.role === "employee" || added.has(person.id));
 }
 
 /** The employee who played this session, matched by account id, or by name on rows logged before player_id. */

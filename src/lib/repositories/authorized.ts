@@ -22,6 +22,7 @@ import type {
   GamePatch,
   PaytableCreate,
   PaytablePatch,
+  PayrollMemberCreate,
   ReimbursementCreate,
   ReimbursementPatch,
   RoundCreate,
@@ -40,7 +41,7 @@ import {
   type Sidebet,
 } from "@/lib/validation/schemas";
 import { isSessionOpen } from "@/lib/sessionHelpers";
-import { canMarkPayrollPaid } from "@/lib/payroll";
+import { canMarkPayrollPaid, payrollPeople, sessionEmployee } from "@/lib/payroll";
 
 const PAYROLL_KEYS = ["payroll_paid_at", "payroll_paid_by"];
 
@@ -308,6 +309,9 @@ export function createAuthorizedRepositories(
         if (payrollOnly) {
           const paying = Boolean(patch.payroll_paid_at);
           if (paying && isSessionOpen(session)) throw new InputError("End the session before marking it paid");
+          if (paying && !sessionEmployee(session, payrollPeople(team, await repos.payrollMembers.list()))) {
+            throw new InputError("Whoever played this session isn't on payroll");
+          }
           return repos.sessions.update(
             id,
             paying
@@ -480,6 +484,33 @@ export function createAuthorizedRepositories(
         }
         assertVersion("Reimbursements", id, item, expectedVersion);
         return repos.reimbursements.remove(id, expectedVersion);
+      },
+    },
+    payrollMembers: {
+      list: () => repos.payrollMembers.list(),
+      get: (id) => repos.payrollMembers.get(id),
+      async create(data: PayrollMemberCreate, id?: string) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change who is on payroll");
+        const memberId = data.member_id.trim().toLowerCase();
+        const member = team.find((candidate) => candidate.id === memberId);
+        if (!member) throw new InputError("Payroll is for people with an account");
+        const existing = (await repos.payrollMembers.list()).find((row) => row.member_id === memberId);
+        // Adding someone twice (two phones, or an offline retry) is a no-op rather than a duplicate row.
+        if (existing) return existing;
+        return repos.payrollMembers.create(
+          { member_id: member.id, member_name: member.name, added_by: user.name, added_at: new Date().toISOString() },
+          id,
+        );
+      },
+      async update(): Promise<never> {
+        throw new AuthorizationError("Remove the person from payroll and add them again instead");
+      },
+      async remove(id: string, expectedVersion: number) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change who is on payroll");
+        const row = await repos.payrollMembers.get(id);
+        if (!row) throw new NotFoundError("PayrollMembers", id);
+        assertVersion("PayrollMembers", id, row, expectedVersion);
+        return repos.payrollMembers.remove(id, expectedVersion);
       },
     },
   };

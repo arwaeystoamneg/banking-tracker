@@ -226,6 +226,15 @@ export const REIMBURSEMENTS_TAB: TabConfig = {
   booleanFields: [],
 };
 
+export const PAYROLL_MEMBERS_TAB: TabConfig = {
+  tabName: "PayrollMembers",
+  idField: "membership_id",
+  headers: ["membership_id", "member_id", "member_name", "added_by", "added_at", "_row_version"],
+  numberFields: ["_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
 export const ALL_TABS = [
   GAMES_TAB,
   SIDEBETS_TAB,
@@ -237,4 +246,5 @@ export const ALL_TABS = [
   LOSS_EVIDENCE_TAB,
   AUDIT_LOG_TAB,
   REIMBURSEMENTS_TAB,
+  PAYROLL_MEMBERS_TAB,
 ];

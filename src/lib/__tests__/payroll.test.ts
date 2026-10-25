@@ -3,6 +3,7 @@ import {
   canMarkPayrollPaid,
   formatHours,
   payrollByEmployee,
+  payrollPeople,
   payrollState,
   sessionHours,
 } from "@/lib/payroll";
@@ -63,5 +64,15 @@ describe("payroll", () => {
     expect(summary.unpaid.map((s) => s.session_id).sort()).toEqual(["a", "b", "e"]);
     expect(formatHours(summary.unpaidHours)).toBe("5h 30m");
     expect(summary.missingTimes).toBe(1);
+  });
+
+  it("puts employees on payroll automatically and individuals only when added", () => {
+    const team: TeamMember[] = [
+      { id: "ray", name: "Ray Tang", role: "individual" },
+      damon,
+      { id: "sam", name: "Sam Park", role: "individual" },
+    ];
+    expect(payrollPeople(team, []).map((p) => p.id)).toEqual(["damon"]);
+    expect(payrollPeople(team, [{ member_id: "sam" }, { member_id: "gone" }]).map((p) => p.id)).toEqual(["damon", "sam"]);
   });
 });
