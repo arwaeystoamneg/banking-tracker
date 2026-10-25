@@ -3,7 +3,19 @@ import { z } from "zod";
 import { getRepositoriesForUser } from "@/lib/repositories";
 import type { CrudRepository, Repositories } from "@/lib/repositories/types";
 import { apiError } from "@/lib/api/respond";
-import { requireCurrentUser } from "@/lib/auth/session";
+import { InputError, requireCurrentUser } from "@/lib/auth/session";
+
+/** Google Sheets caps a cell at 50,000 characters; a longer value would fail on write and retry forever. */
+const MAX_CELL_CHARACTERS = 50_000;
+
+export function assertFitsInCells(value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  for (const [key, field] of Object.entries(value)) {
+    if (typeof field === "string" && field.length > MAX_CELL_CHARACTERS) {
+      throw new InputError(`${key} is too long (max ${MAX_CELL_CHARACTERS.toLocaleString()} characters)`);
+    }
+  }
+}
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -27,6 +39,7 @@ export function makeListRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
         // offline keeps the same id once it syncs, so the UI never has to swap URLs out from under
         // the user. See lib/ids.ts.
         const { id, ...rest } = body as Record<string, unknown> & { id?: unknown };
+        assertFitsInCells(rest);
         const data = createSchema.parse(rest);
         const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;
@@ -73,6 +86,7 @@ export function makeItemRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
       try {
         const { id } = await params;
         const body = await request.json();
+        assertFitsInCells(body?.patch);
         const parsedPatch = providedKeysOnly(patchSchema.parse(body.patch), body.patch);
         const expectedVersion = Number(body.expectedVersion);
         const repos = await getRepositoriesForUser(await requireCurrentUser());

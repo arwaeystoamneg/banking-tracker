@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { providedKeysOnly } from "@/lib/api/crudRoute";
+import { assertFitsInCells, providedKeysOnly } from "@/lib/api/crudRoute";
 import { gamePatchSchema, sessionPatchSchema } from "@/lib/validation/schemas";
 
 describe("providedKeysOnly", () => {
@@ -16,5 +16,13 @@ describe("providedKeysOnly", () => {
   it("applies to games edited one field at a time", () => {
     const raw = { rules: "Dealer hits soft 17" };
     expect(providedKeysOnly(gamePatchSchema.parse(raw), raw)).toEqual(raw);
+  });
+});
+
+describe("assertFitsInCells", () => {
+  it("rejects text a Sheets cell can't hold and allows the rest", () => {
+    expect(() => assertFitsInCells({ notes: "x".repeat(50_000), buy_in: 5 })).not.toThrow();
+    expect(() => assertFitsInCells({ notes: "x".repeat(50_001) })).toThrow("notes is too long");
+    expect(() => assertFitsInCells(undefined)).not.toThrow();
   });
 });

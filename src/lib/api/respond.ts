@@ -19,6 +19,10 @@ export function apiError(err: unknown): NextResponse {
   if (err instanceof AuthorizationError) {
     return NextResponse.json({ error: "forbidden", message: err.message }, { status: 403 });
   }
+  // request.json() on a missing or malformed body — the client's mistake, not a server fault.
+  if (err instanceof SyntaxError) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
   if (err instanceof InputError) {
     return NextResponse.json({ error: "invalid_input", message: err.message }, { status: 400 });
   }
