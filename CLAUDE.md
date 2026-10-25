@@ -208,6 +208,10 @@ connection is the worst failure mode this app has.
   readable offline.
 - Queue writes (round logs, session saves, game edits) in IndexedDB and flush on reconnect.
 - Show sync state explicitly: pending write count and last-synced timestamp. Never silently drop a write.
+- Sheets read quota (~60/min) is shared by the whole team through one service account. List reads share one
+  batched read of every tab for 5s per server (`fetchAllTabsRaw`, cleared by any write on that server);
+  `get`/`listFresh` and every write read live rows, so the shared copy can never cause an overwrite. Clients
+  never let a server list roll back a row they hold a newer `_row_version` of.
 - Sheets writes are last-write-wins. Do a read-modify-write against the live rows so two people editing
   different games don't clobber each other, and surface a conflict rather than overwriting when the same row
   changed underneath.

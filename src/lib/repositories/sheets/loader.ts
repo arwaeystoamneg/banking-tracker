@@ -1,20 +1,41 @@
 import "server-only";
-import { cache } from "react";
 import { getSheetId, getSheetsClient } from "@/lib/repositories/sheets/client";
 import { ALL_TABS } from "@/lib/repositories/sheets/tabs";
 import { fullTabRange } from "@/lib/repositories/sheets/rowMapper";
 import { isSheetAlreadyExistsError } from "@/lib/repositories/sheets/googleErrors";
+import { createTtlCache } from "@/lib/repositories/sheets/ttlCache";
+
+/** How long one batched read of every tab is reused before going back to Google. */
+const TABS_TTL_MS = 5_000;
+/** Worksheet titles change only when the app adds a tab (which updates this cache itself). */
+const GRID_IDS_TTL_MS = 5 * 60_000;
+
+const tabsCache = createTtlCache<Record<string, string[][]>>(TABS_TTL_MS);
+const gridIdsCache = createTtlCache<Record<string, number>>(GRID_IDS_TTL_MS);
 
 /**
- * One batched read for every tab, memoized per request via React's cache() — so a single page
- * render that touches multiple repositories (e.g. games + sidebets + paytables) issues one
- * spreadsheets.values.batchGet call instead of one per repository, respecting the 60 req/min/user quota.
+ * One batched read for every tab (a single spreadsheets.values.batchGet), shared by every request on this
+ * server for a few seconds — so a page touching several tabs, "Sync now" pulling all of them, and several
+ * phones refreshing at once together cost one read instead of one each. Writes call
+ * invalidateSheetCache, so whoever saved sees their change on the next read from this server.
  *
- * Tab titles are also per-request (see getSheetGridIds). A process-lifetime snapshot would skip
- * LossReports / LossEvidence / AuditLog on isolates that started before those worksheets existed,
- * so other phones would see an empty list until the lambda recycled.
+ * Only list reads use this. Writes re-read the live rows before changing them (see sheetsRepository),
+ * so a few seconds of staleness here can never overwrite anyone's data.
  */
-export const fetchAllTabsRaw = cache(async (spreadsheetId = getSheetId()): Promise<Record<string, string[][]>> => {
+export function fetchAllTabsRaw(spreadsheetId = getSheetId()): Promise<Record<string, string[][]>> {
+  return tabsCache.get(spreadsheetId, () => loadAllTabs(spreadsheetId));
+}
+
+/** The same batched read, bypassing the shared copy — for permission and version checks before a write. */
+export async function fetchAllTabsFresh(spreadsheetId = getSheetId()): Promise<Record<string, string[][]>> {
+  return loadAllTabs(spreadsheetId);
+}
+
+export function invalidateSheetCache(spreadsheetId = getSheetId()): void {
+  tabsCache.invalidate(spreadsheetId);
+}
+
+async function loadAllTabs(spreadsheetId: string): Promise<Record<string, string[][]>> {
   const sheets = getSheetsClient();
   const present = await getSheetGridIds(spreadsheetId);
   const tabs = ALL_TABS.filter((tab) => present[tab.tabName] !== undefined);
@@ -32,21 +53,28 @@ export const fetchAllTabsRaw = cache(async (spreadsheetId = getSheetId()): Promi
     if (tab) result[tab.tabName] = (vr.values as string[][] | undefined) ?? [];
   });
   return result;
-});
+}
 
-export const getSheetGridIds = cache(async (spreadsheetId = getSheetId()): Promise<Record<string, number>> => {
-  const sheets = getSheetsClient();
-  const res = await sheets.spreadsheets.get({ spreadsheetId });
-  const map: Record<string, number> = {};
-  for (const sheet of res.data.sheets ?? []) {
-    const title = sheet.properties?.title;
-    const sheetId = sheet.properties?.sheetId;
-    if (title !== undefined && title !== null && sheetId !== undefined && sheetId !== null) {
-      map[title] = sheetId;
+/**
+ * Worksheet title → sheetId. Cached for minutes rather than per request: a tab another server creates is
+ * picked up when this expires, and a write that needs a missing tab still goes through ensureWorksheet,
+ * which treats "already exists" as success.
+ */
+export function getSheetGridIds(spreadsheetId = getSheetId()): Promise<Record<string, number>> {
+  return gridIdsCache.get(spreadsheetId, async () => {
+    const sheets = getSheetsClient();
+    const res = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties(sheetId,title)" });
+    const map: Record<string, number> = {};
+    for (const sheet of res.data.sheets ?? []) {
+      const title = sheet.properties?.title;
+      const sheetId = sheet.properties?.sheetId;
+      if (title !== undefined && title !== null && sheetId !== undefined && sheetId !== null) {
+        map[title] = sheetId;
+      }
     }
-  }
-  return map;
-});
+    return map;
+  });
+}
 
 /**
  * Adds a worksheet if this spreadsheet doesn't have one by that title yet. First write of a new
@@ -83,6 +111,7 @@ export async function ensureWorksheet(
     });
     const sheetId = res.data.replies?.[0]?.addSheet?.properties?.sheetId;
     if (typeof sheetId === "number") present[tabName] = sheetId;
+    invalidateSheetCache(spreadsheetId);
   } catch (err) {
     if (isSheetAlreadyExistsError(err)) {
       // Same-request reads key off this map. React's cache() cannot be invalidated, so stamp

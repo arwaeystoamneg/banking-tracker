@@ -27,6 +27,17 @@ describe("mergeServerRowsWithLocal", () => {
     expect([...merged.keys()]).toEqual(["lr_1"]);
   });
 
+  it("keeps a row this phone just saved when the server answers from an older copy", () => {
+    const merged = mergeServerRowsWithLocal(
+      [{ session_id: "s_1", buy_in: 100, _row_version: 2 }, { session_id: "s_2", buy_in: 5, _row_version: 4 }],
+      [{ session_id: "s_1", buy_in: 300, _row_version: 3 }, { session_id: "s_2", buy_in: 1, _row_version: 4 }],
+      "session_id",
+      false,
+    );
+    expect(merged.get("s_1")).toMatchObject({ buy_in: 300, _row_version: 3 });
+    expect(merged.get("s_2")).toMatchObject({ buy_in: 5 });
+  });
+
   it("lets the server list replace local rows for queued banking tabs", () => {
     const merged = mergeServerRowsWithLocal([], [{ session_id: "s_1" }], "session_id", false);
     expect(merged.size).toBe(0);

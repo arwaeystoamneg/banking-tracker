@@ -10,6 +10,12 @@ export function mergeServerRowsWithLocal(
 ): Map<string, Record<string, unknown>> {
   const localById = new Map(localRows.map((row) => [String(row[idField]), row]));
   const merged = new Map(serverRows.map((row) => [String(row[idField]), row]));
+  // The server may answer from a copy a few seconds old. Never let it roll back a row this phone already
+  // holds a newer version of (e.g. one it just saved): that would also make its next edit a false conflict.
+  for (const [id, server] of merged) {
+    const local = localById.get(id);
+    if (local && Number(local._row_version) > Number(server._row_version)) merged.set(id, local);
+  }
   if (keepLocalOnly) {
     for (const [id, local] of localById) {
       if (!merged.has(id)) merged.set(id, local);

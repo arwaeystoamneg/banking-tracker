@@ -315,7 +315,8 @@ export function createAuthorizedRepositories(
         if (payrollOnly) {
           const paying = Boolean(patch.payroll_paid_at);
           if (paying && isSessionOpen(session)) throw new InputError("End the session before marking it paid");
-          if (paying && !sessionEmployee(session, payrollPeople(team, await repos.payrollMembers.list()))) {
+          const members = await (repos.payrollMembers.listFresh?.() ?? repos.payrollMembers.list());
+          if (paying && !sessionEmployee(session, payrollPeople(team, members))) {
             throw new InputError("Whoever played this session isn't on payroll");
           }
           return repos.sessions.update(
@@ -505,7 +506,9 @@ export function createAuthorizedRepositories(
         const memberId = data.member_id.trim().toLowerCase();
         const member = team.find((candidate) => candidate.id === memberId);
         if (!member) throw new InputError("Payroll is for people with an account");
-        const existing = (await repos.payrollMembers.list()).find((row) => row.member_id === memberId);
+        const existing = (await (repos.payrollMembers.listFresh?.() ?? repos.payrollMembers.list())).find(
+          (row) => row.member_id === memberId,
+        );
         // Adding someone twice (two phones, or an offline retry) is a no-op rather than a duplicate row.
         if (existing) return existing;
         return repos.payrollMembers.create(

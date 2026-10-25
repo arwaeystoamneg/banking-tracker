@@ -2,7 +2,13 @@ import "server-only";
 import { z } from "zod";
 import { ConflictError, NotFoundError, type CrudRepository } from "@/lib/repositories/types";
 import { getSheetId, getSheetsClient } from "@/lib/repositories/sheets/client";
-import { fetchAllTabsRaw, ensureColumnCount, ensureWorksheet } from "@/lib/repositories/sheets/loader";
+import {
+  ensureColumnCount,
+  ensureWorksheet,
+  fetchAllTabsFresh,
+  fetchAllTabsRaw,
+  invalidateSheetCache,
+} from "@/lib/repositories/sheets/loader";
 import {
   fullTabRange,
   objectToSheetRow,
@@ -50,16 +56,25 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
 }): CrudRepository<T, TCreate, TPatch> {
   const { tab, tabConfig, makeId, rowSchema, spreadsheetId = getSheetId() } = config;
 
-  async function ensureHeaders(): Promise<string[]> {
-    const sheets = getSheetsClient();
+  /**
+   * One live read of this tab: its header row and every data row. Writes use it for the header check, the
+   * duplicate check, and the version check together, so a save costs one Sheets read instead of several.
+   */
+  async function readTabFresh(): Promise<string[][]> {
     await withRowLock(`${spreadsheetId}:${tabConfig.tabName}:ensure-tab`, async () => {
       await ensureWorksheet(spreadsheetId, tabConfig.tabName, tabConfig.headers.length);
     });
-    const res = await sheets.spreadsheets.values.get({
+    const res = await getSheetsClient().spreadsheets.values.get({
       spreadsheetId,
-      range: `${tabConfig.tabName}!1:1`,
+      range: fullTabRange(tabConfig.tabName),
     });
-    const current = ((res.data.values?.[0] as string[] | undefined) ?? []).map((header) => header.trim());
+    return (res.data.values as string[][] | undefined) ?? [];
+  }
+
+  /** Headers from a fresh read, writing any the app needs that the sheet lacks (new columns go at the end). */
+  async function ensureHeaders(values: string[][]): Promise<string[]> {
+    const sheets = getSheetsClient();
+    const current = ((values[0] as string[] | undefined) ?? []).map((header) => String(header).trim());
 
     if (current.length === 0) {
       await sheets.spreadsheets.values.update({
@@ -87,9 +102,7 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
     return headers;
   }
 
-  async function list(): Promise<T[]> {
-    const allTabs = await fetchAllTabsRaw(spreadsheetId);
-    const raw = allTabs[tabConfig.tabName] ?? [];
+  function parseRows(raw: string[][]): T[] {
     const listed: T[] = [];
     for (const row of sheetRowsToObjects(tabConfig, raw)) {
       const parsed = rowSchema.safeParse(row);
@@ -105,11 +118,21 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
     return listed;
   }
 
+  /** Shared, possibly a few seconds old — fine for showing lists. */
+  async function list(): Promise<T[]> {
+    return parseRows((await fetchAllTabsRaw(spreadsheetId))[tabConfig.tabName] ?? []);
+  }
+
   return {
     list,
 
+    async listFresh() {
+      return parseRows((await fetchAllTabsFresh(spreadsheetId))[tabConfig.tabName] ?? []);
+    },
+
+    // Live, not the shared copy: the authorized layer checks ownership and version against this before a write.
     async get(id) {
-      const rows = await list();
+      const rows = parseRows((await fetchAllTabsFresh(spreadsheetId))[tabConfig.tabName] ?? []);
       return rows.find((r) => (r as unknown as Record<string, unknown>)[tabConfig.idField] === id) ?? null;
     },
 
@@ -117,8 +140,9 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
       const rowId = id ?? makeId();
       return withRowLock(`${spreadsheetId}:${tabConfig.tabName}:${rowId}`, async () => {
         const sheets = getSheetsClient();
-        const headers = await ensureHeaders();
-        const existing = (await list()).find(
+        const values = await readTabFresh();
+        const headers = await ensureHeaders(values);
+        const existing = parseRows(values).find(
           (candidate) => (candidate as unknown as Record<string, unknown>)[tabConfig.idField] === rowId,
         );
         if (existing) return existing;
@@ -131,6 +155,7 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
           insertDataOption: "INSERT_ROWS",
           requestBody: { values: [objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers)] },
         });
+        invalidateSheetCache(spreadsheetId);
         return parsed;
       });
     },
@@ -141,12 +166,8 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
       // loader so a write always checks against the row as it exists right now, not a stale
       // request-scoped snapshot.
       const sheets = getSheetsClient();
-      const headers = await ensureHeaders();
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: fullTabRange(tabConfig.tabName),
-      });
-      const values = (res.data.values as string[][] | undefined) ?? [];
+      const values = await readTabFresh();
+      const headers = await ensureHeaders(values);
       const positionedRows = sheetRowsToObjectsWithPositions(tabConfig, values);
       const positioned = positionedRows.find(({ value }) => value[tabConfig.idField] === id);
       if (!positioned) throw new NotFoundError(tab, id);
@@ -177,6 +198,7 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
         valueInputOption: "RAW",
         requestBody: { values: [serialized] },
       });
+      invalidateSheetCache(spreadsheetId);
 
         return parsed;
       });
@@ -206,6 +228,7 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
         spreadsheetId,
         range: `${tabConfig.tabName}!A${positioned.sheetRowNumber}:${columnLetter(values[0]?.length ?? tabConfig.headers.length)}${positioned.sheetRowNumber}`,
       });
+      invalidateSheetCache(spreadsheetId);
       });
     },
   };

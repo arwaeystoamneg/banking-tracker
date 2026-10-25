@@ -42,6 +42,11 @@ export class NotFoundError extends Error {
  */
 export interface CrudRepository<T, TCreate, TPatch> {
   list(): Promise<T[]>;
+  /**
+   * Live rows, skipping any shared short-lived copy `list` may serve. Backends without such a copy omit it.
+   * Use it where a decision must see a change made seconds ago (e.g. someone just added to payroll).
+   */
+  listFresh?(): Promise<T[]>;
   get(id: string): Promise<T | null>;
   /** `id`, when given, is used verbatim instead of generating a new one — see lib/ids.ts. */
   create(data: TCreate, id?: string): Promise<T>;
