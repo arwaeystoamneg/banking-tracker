@@ -188,6 +188,8 @@ Commerce, and The Bicycle, with filed BGC numbers and captured paytables. Import
    a live table.
 4. **Session logging.** A session's `date` is the day it **started**; most run past midnight and keep that date.
    New sessions take the date from time in (a time in later than now means it started yesterday).
+   The server also corrects it: a save whose date + time in is in the future (cardroom time) but was in the
+   past a day earlier is moved back a day (`correctFutureStartDate`).
    Deliberately minimal: who played (defaults to you), buy-in and time in → Start session;
    buy-out and time out → End session. Times follow the clock until edited. No casino, game, or round entry
    in the UI (older rows keep theirs). Must work offline.

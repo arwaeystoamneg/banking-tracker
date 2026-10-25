@@ -481,3 +481,28 @@ describe("payroll members", () => {
     expect(repos.payrollMembers.removed).toEqual(["pm1"]);
   });
 });
+
+describe("session start dates", () => {
+  // 1:32am Pacific on Oct 23.
+  const clock = () => new Date("2026-10-23T08:32:00Z");
+  const base = { buy_in: 100, time_in: "19:30", logged_by: "Ray Tang", logged_at: "", casino: "" };
+
+  it("fixes a session saved after midnight with the next day's date", async () => {
+    const repos = fixtureRepos({});
+    const created = await createAuthorizedRepositories(repos, ray, team, clock).sessions.create(
+      { ...base, date: "2026-10-23" },
+      "s1",
+    );
+    expect(created.date).toBe("2026-10-22");
+  });
+
+  it("fixes it on edit too, but leaves other edits alone", async () => {
+    const repos = fixtureRepos({});
+    const authorized = createAuthorizedRepositories(repos, ray, team, clock);
+    await authorized.sessions.create({ ...base, date: "2026-10-22", time_in: "00:10" }, "s1");
+    const edited = await authorized.sessions.update("s1", { time_in: "20:00", date: "2026-10-23" }, 1);
+    expect(edited.date).toBe("2026-10-22");
+    const untouched = await authorized.sessions.update("s1", { buy_in: 250 }, 2);
+    expect(untouched.date).toBe("2026-10-22");
+  });
+});

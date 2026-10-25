@@ -42,6 +42,7 @@ import {
 } from "@/lib/validation/schemas";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 import { canMarkPayrollPaid, payrollPeople, sessionEmployee } from "@/lib/payroll";
+import { correctFutureStartDate } from "@/lib/dates";
 
 const PAYROLL_KEYS = ["payroll_paid_at", "payroll_paid_by"];
 
@@ -133,6 +134,7 @@ export function createAuthorizedRepositories(
   repos: Repositories,
   user: AuthUser,
   team: TeamMember[] = listTeamMembers(),
+  now: () => Date = () => new Date(),
 ): Repositories {
   if (user.role === "demo") throw new AuthorizationError("Demo data must use the isolated demo repository");
 
@@ -283,7 +285,11 @@ export function createAuthorizedRepositories(
               owner_id: user.userId,
             }
           : { ...data, owner_id: user.userId };
-        const withPlayer = { ...stamped, ...resolveSessionPlayer(data, user, team, stamped.logged_by) };
+        const withPlayer = {
+          ...stamped,
+          ...resolveSessionPlayer(data, user, team, stamped.logged_by),
+          date: correctFutureStartDate(stamped.date, stamped.time_in, now()),
+        };
         const candidate = sessionSchema.parse({ session_id: id ?? "pending", ...withPlayer, _row_version: 1 });
         // A finished cash session (buy-out + time-out) may be logged in one step. Round totals without
         // coverage may not: coverage is what separates a bad game from an underbanked one.
@@ -340,6 +346,11 @@ export function createAuthorizedRepositories(
             throw new AuthorizationError("Only the person who logged this session or an admin can change who played");
           }
           if (changed) safePatch = { ...safePatch, ...next };
+        }
+        if ("date" in safePatch || "time_in" in safePatch) {
+          const date = safePatch.date ?? session.date;
+          const corrected = correctFutureStartDate(date, safePatch.time_in ?? session.time_in, now());
+          if (corrected !== date) safePatch = { ...safePatch, date: corrected };
         }
         const candidate = sessionSchema.parse({ ...session, ...safePatch });
         if (isSessionOpen(session) && !isSessionOpen(candidate)) {

@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { ConflictError, NotFoundError, type CrudRepository } from "@/lib/repositories/types";
 import { getSheetId, getSheetsClient } from "@/lib/repositories/sheets/client";
-import { fetchAllTabsRaw, ensureWorksheet } from "@/lib/repositories/sheets/loader";
+import { fetchAllTabsRaw, ensureColumnCount, ensureWorksheet } from "@/lib/repositories/sheets/loader";
 import {
   fullTabRange,
   objectToSheetRow,
@@ -75,6 +75,9 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
     if (missing.length === 0) return current;
 
     const headers = [...current, ...missing];
+    await withRowLock(`${spreadsheetId}:${tabConfig.tabName}:ensure-columns`, () =>
+      ensureColumnCount(spreadsheetId, tabConfig.tabName, headers.length),
+    );
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: `${tabConfig.tabName}!${columnLetter(current.length + 1)}1:${columnLetter(headers.length)}1`,

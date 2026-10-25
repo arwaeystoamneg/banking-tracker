@@ -93,3 +93,26 @@ export async function ensureWorksheet(
     throw err;
   }
 }
+
+/**
+ * Widens a worksheet so `columnCount` columns exist. Sheets rejects a write past the grid's last column
+ * ("exceeds grid limits"), and a sheet a person created by hand often has exactly as many columns as it had
+ * headers, so appending a new header column needs room made first.
+ */
+export async function ensureColumnCount(spreadsheetId: string, tabName: string, columnCount: number): Promise<void> {
+  const sheets = getSheetsClient();
+  const res = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets.properties(sheetId,title,gridProperties.columnCount)",
+  });
+  const sheet = (res.data.sheets ?? []).find((candidate) => candidate.properties?.title === tabName);
+  const sheetId = sheet?.properties?.sheetId;
+  const current = sheet?.properties?.gridProperties?.columnCount ?? 0;
+  if (sheetId === undefined || sheetId === null || current >= columnCount) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{ appendDimension: { sheetId, dimension: "COLUMNS", length: columnCount - current } }],
+    },
+  });
+}
