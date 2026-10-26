@@ -34,6 +34,9 @@ export async function authenticateLogin(input: {
   if (!isDemo && !canAttemptLogin(input.attemptKey)) {
     return { error: LOGIN_ERROR.rateLimit };
   }
+  // Count the attempt before the (slow) password check, so a burst of parallel guesses can't all slip in
+  // ahead of the first failure being recorded. A successful login clears it.
+  if (!isDemo) recordLoginFailure(input.attemptKey);
 
   try {
     let user: AuthUser | null = null;
@@ -51,7 +54,6 @@ export async function authenticateLogin(input: {
     }
 
     if (!user) {
-      recordLoginFailure(input.attemptKey);
       await new Promise((resolve) => setTimeout(resolve, 500));
       return { error: LOGIN_ERROR.credentials };
     }

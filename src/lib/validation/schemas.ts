@@ -5,6 +5,17 @@ import { z } from "zod";
  * six tabs get uniform optimistic-concurrency conflict detection, even the four that have no edited_at
  * column of their own. See lib/repositories/types.ts.
  */
+/** A real calendar date, YYYY-MM-DD, within a sane range. Applied to new input only, never to existing rows. */
+const inputDate = z.string().refine((value) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  return y >= 2000 && y <= 2100 && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+}, "Enter a real date (YYYY-MM-DD)");
+/** 24-hour H:mm or HH:mm. */
+const inputTime = z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/, "Enter a time like 19:30");
+
 const rowVersion = z.object({ _row_version: z.number().int().positive() });
 
 export const gameSchema = z
@@ -170,10 +181,19 @@ export const sessionCreateSchema = sessionSchema
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.
     casino: z.string().trim().default(""),
     buy_in: z.number().nonnegative(),
-    time_in: z.string().min(1),
+    date: inputDate,
+    time_in: inputTime,
+    time_out: z.union([z.literal(""), inputTime]).optional(),
     logged_by: z.string().trim().min(1),
   });
-export const sessionPatchSchema = sessionSchema.omit({ session_id: true, _row_version: true }).partial();
+export const sessionPatchSchema = sessionSchema
+  .omit({ session_id: true, _row_version: true })
+  .partial()
+  .extend({
+    date: inputDate.optional(),
+    time_in: inputTime.optional(),
+    time_out: z.union([z.literal(""), inputTime]).optional(),
+  });
 
 export const roundFieldsSchema = z
   .object({
@@ -275,7 +295,7 @@ export const reimbursementCreateSchema = reimbursementSchema
   .omit({ reimbursement_id: true, _row_version: true, status: true, paid_at: true, paid_by: true })
   .partial({ payee: true, payee_id: true, reason: true, session_id: true, owner_id: true, requested_at: true })
   .extend({
-    date: z.string().min(1),
+    date: inputDate,
     amount: z.number().positive(),
     requested_by: z.string().trim().min(1),
   });
