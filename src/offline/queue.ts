@@ -19,6 +19,7 @@ const TAB_ID_KIND: Record<QueueTab, IdKind> = {
   rounds: "round",
   reimbursements: "reimbursement",
   payrollMembers: "payrollMember",
+  loans: "loanEntry",
 };
 
 /**

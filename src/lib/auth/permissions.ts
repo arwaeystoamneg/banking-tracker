@@ -1,5 +1,5 @@
 import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
-import type { Game, LossReport, Reimbursement, Session } from "@/lib/validation/schemas";
+import type { Game, LoanEntry, LossReport, Reimbursement, Session } from "@/lib/validation/schemas";
 
 export function sameIdentity(value: string, user: AuthUser): boolean {
   const normalized = value.trim().toLowerCase();
@@ -101,4 +101,23 @@ export function canReassignReimbursementPayee(user: AuthUser, item: Reimbursemen
   if (user.role === "admin") return true;
   if (!isConfiguredAccountRole(user.role) || item.status === "paid") return false;
   return isReimbursementRecordOwner(user, item);
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Loans between teammates. Anyone with an account records them; the person who recorded an entry,
+ * either side of it, or admin can fix or delete it.
+ * ---------------------------------------------------------------------------------------------- */
+
+export function canRecordLoans(user: AuthUser): boolean {
+  return user.role === "admin" || isConfiguredAccountRole(user.role);
+}
+
+export function canEditLoanEntry(
+  user: AuthUser,
+  entry: Pick<LoanEntry, "owner_id" | "recorded_by" | "from_id" | "to_id">,
+): boolean {
+  if (user.role === "admin") return true;
+  if (!isConfiguredAccountRole(user.role)) return false;
+  if ([entry.from_id, entry.to_id].some((id) => id.trim() && sameIdentity(id, user))) return true;
+  return entry.owner_id.trim() ? sameIdentity(entry.owner_id, user) : sameIdentity(entry.recorded_by, user);
 }

@@ -62,11 +62,11 @@ const LOSSES_ITEM: { href: string; label: string; icon: ReactNode } = {
   ),
 };
 
-/** Payroll and reimbursements share one tab; PaySwitcher moves between them. */
+/** Payroll, reimbursements and loans share one tab; PaySwitcher moves between them. */
 const PAY_ITEM: { href: string; label: string; icon: ReactNode; also?: string[] } = {
   href: "/payroll",
   label: "Pay",
-  also: ["/reimbursements"],
+  also: ["/reimbursements", "/loans"],
   icon: (
     <Icon
       path={

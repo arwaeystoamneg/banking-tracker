@@ -39,7 +39,7 @@ const serwist = new Serwist({
     },
     {
       matcher: ({ url }) =>
-        /^\/api\/(games|sidebets|paytables|fee-schedules|sessions|rounds|losses|evidence|audit|reimbursements|payroll-members)(\/|$)/.test(
+        /^\/api\/(games|sidebets|paytables|fee-schedules|sessions|rounds|losses|evidence|audit|reimbursements|payroll-members|loans)(\/|$)/.test(
           url.pathname,
         ),
       handler: new NetworkOnly(),

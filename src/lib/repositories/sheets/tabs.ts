@@ -235,6 +235,29 @@ export const PAYROLL_MEMBERS_TAB: TabConfig = {
   booleanFields: [],
 };
 
+export const LOANS_TAB: TabConfig = {
+  tabName: "Loans",
+  idField: "loan_entry_id",
+  headers: [
+    "loan_entry_id",
+    "date",
+    "kind",
+    "from_name",
+    "from_id",
+    "to_name",
+    "to_id",
+    "amount",
+    "note",
+    "recorded_by",
+    "recorded_at",
+    "owner_id",
+    "_row_version",
+  ],
+  numberFields: ["amount", "_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
 export const ALL_TABS = [
   GAMES_TAB,
   SIDEBETS_TAB,
@@ -247,4 +270,5 @@ export const ALL_TABS = [
   AUDIT_LOG_TAB,
   REIMBURSEMENTS_TAB,
   PAYROLL_MEMBERS_TAB,
+  LOANS_TAB,
 ];

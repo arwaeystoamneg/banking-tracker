@@ -160,6 +160,13 @@ requested_by · requested_at · owner_id`
 mark them paid (the server stamps `paid_by`/`paid_at`). The filer, the payee, and admin edit while owed; paid
 rows are locked except to admin. Not part of P&L math.
 
+**`Loans`** — money lent between people; balances are derived, never stored
+`loan_entry_id · date · kind (loan|repayment) · from_name · from_id · to_name · to_id · amount · note ·
+recorded_by · recorded_at · owner_id`
+
+A loan goes from → to (lender → borrower); a repayment goes from → to (borrower → lender). `src/lib/loans.ts`
+nets each pair. Names that match a teammate link to their account id.
+
 **`Rounds`** — optional granular capture, one row per banked round
 `round_id · session_id · seq · tta · booked · bonus_action · fee_tier · fee_paid · result · note`
 

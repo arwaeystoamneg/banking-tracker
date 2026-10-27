@@ -2,6 +2,7 @@ import type {
   AuditEntry,
   FeeSchedule,
   Game,
+  LoanEntry,
   LossDecisionPatch,
   LossEvidence,
   LossReport,
@@ -81,6 +82,8 @@ import type {
   FeeSchedulePatch,
   GameCreate,
   GamePatch,
+  LoanEntryCreate,
+  LoanEntryPatch,
   LossEvidenceCreate,
   LossReportCreate,
   PaytableCreate,
@@ -106,6 +109,7 @@ export interface Repositories {
   rounds: CrudRepository<Round, RoundCreate, RoundPatch>;
   reimbursements: CrudRepository<Reimbursement, ReimbursementCreate, ReimbursementPatch>;
   payrollMembers: CrudRepository<PayrollMember, PayrollMemberCreate, PayrollMemberPatch>;
+  loans: CrudRepository<LoanEntry, LoanEntryCreate, LoanEntryPatch>;
   lossReports: LossReportRepository;
   lossEvidence: AppendOnlyRepository<LossEvidence, LossEvidenceCreate>;
   auditLog: AppendOnlyRepository<AuditEntry, AuditEntryCreate>;

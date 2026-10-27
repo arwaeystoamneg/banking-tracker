@@ -5,6 +5,7 @@ import {
   auditEntrySchema,
   feeScheduleSchema,
   gameSchema,
+  loanEntrySchema,
   lossEvidenceSchema,
   lossReportSchema,
   paytableSchema,
@@ -73,6 +74,13 @@ export function createMockRepositories(): Repositories {
       idField: "membership_id",
       makeId: () => makeId("payrollMember"),
       rowSchema: payrollMemberSchema,
+    }),
+    loans: createMockRepository({
+      tab: "Loans",
+      table: "loans",
+      idField: "loan_entry_id",
+      makeId: () => makeId("loanEntry"),
+      rowSchema: loanEntrySchema,
     }),
     lossReports: toLossReportRepository(
       createMockRepository({

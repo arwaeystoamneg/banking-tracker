@@ -5,14 +5,15 @@ import { usePathname } from "next/navigation";
 
 const SECTIONS = [
   { href: "/payroll", label: "Payroll" },
-  { href: "/reimbursements", label: "Reimbursements" },
+  { href: "/reimbursements", label: "Reimburse" },
+  { href: "/loans", label: "Loans" },
 ];
 
-/** The Pay tab holds two sections; this switches between them. */
+/** The Pay tab holds three sections; this switches between them. */
 export function PaySwitcher() {
   const pathname = usePathname();
   return (
-    <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
+    <div className="grid grid-cols-3 rounded-xl border border-border bg-surface p-0.5 text-sm">
       {SECTIONS.map((section) => {
         const active = pathname.startsWith(section.href);
         return (

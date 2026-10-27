@@ -12,6 +12,7 @@ import {
   type AuditEntry,
   type FeeSchedule,
   type Game,
+  type LoanEntry,
   type LossEvidence,
   type LossReport,
   type Paytable,
@@ -80,6 +81,7 @@ function fixtureRepos(seed: {
   auditLog?: AuditEntry[];
   reimbursements?: Reimbursement[];
   payrollMembers?: PayrollMember[];
+  loans?: LoanEntry[];
 }): Repositories & {
   games: ReturnType<typeof memoryRepo<Game>>;
   sidebets: ReturnType<typeof memoryRepo<Sidebet>>;
@@ -89,6 +91,7 @@ function fixtureRepos(seed: {
   rounds: ReturnType<typeof memoryRepo<Round>>;
   reimbursements: ReturnType<typeof memoryRepo<Reimbursement>>;
   payrollMembers: ReturnType<typeof memoryRepo<PayrollMember>>;
+  loans: ReturnType<typeof memoryRepo<LoanEntry>>;
 } {
   return {
     games: memoryRepo(seed.games ?? [], "game_id"),
@@ -102,6 +105,7 @@ function fixtureRepos(seed: {
     auditLog: toAppendOnly(memoryRepo(seed.auditLog ?? [], "entry_id")),
     reimbursements: memoryRepo(seed.reimbursements ?? [], "reimbursement_id"),
     payrollMembers: memoryRepo(seed.payrollMembers ?? [], "membership_id"),
+    loans: memoryRepo(seed.loans ?? [], "loan_entry_id"),
   };
 }
 
@@ -504,5 +508,40 @@ describe("session start dates", () => {
     expect(edited.date).toBe("2026-10-22");
     const untouched = await authorized.sessions.update("s1", { buy_in: 250 }, 2);
     expect(untouched.date).toBe("2026-10-22");
+  });
+});
+
+describe("loans", () => {
+  const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
+  const roster: TeamMember[] = [...team, { id: "sam", name: "Sam Park" }];
+  const loan = { date: "2026-10-26", kind: "loan" as const, amount: 20000, recorded_by: "x" };
+
+  it("records a loan between two people, linking known names to accounts", async () => {
+    const repos = fixtureRepos({});
+    const row = await createAuthorizedRepositories(repos, ray, roster).loans.create(
+      { ...loan, from_name: "Shiva", to_name: "dana reyes" },
+      "ln1",
+    );
+    expect(row).toMatchObject({ from_name: "Shiva", from_id: "", to_name: "Dana Reyes", to_id: "dana", recorded_by: "Ray Tang", owner_id: "ray" });
+  });
+
+  it("refuses a loan to yourself and anyone without an account", async () => {
+    const repos = fixtureRepos({});
+    await expect(
+      createAuthorizedRepositories(repos, ray, roster).loans.create({ ...loan, from_id: "ray", to_name: "ray tang" }, "ln1"),
+    ).rejects.toThrow("two different people");
+  });
+
+  it("lets the recorder, either side, or admin edit; not other teammates", async () => {
+    const repos = fixtureRepos({});
+    await createAuthorizedRepositories(repos, ray, roster).loans.create({ ...loan, from_name: "Shiva", to_id: "dana" }, "ln1");
+    const asBorrower = await createAuthorizedRepositories(repos, dana, roster).loans.update("ln1", { amount: 19000 }, 1);
+    expect(asBorrower.amount).toBe(19000);
+    await expect(createAuthorizedRepositories(repos, sam, roster).loans.update("ln1", { amount: 1 }, 2)).rejects.toThrow(
+      "Only whoever recorded this",
+    );
+    await expect(createAuthorizedRepositories(repos, sam, roster).loans.remove("ln1", 2)).rejects.toThrow("delete");
+    await createAuthorizedRepositories(repos, admin, roster).loans.remove("ln1", 2);
+    expect(repos.loans.removed).toEqual(["ln1"]);
   });
 });

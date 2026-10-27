@@ -37,13 +37,18 @@ Sessions also have `player` and `player_id` columns, added automatically on the 
 account can log a session for themselves, for a teammate, or for someone outside the team. The person who
 logged it, the teammate it was logged for, and admin can update it.
 
-The **Pay** tab has two sections. **Payroll** lists sessions played by people on payroll with hours (time in
+The **Pay** tab has three sections: Payroll, Reimbursements and Loans. **Payroll** lists sessions played by people on payroll with hours (time in
 to time out) and whether each one has been paid. Sessions dated before `PAYROLL_START_DATE` (Oct 1, 2026, in
 `src/lib/payroll.ts`) count as already paid. Employee accounts are always on payroll; Ray and admin can add anyone else with an
 account (individuals included) from the "Who's on payroll" list on the Payroll page, which is stored in a
 `PayrollMembers` tab. A session can only be marked paid if whoever played it is on payroll. Only Ray (account id or name `ray`) and admin can check a session
 off as paid; the server stamps who and when into the Sessions columns `payroll_paid_at` / `payroll_paid_by`, and
 a paid session is locked against the employee's edits.
+
+The **Loans** section is a ledger of money lent between people (`Loans` tab). Each row is a loan (lender →
+borrower) or a repayment (borrower → lender); "Who owes whom" nets every pair, and **Repay** prefills a
+repayment for the outstanding amount. Anyone with an account records entries; whoever recorded one, either
+person in it, or admin can edit or delete it.
 
 The **Reimbursements** section tracks money someone fronted for the team and is owed back. It lives in a
 `Reimbursements` tab that the app creates on the first write. Anyone with an account can file one for

@@ -6,6 +6,7 @@ import {
   auditEntrySchema,
   feeScheduleSchema,
   gameSchema,
+  loanEntrySchema,
   lossEvidenceSchema,
   lossReportSchema,
   paytableSchema,
@@ -31,6 +32,7 @@ const snapshotSchema = z.object({
   auditLog: z.array(auditEntrySchema).default([]),
   reimbursements: z.array(reimbursementSchema).default([]),
   payrollMembers: z.array(payrollMemberSchema).default([]),
+  loans: z.array(loanEntrySchema).default([]),
 });
 
 /**

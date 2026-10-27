@@ -261,6 +261,51 @@ export const payrollMemberCreateSchema = payrollMemberSchema
   .extend({ member_id: z.string().trim().min(1) });
 export const payrollMemberPatchSchema = payrollMemberSchema.omit({ membership_id: true, _row_version: true }).partial();
 
+export const LOAN_KINDS = ["loan", "repayment"] as const;
+export type LoanKind = (typeof LOAN_KINDS)[number];
+
+/**
+ * One money movement between two people. A loan goes from the lender to the borrower; a repayment goes
+ * from the borrower back to the lender. Balances (who owes whom) are derived from the whole ledger.
+ */
+export const loanEntrySchema = z
+  .object({
+    loan_entry_id: z.string(),
+    date: z.string(),
+    kind: z
+      .preprocess((value) => (typeof value === "string" ? value.trim().toLowerCase() : value), z.enum(LOAN_KINDS))
+      .catch("loan"),
+    from_name: z.string(),
+    /** Account id when the person has a login; blank for someone outside the team. */
+    from_id: z.string().default(""),
+    to_name: z.string(),
+    to_id: z.string().default(""),
+    amount: z.number().nonnegative(),
+    note: z.string().default(""),
+    recorded_by: z.string(),
+    recorded_at: z.string(),
+    owner_id: z.string().default(""),
+  })
+  .merge(rowVersion);
+export type LoanEntry = z.infer<typeof loanEntrySchema>;
+export const loanEntryCreateSchema = loanEntrySchema
+  .omit({ loan_entry_id: true, _row_version: true })
+  .partial({ from_name: true, from_id: true, to_name: true, to_id: true, note: true, owner_id: true, recorded_at: true })
+  .extend({
+    date: inputDate,
+    kind: z.enum(LOAN_KINDS),
+    amount: z.number().positive().max(100_000_000),
+    recorded_by: z.string().trim().min(1),
+  });
+export const loanEntryPatchSchema = loanEntrySchema
+  .omit({ loan_entry_id: true, _row_version: true })
+  .partial()
+  .extend({
+    date: inputDate.optional(),
+    kind: z.enum(LOAN_KINDS).optional(),
+    amount: z.number().positive().max(100_000_000).optional(),
+  });
+
 export const REIMBURSEMENT_STATUSES = ["owed", "paid"] as const;
 export type ReimbursementStatus = (typeof REIMBURSEMENT_STATUSES)[number];
 

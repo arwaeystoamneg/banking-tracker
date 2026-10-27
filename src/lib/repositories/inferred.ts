@@ -16,6 +16,8 @@ import type {
   lossEvidenceCreateSchema,
   auditEntryCreateSchema,
   reimbursementCreateSchema,
+  loanEntryCreateSchema,
+  loanEntryPatchSchema,
   payrollMemberCreateSchema,
   payrollMemberPatchSchema,
   reimbursementPatchSchema,
@@ -35,6 +37,8 @@ export type RoundCreate = z.infer<typeof roundCreateSchema>;
 export type RoundPatch = z.infer<typeof roundPatchSchema>;
 export type PayrollMemberCreate = z.infer<typeof payrollMemberCreateSchema>;
 export type PayrollMemberPatch = z.infer<typeof payrollMemberPatchSchema>;
+export type LoanEntryCreate = z.infer<typeof loanEntryCreateSchema>;
+export type LoanEntryPatch = z.infer<typeof loanEntryPatchSchema>;
 export type ReimbursementCreate = z.infer<typeof reimbursementCreateSchema>;
 export type ReimbursementPatch = z.infer<typeof reimbursementPatchSchema>;
 

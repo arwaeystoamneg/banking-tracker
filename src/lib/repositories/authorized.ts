@@ -2,7 +2,9 @@ import "server-only";
 
 import { isConfiguredAccountRole, type AuthUser, type TeamMember } from "@/lib/auth/types";
 import {
+  canEditLoanEntry,
   canEditReimbursement,
+  canRecordLoans,
   canReassignReimbursementPayee,
   canReassignSessionPlayer,
   canRequestReimbursement,
@@ -20,6 +22,8 @@ import type {
   FeeSchedulePatch,
   GameCreate,
   GamePatch,
+  LoanEntryCreate,
+  LoanEntryPatch,
   PaytableCreate,
   PaytablePatch,
   PayrollMemberCreate,
@@ -72,6 +76,11 @@ async function requiredReimbursement(repos: Repositories, id: string): Promise<R
   const item = await repos.reimbursements.get(id);
   if (!item) throw new NotFoundError("Reimbursements", id);
   return item;
+}
+
+function samePerson(a: { player: string; player_id: string }, b: { player: string; player_id: string }): boolean {
+  if (a.player_id && b.player_id) return a.player_id === b.player_id;
+  return a.player.trim().toLowerCase() === b.player.trim().toLowerCase();
 }
 
 async function requiredSession(repos: Repositories, id: string): Promise<Session> {
@@ -496,6 +505,67 @@ export function createAuthorizedRepositories(
         }
         assertVersion("Reimbursements", id, item, expectedVersion);
         return repos.reimbursements.remove(id, expectedVersion);
+      },
+    },
+    loans: {
+      list: () => repos.loans.list(),
+      get: (id) => repos.loans.get(id),
+      async create(data: LoanEntryCreate, id?: string) {
+        if (!canRecordLoans(user)) throw new AuthorizationError("This account cannot record loans");
+        const recordedBy = isConfiguredAccountRole(user.role) ? user.name : data.recorded_by;
+        const from = resolveSessionPlayer({ player: data.from_name ?? "", player_id: data.from_id ?? "" }, user, team, recordedBy);
+        const to = resolveSessionPlayer({ player: data.to_name ?? "", player_id: data.to_id ?? "" }, user, team, recordedBy);
+        if (!from.player || !to.player) throw new InputError("Both people are required");
+        if (samePerson(from, to)) throw new InputError("A loan needs two different people");
+        return repos.loans.create(
+          {
+            ...data,
+            from_name: from.player,
+            from_id: from.player_id,
+            to_name: to.player,
+            to_id: to.player_id,
+            recorded_by: recordedBy,
+            recorded_at: new Date().toISOString(),
+            owner_id: user.userId,
+          },
+          id,
+        );
+      },
+      async update(id: string, patch: LoanEntryPatch, expectedVersion: number) {
+        const entry = await repos.loans.get(id);
+        if (!entry) throw new NotFoundError("Loans", id);
+        if (!canEditLoanEntry(user, entry)) {
+          throw new AuthorizationError("Only whoever recorded this, the two people in it, or an admin can change it");
+        }
+        assertVersion("Loans", id, entry, expectedVersion);
+        let safePatch: LoanEntryPatch = withoutKeys(patch, [
+          "owner_id",
+          "recorded_at",
+          "from_name",
+          "from_id",
+          "to_name",
+          "to_id",
+          ...(user.role === "admin" ? [] : ["recorded_by"]),
+        ]);
+        const side = (nameKey: "from_name" | "to_name", idKey: "from_id" | "to_id") =>
+          nameKey in patch || idKey in patch
+            ? resolveSessionPlayer({ player: patch[nameKey] ?? "", player_id: patch[idKey] ?? "" }, user, team, entry.recorded_by)
+            : { player: entry[nameKey], player_id: entry[idKey] };
+        const from = side("from_name", "from_id");
+        const to = side("to_name", "to_id");
+        if (!from.player || !to.player) throw new InputError("Both people are required");
+        if (samePerson(from, to)) throw new InputError("A loan needs two different people");
+        safePatch = { ...safePatch, from_name: from.player, from_id: from.player_id, to_name: to.player, to_id: to.player_id };
+        return repos.loans.update(id, safePatch, expectedVersion);
+      },
+      async remove(id: string, expectedVersion: number) {
+        const entry = await repos.loans.get(id);
+        if (!entry) throw new NotFoundError("Loans", id);
+        if (!canEditLoanEntry(user, entry)) {
+          throw new AuthorizationError("Only whoever recorded this, the two people in it, or an admin can delete it");
+        }
+        assertVersion("Loans", id, entry, expectedVersion);
+        return repos.loans.remove(id, expectedVersion);
       },
     },
     payrollMembers: {
