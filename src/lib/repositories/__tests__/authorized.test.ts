@@ -453,7 +453,7 @@ describe("session payroll", () => {
 describe("payroll members", () => {
   const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
   const roster: TeamMember[] = [...team, { id: "sam", name: "Sam Park", role: "individual" }];
-  const add = { member_id: "sam", member_name: "", added_by: "", added_at: "", hourly_rate: null, overtime_rate: null, double_time_rate: null };
+  const add = { member_id: "sam", member_name: "", added_by: "", added_at: "", hourly_rate: null, overtime_rate: null };
 
   it("lets Ray add an individual, once", async () => {
     const repos = fixtureRepos({});
@@ -476,7 +476,7 @@ describe("payroll members", () => {
 
   it("only Ray or admin can take someone off", async () => {
     const repos = fixtureRepos({
-      payrollMembers: [{ membership_id: "pm1", member_id: "sam", member_name: "Sam Park", added_by: "Ray Tang", added_at: "", hourly_rate: null, overtime_rate: null, double_time_rate: null, _row_version: 1 }],
+      payrollMembers: [{ membership_id: "pm1", member_id: "sam", member_name: "Sam Park", added_by: "Ray Tang", added_at: "", hourly_rate: null, overtime_rate: null, _row_version: 1 }],
     });
     await expect(createAuthorizedRepositories(repos, sam, roster).payrollMembers.remove("pm1", 1)).rejects.toThrow(
       "Only Ray or an admin",
@@ -549,7 +549,7 @@ describe("loans", () => {
 describe("pay rates", () => {
   const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
   const roster: TeamMember[] = [...team, { id: "damon", name: "Damon", role: "employee" }];
-  const row = { membership_id: "pm1", member_id: "damon", member_name: "Damon", added_by: "", added_at: "", hourly_rate: null, overtime_rate: null, double_time_rate: null, _row_version: 1 };
+  const row = { membership_id: "pm1", member_id: "damon", member_name: "Damon", added_by: "", added_at: "", hourly_rate: null, overtime_rate: null, _row_version: 1 };
 
   it("Ray sets rates; only the rate fields change", async () => {
     const repos = fixtureRepos({ payrollMembers: [row] });
@@ -558,7 +558,7 @@ describe("pay rates", () => {
       { hourly_rate: 60, overtime_rate: 90, member_id: "sam" } as never,
       1,
     );
-    expect(updated).toMatchObject({ member_id: "damon", hourly_rate: 60, overtime_rate: 90, double_time_rate: null });
+    expect(updated).toMatchObject({ member_id: "damon", hourly_rate: 60, overtime_rate: 90 });
   });
 
   it("nobody else can change them", async () => {
@@ -568,5 +568,43 @@ describe("pay rates", () => {
         "Only Ray or an admin",
       );
     }
+  });
+});
+
+describe("overtime requests", () => {
+  const damonUser: AuthUser = { role: "employee", userId: "damon", name: "Damon" };
+  const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
+  const roster: TeamMember[] = [...team, { id: "damon", name: "Damon", role: "employee" }, { id: "sam", name: "Sam Park" }];
+  const played = (extra: Partial<Session> = {}) =>
+    sessionSchema.parse({
+      session_id: "o1", date: "2026-10-20", buy_in: 100, buy_out: 100, time_in: "18:00", time_out: "06:00",
+      logged_by: "Damon", logged_at: "", owner_id: "damon", player: "Damon", player_id: "damon", _row_version: 1, ...extra,
+    });
+
+  it("Damon requests overtime, Ray approves it", async () => {
+    const repos = fixtureRepos({ sessions: [played()] });
+    const asked = await createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { overtime_status: "requested" }, 1);
+    expect(asked.overtime_status).toBe("requested");
+    const approved = await createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { overtime_status: "approved" }, 2);
+    expect(approved.overtime_status).toBe("approved");
+  });
+
+  it("Damon can't approve his own, can't undo a decision, and others can't request for him", async () => {
+    const repos = fixtureRepos({ sessions: [played()] });
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { overtime_status: "approved" }, 1)).rejects.toThrow(
+      "Only Ray or an admin can approve",
+    );
+    await expect(createAuthorizedRepositories(repos, sam, roster).sessions.update("o1", { overtime_status: "requested" }, 1)).rejects.toThrow();
+    await createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { overtime_status: "declined" }, 1);
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { overtime_status: "requested" }, 2)).rejects.toThrow(
+      "already been decided",
+    );
+  });
+
+  it("nothing changes once the session is paid", async () => {
+    const repos = fixtureRepos({ sessions: [played({ payroll_paid_at: "2026-10-25", overtime_status: "requested" })] });
+    await expect(createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { overtime_status: "approved" }, 1)).rejects.toThrow(
+      "already paid",
+    );
   });
 });

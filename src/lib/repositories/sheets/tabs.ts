@@ -115,6 +115,7 @@ export const SESSIONS_TAB: TabConfig = {
     "player_id",
     "payroll_paid_at",
     "payroll_paid_by",
+    "overtime_status",
   ],
   numberFields: ["buy_in", "_row_version"],
   nullableNumberFields: [
@@ -238,10 +239,9 @@ export const PAYROLL_MEMBERS_TAB: TabConfig = {
     "_row_version",
     "hourly_rate",
     "overtime_rate",
-    "double_time_rate",
   ],
   numberFields: ["_row_version"],
-  nullableNumberFields: ["hourly_rate", "overtime_rate", "double_time_rate"],
+  nullableNumberFields: ["hourly_rate", "overtime_rate"],
   booleanFields: [],
 };
 

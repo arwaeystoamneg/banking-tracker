@@ -49,7 +49,9 @@ import { isSessionOpen } from "@/lib/sessionHelpers";
 import { canMarkPayrollPaid, payrollPeople, sessionEmployee } from "@/lib/payroll";
 import { correctFutureStartDate } from "@/lib/dates";
 
-const PAYROLL_KEYS = ["payroll_paid_at", "payroll_paid_by"];
+/** The paid check-off (Ray/admin only) and the overtime request/approval. Neither is a normal edit. */
+const PAID_KEYS = ["payroll_paid_at", "payroll_paid_by"];
+const PAYROLL_KEYS = [...PAID_KEYS, "overtime_status"];
 
 function assertOwnsGame(user: AuthUser, game: Game): void {
   if (!ownsGame(user, game)) throw new AuthorizationError("Only the game owner or an admin can change this game");
@@ -313,8 +315,18 @@ export function createAuthorizedRepositories(
         const touchesPayroll = PAYROLL_KEYS.some((key) => key in patch);
         const payrollOnly = touchesPayroll && Object.keys(patch).every((key) => PAYROLL_KEYS.includes(key));
         const approver = canMarkPayrollPaid(user);
-        if (touchesPayroll && !approver) {
+        if (PAID_KEYS.some((key) => key in patch) && !approver) {
           throw new AuthorizationError("Only Ray or an admin can mark a session paid");
+        }
+        if ("overtime_status" in patch && !approver) {
+          // The player (or whoever logged it) may ask for overtime or withdraw the ask — never decide it.
+          if (patch.overtime_status === "approved" || patch.overtime_status === "declined") {
+            throw new AuthorizationError("Only Ray or an admin can approve overtime");
+          }
+          assertOwnsSession(user, session);
+          if (session.overtime_status === "approved" || session.overtime_status === "declined") {
+            throw new AuthorizationError("Overtime for this session has already been decided; ask Ray or an admin");
+          }
         }
         // The approver checks off sessions they don't own; any other change still needs ownership.
         if (!payrollOnly) assertOwnsSession(user, session);
@@ -323,19 +335,29 @@ export function createAuthorizedRepositories(
           throw new AuthorizationError("This session has been paid; ask Ray or an admin to change it");
         }
         if (payrollOnly) {
-          const paying = Boolean(patch.payroll_paid_at);
-          if (paying && isSessionOpen(session)) throw new InputError("End the session before marking it paid");
+          const settles = "payroll_paid_at" in patch || "payroll_paid_by" in patch;
+          const paying = settles && Boolean(patch.payroll_paid_at);
+          const willBePaid = settles ? paying : Boolean(session.payroll_paid_at);
           const members = await (repos.payrollMembers.listFresh?.() ?? repos.payrollMembers.list());
-          if (paying && !sessionEmployee(session, payrollPeople(team, members))) {
-            throw new InputError("Whoever played this session isn't on payroll");
+          const onPayroll = Boolean(sessionEmployee(session, payrollPeople(team, members)));
+          if (paying && isSessionOpen(session)) throw new InputError("End the session before marking it paid");
+          if (paying && !onPayroll) throw new InputError("Whoever played this session isn't on payroll");
+          const changes: SessionPatch = {};
+          if ("overtime_status" in patch && patch.overtime_status !== session.overtime_status) {
+            // Overtime changes what the session pays, so it can't move under a paid check-off.
+            if (willBePaid) throw new InputError("This session is already paid; undo paid before changing overtime");
+            if (patch.overtime_status && !onPayroll) throw new InputError("Whoever played this session isn't on payroll");
+            changes.overtime_status = patch.overtime_status ?? "";
           }
-          return repos.sessions.update(
-            id,
-            paying
-              ? { payroll_paid_at: new Date().toISOString(), payroll_paid_by: user.name }
-              : { payroll_paid_at: "", payroll_paid_by: "" },
-            expectedVersion,
-          );
+          if (settles) {
+            Object.assign(
+              changes,
+              paying
+                ? { payroll_paid_at: new Date().toISOString(), payroll_paid_by: user.name }
+                : { payroll_paid_at: "", payroll_paid_by: "" },
+            );
+          }
+          return repos.sessions.update(id, changes, expectedVersion);
         }
         let safePatch: SessionPatch = withoutKeys(patch, [
           ...PAYROLL_KEYS,
@@ -590,7 +612,6 @@ export function createAuthorizedRepositories(
             added_at: new Date().toISOString(),
             hourly_rate: data.hourly_rate ?? null,
             overtime_rate: data.overtime_rate ?? null,
-            double_time_rate: data.double_time_rate ?? null,
           },
           id,
         );
@@ -601,7 +622,7 @@ export function createAuthorizedRepositories(
         if (!row) throw new NotFoundError("PayrollMembers", id);
         assertVersion("PayrollMembers", id, row, expectedVersion);
         const rates: PayrollMemberPatch = {};
-        for (const key of ["hourly_rate", "overtime_rate", "double_time_rate"] as const) {
+        for (const key of ["hourly_rate", "overtime_rate"] as const) {
           if (key in patch) rates[key] = patch[key];
         }
         return repos.payrollMembers.update(id, rates, expectedVersion);

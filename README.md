@@ -39,12 +39,11 @@ logged it, the teammate it was logged for, and admin can update it.
 
 The **Pay** tab has four sections: Payroll, Overtime, Reimbursements and Loans.
 
-Pay is in dollars once Ray or admin sets a person's rates on Payroll (base $/h; overtime and double time default
-to 1.5× and 2× base). Rates live in the `PayrollMembers` tab (`hourly_rate`, `overtime_rate`,
-`double_time_rate`). **Overtime** applies California rules (Labor Code §510) per Sunday–Saturday workweek:
-over 8h/day and over 40 regular hours/week at overtime, over 12h/day at double time, and the 7th day worked in a
-week at overtime (double past 8h). Each session is priced by the hours it actually pushed over a limit. These are
-estimates for planning pay, not payroll or legal advice. **Payroll** lists sessions played by people on payroll with hours (time in
+Pay is in dollars once Ray or admin sets a person's rates on Payroll (base $/h; a blank overtime rate means
+1.5× base). Rates live in the `PayrollMembers` tab (`hourly_rate`, `overtime_rate`). **Overtime is approved, not
+calculated:** the player (or whoever logged the session) taps **Request overtime** on a finished session; Ray or
+admin approves or declines it on Overtime or Payroll, or marks any session overtime directly. An approved session
+pays its whole time at the overtime rate. Nothing about overtime can change once the session is paid. **Payroll** lists sessions played by people on payroll with hours (time in
 to time out) and whether each one has been paid. Sessions dated before `PAYROLL_START_DATE` (Oct 1, 2026, in
 `src/lib/payroll.ts`) count as already paid. Employee accounts are always on payroll; Ray and admin can add anyone else with an
 account (individuals included) from the "Who's on payroll" list on the Payroll page, which is stored in a

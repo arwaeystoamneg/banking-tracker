@@ -140,14 +140,16 @@ pd_fee · player_fee`
 `session_id · date · casino · buy_in · buy_out · time_in · time_out · game_id · schedule_option · rounds_banked ·
 action_offered · action_booked · coverage_pct · bonus_action_booked · collection_paid · gross_wl · net_pnl ·
 peak_drawdown · partners · split_terms · notes · logged_by · logged_at · owner_id · player · player_id ·
-payroll_paid_at · payroll_paid_by`
+payroll_paid_at · payroll_paid_by · overtime_status`
 
 `payroll_paid_at` / `payroll_paid_by` record when an employee was paid for the session. Only Ray and admin may
 set them (see `src/lib/payroll.ts`); sessions before `PAYROLL_START_DATE` count as paid. Who is on payroll =
 employee accounts plus anyone in the `PayrollMembers` tab (`membership_id · member_id · member_name · added_by ·
-added_at · _row_version · hourly_rate · overtime_rate · double_time_rate`), which only Ray and admin can change.
-Pay and California overtime (§510: >8h/day, >40 regular h/week, >12h/day double, 7th-day rule; Sunday–Saturday
-weeks; a workday is a session's start date) are computed in `src/lib/overtime.ts` — labelled as estimates.
+added_at · _row_version · hourly_rate · overtime_rate`), which only Ray and admin can change.
+Pay is computed in `src/lib/overtime.ts`. Overtime is per session via Sessions `overtime_status`
+("" · requested · approved · declined): the session's owner may request or withdraw; only Ray/admin approve or
+decline; approved sessions pay at the overtime rate; nothing changes once paid. There is no automatic overtime
+rule and no double time.
 
 `player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
 someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);

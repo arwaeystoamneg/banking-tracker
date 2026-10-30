@@ -112,6 +112,9 @@ export const feeScheduleCreateSchema = feeScheduleSchema.omit({ schedule_id: tru
 });
 export const feeSchedulePatchSchema = feeScheduleSchema.omit({ schedule_id: true, _row_version: true }).partial();
 
+export const OVERTIME_STATUSES = ["", "requested", "approved", "declined"] as const;
+export type OvertimeStatus = (typeof OVERTIME_STATUSES)[number];
+
 export const sessionSchema = z
   .object({
     session_id: z.string(),
@@ -147,6 +150,13 @@ export const sessionSchema = z
     /** Payroll: when an employee was paid for this session, and who marked it. Blank = unpaid. */
     payroll_paid_at: z.string().default(""),
     payroll_paid_by: z.string().default(""),
+    /**
+     * Overtime for the whole session: the player (or whoever logged it) requests it, Ray or admin approves or
+     * declines it. Only "approved" pays at the overtime rate. Blank = never requested.
+     */
+    overtime_status: z
+      .preprocess((value) => (typeof value === "string" ? value.trim().toLowerCase() : value), z.enum(OVERTIME_STATUSES))
+      .catch(""),
   })
   .merge(rowVersion);
 export type Session = z.infer<typeof sessionSchema>;
@@ -176,6 +186,7 @@ export const sessionCreateSchema = sessionSchema
     player_id: true,
     payroll_paid_at: true,
     payroll_paid_by: true,
+    overtime_status: true,
   })
   .extend({
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.
@@ -257,8 +268,6 @@ export const payrollMemberSchema = z
     hourly_rate: z.number().nonnegative().nullable().default(null),
     /** Per overtime hour; blank means 1.5× the hourly rate. */
     overtime_rate: z.number().nonnegative().nullable().default(null),
-    /** Per double-time hour; blank means 2× the hourly rate. */
-    double_time_rate: z.number().nonnegative().nullable().default(null),
   })
   .merge(rowVersion);
 export type PayrollMember = z.infer<typeof payrollMemberSchema>;
@@ -269,13 +278,11 @@ export const payrollMemberCreateSchema = payrollMemberSchema
     member_id: z.string().trim().min(1),
     hourly_rate: payRate.default(null),
     overtime_rate: payRate.default(null),
-    double_time_rate: payRate.default(null),
   });
 /** Only the pay rates change after someone is added; who they are does not. */
 export const payrollMemberPatchSchema = z.object({
   hourly_rate: payRate.optional(),
   overtime_rate: payRate.optional(),
-  double_time_rate: payRate.optional(),
 });
 
 export const LOAN_KINDS = ["loan", "repayment"] as const;

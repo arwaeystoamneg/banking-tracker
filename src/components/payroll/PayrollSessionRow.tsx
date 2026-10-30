@@ -3,25 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { OvertimeControl } from "@/components/payroll/OvertimeControl";
 import { useSessions } from "@/hooks/useSessions";
 import { formatDateForDisplay, formatDateTimeForDisplay } from "@/lib/dates";
 import { formatHours, sessionHours } from "@/lib/payroll";
-import type { Session } from "@/lib/validation/schemas";
 import { formatMoney, type Decimal } from "@/lib/decimal";
-import { formatMinutes, type PaySplit } from "@/lib/overtime";
+import type { Session } from "@/lib/validation/schemas";
 
-export function PayrollSessionRow({
-  session,
-  canMark,
-  pay,
-  split,
-}: {
-  session: Session;
-  canMark: boolean;
-  pay?: Decimal | null;
-  split?: PaySplit;
-}) {
-  const extra = split ? split.overtime + split.doubleTime : 0;
+export function PayrollSessionRow({ session, canMark, pay }: { session: Session; canMark: boolean; pay?: Decimal | null }) {
   const { update } = useSessions();
   const [saving, setSaving] = useState(false);
   const paid = session.payroll_paid_at !== "";
@@ -41,43 +30,41 @@ export function PayrollSessionRow({
   }
 
   return (
-    <div className="flex items-center gap-3 border-t border-border py-2.5 first:border-t-0">
-      <Link href={`/sessions/${session.session_id}`} className="min-w-0 flex-1">
-        <p className="text-sm text-foreground">
-          <span className="num">{formatDateForDisplay(session.date)}</span>
-          <span className="text-muted">
-            {" "}
-            · {session.time_in || "—"}–{session.time_out || "now"}
-          </span>
-        </p>
-        {paid ? (
-          <p className="text-xs text-muted">
-            Paid{session.payroll_paid_by && session.payroll_paid_by !== "…" ? ` by ${session.payroll_paid_by}` : ""} ·{" "}
-            {formatDateTimeForDisplay(session.payroll_paid_at)}
+    <div className="space-y-1.5 border-t border-border py-2.5 first:border-t-0">
+      <div className="flex items-center gap-3">
+        <Link href={`/sessions/${session.session_id}`} className="min-w-0 flex-1">
+          <p className="text-sm text-foreground">
+            <span className="num">{formatDateForDisplay(session.date)}</span>
+            <span className="text-muted">
+              {" "}
+              · {session.time_in || "—"}–{session.time_out || "now"}
+            </span>
           </p>
-        ) : null}
-      </Link>
-      <span className="w-20 text-right">
-        <span className={`num block text-sm font-semibold ${open ? "text-muted" : paid ? "text-muted-strong" : "text-amber-400"}`}>
-          {open ? "Open" : pay ? formatMoney(pay) : formatHours(sessionHours(session))}
-        </span>
-        {!open && (pay || extra > 0) ? (
-          <span className="num block text-[11px] text-muted">
-            {pay ? formatHours(sessionHours(session)) : ""}
-            {extra > 0 ? `${pay ? " · " : ""}${formatMinutes(extra)} OT` : ""}
+          {paid ? (
+            <p className="text-xs text-muted">
+              Paid{session.payroll_paid_by && session.payroll_paid_by !== "…" ? ` by ${session.payroll_paid_by}` : ""} ·{" "}
+              {formatDateTimeForDisplay(session.payroll_paid_at)}
+            </p>
+          ) : null}
+        </Link>
+        <span className="w-20 text-right">
+          <span className={`num block text-sm font-semibold ${open ? "text-muted" : paid ? "text-muted-strong" : "text-amber-400"}`}>
+            {open ? "Open" : pay ? formatMoney(pay) : formatHours(sessionHours(session))}
           </span>
+          {!open && pay ? <span className="num block text-[11px] text-muted">{formatHours(sessionHours(session))}</span> : null}
+        </span>
+        {canMark && !open ? (
+          <Button
+            variant={paid ? "ghost" : "secondary"}
+            onClick={toggle}
+            disabled={saving}
+            className={`h-10 w-20 px-2 text-xs ${paid ? "text-muted" : ""}`}
+          >
+            {saving ? "…" : paid ? "Undo" : "Paid ✓"}
+          </Button>
         ) : null}
-      </span>
-      {canMark && !open ? (
-        <Button
-          variant={paid ? "ghost" : "secondary"}
-          onClick={toggle}
-          disabled={saving}
-          className={`h-10 w-20 px-2 text-xs ${paid ? "text-muted" : ""}`}
-        >
-          {saving ? "…" : paid ? "Undo" : "Paid ✓"}
-        </Button>
-      ) : null}
+      </div>
+      {!open ? <OvertimeControl session={session} compact /> : null}
     </div>
   );
 }

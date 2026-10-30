@@ -7,7 +7,7 @@ import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { formatMoney } from "@/lib/decimal";
-import { formatMinutes, overtimeByPerson, payForSessions, ratesFor, type PayRates, type PaySplit } from "@/lib/overtime";
+import { ratesFor, sessionPay, totalPay, type PayRates } from "@/lib/overtime";
 import type { PayrollMember } from "@/lib/validation/schemas";
 import { PaySwitcher } from "@/components/payroll/PaySwitcher";
 import { PayrollSessionRow } from "@/components/payroll/PayrollSessionRow";
@@ -35,10 +35,6 @@ export default function PayrollPage() {
     return canSeeAllPayroll(user) ? all : all.filter((employee) => employee.id === user.userId);
   }, [team, user, payrollMembers]);
   const summaries = useMemo(() => payrollByEmployee(sessions, employees), [sessions, employees]);
-  const splitsByPerson = useMemo(
-    () => new Map(overtimeByPerson(sessions, employees).map((result) => [result.person.id, result.sessionSplits])),
-    [sessions, employees],
-  );
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
@@ -66,7 +62,6 @@ export default function PayrollPage() {
             key={summary.employee.id}
             summary={summary}
             canMark={canMark}
-            splits={splitsByPerson.get(summary.employee.id) ?? new Map()}
             rates={ratesFor(summary.employee.id, payrollMembers)}
             member={payrollMembers.find((row) => row.member_id === summary.employee.id)}
           />
@@ -129,19 +124,18 @@ function PayrollRoster() {
   );
 }
 
-/** Ray and admin set a person's hourly, overtime and double-time rates. Blank OT/2× use 1.5× and 2× base. */
+/** Ray and admin set a person's base and overtime rates. A blank overtime rate means 1.5× base. */
 function RatesEditor({ personId, personName, member, onDone }: { personId: string; personName: string; member?: PayrollMember; onDone: () => void }) {
   const user = useCurrentUser();
   const { create, update } = usePayrollMembers();
   const [base, setBase] = useState(member?.hourly_rate == null ? "" : String(member.hourly_rate));
   const [overtime, setOvertime] = useState(member?.overtime_rate == null ? "" : String(member.overtime_rate));
-  const [double, setDouble] = useState(member?.double_time_rate == null ? "" : String(member.double_time_rate));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const parse = (value: string) => (value.trim() === "" ? null : Number(value));
   async function save() {
-    const rates = { hourly_rate: parse(base), overtime_rate: parse(overtime), double_time_rate: parse(double) };
+    const rates = { hourly_rate: parse(base), overtime_rate: parse(overtime) };
     if (Object.values(rates).some((rate) => rate !== null && (!Number.isFinite(rate) || rate < 0))) return setError("Rates must be dollar amounts.");
     setSaving(true);
     setError("");
@@ -164,10 +158,9 @@ function RatesEditor({ personId, personName, member, onDone }: { personId: strin
   );
   return (
     <div className="space-y-2 rounded-xl border border-border bg-surface-raised p-3">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {field("Base $/h", base, setBase, "0")}
         {field("Overtime $/h", overtime, setOvertime, baseNumber ? String(baseNumber * 1.5) : "1.5×")}
-        {field("Double $/h", double, setDouble, baseNumber ? String(baseNumber * 2) : "2×")}
       </div>
       {error ? <p className="text-xs text-red-400">{error}</p> : null}
       <div className="flex gap-2">
@@ -185,21 +178,19 @@ function RatesEditor({ personId, personName, member, onDone }: { personId: strin
 function EmployeeCard({
   summary,
   canMark,
-  splits,
   rates,
   member,
 }: {
   summary: EmployeePayroll;
   canMark: boolean;
-  splits: Map<string, PaySplit>;
   rates: PayRates | null;
   member?: PayrollMember;
 }) {
   const { update } = useSessions();
   const [editingRates, setEditingRates] = useState(false);
-  const unpaidPay = payForSessions(summary.unpaid.map((s) => s.session_id), splits, rates);
-  const unpaidOvertime = summary.unpaid.reduce((total, s) => total + (splits.get(s.session_id)?.overtime ?? 0) + (splits.get(s.session_id)?.doubleTime ?? 0), 0);
-  const rowPay = (id: string) => ({ pay: payForSessions([id], splits, rates), split: splits.get(id) });
+  const unpaidPay = totalPay(summary.unpaid, rates);
+  const unpaidOvertime = summary.unpaid.filter((s) => s.overtime_status === "approved").length;
+  const requests = summary.unpaid.filter((s) => s.overtime_status === "requested").length;
   const [showPaid, setShowPaid] = useState(false);
   const [payingAll, setPayingAll] = useState(false);
   const owed = summary.unpaid.length;
@@ -232,14 +223,15 @@ function EmployeeCard({
                   {" "}
                   unpaid · {unpaidPay ? `${formatHours(summary.unpaidHours)} · ` : ""}
                   {owed} session{owed === 1 ? "" : "s"}
-                  {unpaidOvertime > 0 ? ` · ${formatMinutes(unpaidOvertime)} overtime` : ""}
+                  {unpaidOvertime > 0 ? ` · ${unpaidOvertime} overtime` : ""}
+                  {requests > 0 ? ` · ${requests} OT request${requests === 1 ? "" : "s"}` : ""}
                 </span>
               </>
             )}
           </p>
           <p className="text-xs text-muted">
             {rates
-              ? `$${rates.base.toString()}/h · overtime $${rates.overtime.toString()}/h · double $${rates.doubleTime.toString()}/h`
+              ? `$${rates.base.toString()}/h · overtime $${rates.overtime.toString()}/h`
               : "No pay rate set — showing hours only."}
             {canMark && !editingRates ? (
               <button onClick={() => setEditingRates(true)} className="ml-2 font-medium text-emerald-400">
@@ -272,10 +264,10 @@ function EmployeeCard({
       {summary.unpaid.length + summary.inProgress.length > 0 ? (
         <div>
           {summary.inProgress.map((session) => (
-            <PayrollSessionRow key={session.session_id} session={session} canMark={canMark} {...rowPay(session.session_id)} />
+            <PayrollSessionRow key={session.session_id} session={session} canMark={canMark} pay={sessionPay(session, rates)} />
           ))}
           {summary.unpaid.map((session) => (
-            <PayrollSessionRow key={session.session_id} session={session} canMark={canMark} {...rowPay(session.session_id)} />
+            <PayrollSessionRow key={session.session_id} session={session} canMark={canMark} pay={sessionPay(session, rates)} />
           ))}
         </div>
       ) : null}
@@ -288,7 +280,7 @@ function EmployeeCard({
           {showPaid ? (
             <div>
               {summary.paid.map((session) => (
-                <PayrollSessionRow key={session.session_id} session={session} canMark={canMark} {...rowPay(session.session_id)} />
+                <PayrollSessionRow key={session.session_id} session={session} canMark={canMark} pay={sessionPay(session, rates)} />
               ))}
             </div>
           ) : null}
