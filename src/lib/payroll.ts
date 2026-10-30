@@ -56,13 +56,18 @@ function minutesOf(time: string): number | null {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
-/** Hours between time in and time out; a time out earlier than time in ran past midnight. */
-export function sessionHours(session: Pick<Session, "time_in" | "time_out">): Decimal | null {
+/** Whole minutes between time in and time out; a time out earlier than time in ran past midnight. */
+export function sessionMinutes(session: Pick<Session, "time_in" | "time_out">): number | null {
   const start = minutesOf(session.time_in);
   const end = minutesOf(session.time_out);
   if (start === null || end === null) return null;
-  const minutes = end >= start ? end - start : end + 24 * 60 - start;
-  return d(minutes).dividedBy(60);
+  return end >= start ? end - start : end + 24 * 60 - start;
+}
+
+/** Hours between time in and time out; a time out earlier than time in ran past midnight. */
+export function sessionHours(session: Pick<Session, "time_in" | "time_out">): Decimal | null {
+  const minutes = sessionMinutes(session);
+  return minutes === null ? null : d(minutes).dividedBy(60);
 }
 
 export function formatHours(hours: Decimal | null): string {

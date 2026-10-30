@@ -253,13 +253,30 @@ export const payrollMemberSchema = z
     member_name: z.string().default(""),
     added_by: z.string().default(""),
     added_at: z.string().default(""),
+    /** Dollars per hour. Blank until Ray or admin sets it. */
+    hourly_rate: z.number().nonnegative().nullable().default(null),
+    /** Per overtime hour; blank means 1.5× the hourly rate. */
+    overtime_rate: z.number().nonnegative().nullable().default(null),
+    /** Per double-time hour; blank means 2× the hourly rate. */
+    double_time_rate: z.number().nonnegative().nullable().default(null),
   })
   .merge(rowVersion);
 export type PayrollMember = z.infer<typeof payrollMemberSchema>;
+const payRate = z.number().nonnegative().max(10_000).nullable();
 export const payrollMemberCreateSchema = payrollMemberSchema
   .omit({ membership_id: true, _row_version: true })
-  .extend({ member_id: z.string().trim().min(1) });
-export const payrollMemberPatchSchema = payrollMemberSchema.omit({ membership_id: true, _row_version: true }).partial();
+  .extend({
+    member_id: z.string().trim().min(1),
+    hourly_rate: payRate.default(null),
+    overtime_rate: payRate.default(null),
+    double_time_rate: payRate.default(null),
+  });
+/** Only the pay rates change after someone is added; who they are does not. */
+export const payrollMemberPatchSchema = z.object({
+  hourly_rate: payRate.optional(),
+  overtime_rate: payRate.optional(),
+  double_time_rate: payRate.optional(),
+});
 
 export const LOAN_KINDS = ["loan", "repayment"] as const;
 export type LoanKind = (typeof LOAN_KINDS)[number];

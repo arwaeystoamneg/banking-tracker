@@ -145,7 +145,9 @@ payroll_paid_at · payroll_paid_by`
 `payroll_paid_at` / `payroll_paid_by` record when an employee was paid for the session. Only Ray and admin may
 set them (see `src/lib/payroll.ts`); sessions before `PAYROLL_START_DATE` count as paid. Who is on payroll =
 employee accounts plus anyone in the `PayrollMembers` tab (`membership_id · member_id · member_name · added_by ·
-added_at`), which only Ray and admin can change.
+added_at · _row_version · hourly_rate · overtime_rate · double_time_rate`), which only Ray and admin can change.
+Pay and California overtime (§510: >8h/day, >40 regular h/week, >12h/day double, 7th-day rule; Sunday–Saturday
+weeks; a workday is a session's start date) are computed in `src/lib/overtime.ts` — labelled as estimates.
 
 `player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
 someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);

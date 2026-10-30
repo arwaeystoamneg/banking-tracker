@@ -27,6 +27,7 @@ import type {
   PaytableCreate,
   PaytablePatch,
   PayrollMemberCreate,
+  PayrollMemberPatch,
   ReimbursementCreate,
   ReimbursementPatch,
   RoundCreate,
@@ -582,12 +583,28 @@ export function createAuthorizedRepositories(
         // Adding someone twice (two phones, or an offline retry) is a no-op rather than a duplicate row.
         if (existing) return existing;
         return repos.payrollMembers.create(
-          { member_id: member.id, member_name: member.name, added_by: user.name, added_at: new Date().toISOString() },
+          {
+            member_id: member.id,
+            member_name: member.name,
+            added_by: user.name,
+            added_at: new Date().toISOString(),
+            hourly_rate: data.hourly_rate ?? null,
+            overtime_rate: data.overtime_rate ?? null,
+            double_time_rate: data.double_time_rate ?? null,
+          },
           id,
         );
       },
-      async update(): Promise<never> {
-        throw new AuthorizationError("Remove the person from payroll and add them again instead");
+      async update(id: string, patch: PayrollMemberPatch, expectedVersion: number) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change pay rates");
+        const row = await repos.payrollMembers.get(id);
+        if (!row) throw new NotFoundError("PayrollMembers", id);
+        assertVersion("PayrollMembers", id, row, expectedVersion);
+        const rates: PayrollMemberPatch = {};
+        for (const key of ["hourly_rate", "overtime_rate", "double_time_rate"] as const) {
+          if (key in patch) rates[key] = patch[key];
+        }
+        return repos.payrollMembers.update(id, rates, expectedVersion);
       },
       async remove(id: string, expectedVersion: number) {
         if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change who is on payroll");

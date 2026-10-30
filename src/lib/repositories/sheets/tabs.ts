@@ -229,9 +229,19 @@ export const REIMBURSEMENTS_TAB: TabConfig = {
 export const PAYROLL_MEMBERS_TAB: TabConfig = {
   tabName: "PayrollMembers",
   idField: "membership_id",
-  headers: ["membership_id", "member_id", "member_name", "added_by", "added_at", "_row_version"],
+  headers: [
+    "membership_id",
+    "member_id",
+    "member_name",
+    "added_by",
+    "added_at",
+    "_row_version",
+    "hourly_rate",
+    "overtime_rate",
+    "double_time_rate",
+  ],
   numberFields: ["_row_version"],
-  nullableNumberFields: [],
+  nullableNumberFields: ["hourly_rate", "overtime_rate", "double_time_rate"],
   booleanFields: [],
 };
 

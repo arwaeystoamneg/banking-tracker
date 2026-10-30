@@ -453,7 +453,7 @@ describe("session payroll", () => {
 describe("payroll members", () => {
   const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
   const roster: TeamMember[] = [...team, { id: "sam", name: "Sam Park", role: "individual" }];
-  const add = { member_id: "sam", member_name: "", added_by: "", added_at: "" };
+  const add = { member_id: "sam", member_name: "", added_by: "", added_at: "", hourly_rate: null, overtime_rate: null, double_time_rate: null };
 
   it("lets Ray add an individual, once", async () => {
     const repos = fixtureRepos({});
@@ -476,7 +476,7 @@ describe("payroll members", () => {
 
   it("only Ray or admin can take someone off", async () => {
     const repos = fixtureRepos({
-      payrollMembers: [{ membership_id: "pm1", member_id: "sam", member_name: "Sam Park", added_by: "Ray Tang", added_at: "", _row_version: 1 }],
+      payrollMembers: [{ membership_id: "pm1", member_id: "sam", member_name: "Sam Park", added_by: "Ray Tang", added_at: "", hourly_rate: null, overtime_rate: null, double_time_rate: null, _row_version: 1 }],
     });
     await expect(createAuthorizedRepositories(repos, sam, roster).payrollMembers.remove("pm1", 1)).rejects.toThrow(
       "Only Ray or an admin",
@@ -543,5 +543,30 @@ describe("loans", () => {
     await expect(createAuthorizedRepositories(repos, sam, roster).loans.remove("ln1", 2)).rejects.toThrow("delete");
     await createAuthorizedRepositories(repos, admin, roster).loans.remove("ln1", 2);
     expect(repos.loans.removed).toEqual(["ln1"]);
+  });
+});
+
+describe("pay rates", () => {
+  const sam: AuthUser = { role: "individual", userId: "sam", name: "Sam Park" };
+  const roster: TeamMember[] = [...team, { id: "damon", name: "Damon", role: "employee" }];
+  const row = { membership_id: "pm1", member_id: "damon", member_name: "Damon", added_by: "", added_at: "", hourly_rate: null, overtime_rate: null, double_time_rate: null, _row_version: 1 };
+
+  it("Ray sets rates; only the rate fields change", async () => {
+    const repos = fixtureRepos({ payrollMembers: [row] });
+    const updated = await createAuthorizedRepositories(repos, ray, roster).payrollMembers.update(
+      "pm1",
+      { hourly_rate: 60, overtime_rate: 90, member_id: "sam" } as never,
+      1,
+    );
+    expect(updated).toMatchObject({ member_id: "damon", hourly_rate: 60, overtime_rate: 90, double_time_rate: null });
+  });
+
+  it("nobody else can change them", async () => {
+    const repos = fixtureRepos({ payrollMembers: [row] });
+    for (const user of [sam, dana]) {
+      await expect(createAuthorizedRepositories(repos, user, roster).payrollMembers.update("pm1", { hourly_rate: 999 }, 1)).rejects.toThrow(
+        "Only Ray or an admin",
+      );
+    }
   });
 });

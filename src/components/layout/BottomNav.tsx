@@ -66,7 +66,7 @@ const LOSSES_ITEM: { href: string; label: string; icon: ReactNode } = {
 const PAY_ITEM: { href: string; label: string; icon: ReactNode; also?: string[] } = {
   href: "/payroll",
   label: "Pay",
-  also: ["/reimbursements", "/loans"],
+  also: ["/overtime", "/reimbursements", "/loans"],
   icon: (
     <Icon
       path={

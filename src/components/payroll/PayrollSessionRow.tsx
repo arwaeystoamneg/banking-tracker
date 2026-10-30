@@ -7,8 +7,21 @@ import { useSessions } from "@/hooks/useSessions";
 import { formatDateForDisplay, formatDateTimeForDisplay } from "@/lib/dates";
 import { formatHours, sessionHours } from "@/lib/payroll";
 import type { Session } from "@/lib/validation/schemas";
+import { formatMoney, type Decimal } from "@/lib/decimal";
+import { formatMinutes, type PaySplit } from "@/lib/overtime";
 
-export function PayrollSessionRow({ session, canMark }: { session: Session; canMark: boolean }) {
+export function PayrollSessionRow({
+  session,
+  canMark,
+  pay,
+  split,
+}: {
+  session: Session;
+  canMark: boolean;
+  pay?: Decimal | null;
+  split?: PaySplit;
+}) {
+  const extra = split ? split.overtime + split.doubleTime : 0;
   const { update } = useSessions();
   const [saving, setSaving] = useState(false);
   const paid = session.payroll_paid_at !== "";
@@ -44,8 +57,16 @@ export function PayrollSessionRow({ session, canMark }: { session: Session; canM
           </p>
         ) : null}
       </Link>
-      <span className={`num w-16 text-right text-sm font-semibold ${open ? "text-muted" : paid ? "text-muted-strong" : "text-amber-400"}`}>
-        {open ? "Open" : formatHours(sessionHours(session))}
+      <span className="w-20 text-right">
+        <span className={`num block text-sm font-semibold ${open ? "text-muted" : paid ? "text-muted-strong" : "text-amber-400"}`}>
+          {open ? "Open" : pay ? formatMoney(pay) : formatHours(sessionHours(session))}
+        </span>
+        {!open && (pay || extra > 0) ? (
+          <span className="num block text-[11px] text-muted">
+            {pay ? formatHours(sessionHours(session)) : ""}
+            {extra > 0 ? `${pay ? " · " : ""}${formatMinutes(extra)} OT` : ""}
+          </span>
+        ) : null}
       </span>
       {canMark && !open ? (
         <Button
