@@ -86,3 +86,47 @@ export function correctFutureStartDate(date: string, timeIn: string, now = new D
   const earlier = previousDay(date);
   return `${earlier} ${time}` <= limit ? earlier : date;
 }
+
+/** "19:00" → "7:00 PM"; anything unparseable is returned as-is (older rows typed by hand). */
+export function formatClock(time: string): string {
+  if (/[ap]\.?m\.?$/i.test(time.trim())) return time.trim(); // already 12-hour
+  const match = /^(\d{1,2}):(\d{2})/.exec(time.trim());
+  if (!match) return time;
+  const hours = Number(match[1]);
+  const suffix = hours >= 12 ? "PM" : "AM";
+  return `${hours % 12 === 0 ? 12 : hours % 12}:${match[2]} ${suffix}`;
+}
+
+/** "7:00 PM – 12:15 AM", or "7:00 PM – now" while a session is open. */
+export function formatTimeRange(timeIn: string, timeOut: string): string {
+  if (!timeIn) return timeOut ? `– ${formatClock(timeOut)}` : "—";
+  return `${formatClock(timeIn)} – ${timeOut ? formatClock(timeOut) : "now"}`;
+}
+
+/** 315 → "5h 15m", 480 → "8h", 20 → "20m". */
+export function formatDuration(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  if (hours === 0) return `${rest}m`;
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
+/** "Oct 27 – 28, 2026", "Oct 30 – Nov 2, 2026", or one date when they match. */
+export function formatDateRange(start: string, end: string): string {
+  if (!end || start === end) return formatDateForDisplay(start);
+  const a = new Date(`${start}T00:00:00`);
+  const b = new Date(`${end}T00:00:00`);
+  if (a.getFullYear() !== b.getFullYear()) return `${formatDateForDisplay(start)} – ${formatDateForDisplay(end)}`;
+  if (a.getMonth() === b.getMonth()) return `${format(a, "MMM d")} – ${format(b, "d, yyyy")}`;
+  return `${format(a, "MMM d")} – ${format(b, "MMM d, yyyy")}`;
+}
+
+/** Minutes from a session's start (date + time in) until now, for "running 3h 20m". Null if unknown. */
+export function minutesSince(date: string, timeIn: string, now = new Date()): number | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(timeIn.trim());
+  if (!match || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const start = new Date(`${date}T${match[1].padStart(2, "0")}:${match[2]}:00`);
+  const minutes = Math.floor((now.getTime() - start.getTime()) / 60_000);
+  return minutes >= 0 ? minutes : null;
+}

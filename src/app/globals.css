@@ -91,3 +91,43 @@ body {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Pride theme. Purely decorative: a rainbow stripe and rainbow accents on primary actions. Money
+ * colours (green win / red loss) stay as they are — they carry meaning. Deeper hues than the flag so
+ * white button text stays readable.
+ * ------------------------------------------------------------------------------------------- */
+:root {
+  --pride: linear-gradient(90deg, #c81e1e, #d9620b, #c9a400, #1f8a3a, #2a4fb3, #7a2fa0);
+}
+
+.theme-stripe {
+  display: none;
+}
+
+[data-theme="pride"] .theme-stripe {
+  display: block;
+  height: 4px;
+  background: var(--pride);
+}
+
+[data-theme="pride"] .bg-emerald-600 {
+  background-image: var(--pride);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.55);
+}
+
+[data-theme="pride"] nav .bg-emerald-400 {
+  background: var(--pride);
+}
+
+[data-theme="pride"] nav {
+  border-image: var(--pride) 1;
+}
+
+[data-theme="pride"] .border-emerald-500\/70 {
+  border-color: #a855f7;
+}
+
+[data-theme="pride"] .bg-emerald-600\/20 {
+  background-color: rgb(168 85 247 / 0.2);
+}

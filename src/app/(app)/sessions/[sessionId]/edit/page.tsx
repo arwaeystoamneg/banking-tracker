@@ -3,6 +3,7 @@
 import { use } from "react";
 import Link from "next/link";
 import { SessionForm } from "@/components/sessions/SessionForm";
+import { DeleteSessionButton } from "@/components/sessions/DeleteSessionButton";
 import { useSessions } from "@/hooks/useSessions";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
 import { ownsSession } from "@/lib/auth/permissions";
@@ -28,6 +29,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ sessionI
         </Link>
       </div>
       <SessionForm key={`${session.session_id}-${session._row_version}`} session={session} />
+      <DeleteSessionButton session={session} />
     </main>
   );
 }

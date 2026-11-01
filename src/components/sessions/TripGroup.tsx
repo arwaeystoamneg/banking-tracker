@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SessionListItem } from "@/components/sessions/SessionListItem";
-import { formatDateForDisplay } from "@/lib/dates";
+import { formatDateRange, formatDuration } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
 import type { Trip } from "@/lib/trips";
 
@@ -10,11 +10,7 @@ import type { Trip } from "@/lib/trips";
 export function TripGroup({ trip, defaultOpen = false }: { trip: Trip; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  const sameDay = trip.startDate === trip.endDate;
-  const dateLabel = sameDay
-    ? formatDateForDisplay(trip.startDate)
-    : `${formatDateForDisplay(trip.startDate)} – ${formatDateForDisplay(trip.endDate)}`;
-  const hours = trip.totalMinutes / 60;
+  const dateLabel = formatDateRange(trip.startDate, trip.endDate);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-surface">
@@ -44,7 +40,7 @@ export function TripGroup({ trip, defaultOpen = false }: { trip: Trip; defaultOp
             >
               {trip.completedCount === 0 ? "—" : formatMoney(trip.netCash)}
             </p>
-            <p className="text-[11px] text-muted">{hours > 0 ? `${hours.toFixed(1)}h` : "net"}</p>
+            <p className="text-[11px] text-muted">{trip.totalMinutes > 0 ? formatDuration(trip.totalMinutes) : "net"}</p>
           </div>
           <span
             className={`text-muted transition-transform ${open ? "rotate-90" : ""}`}

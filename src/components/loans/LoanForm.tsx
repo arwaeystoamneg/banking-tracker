@@ -1,5 +1,6 @@
 "use client";
 
+import { parseMoneyInput } from "@/lib/decimal";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLoans } from "@/hooks/useLoans";
@@ -53,7 +54,7 @@ export function LoanForm({ entry, prefill }: { entry?: LoanEntry; prefill?: Loan
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const value = Number(amount);
+    const value = parseMoneyInput(amount);
     const problems: string[] = [];
     if (!from.name.trim()) problems.push(isLoan ? "who lent" : "who paid");
     if (!to.name.trim()) problems.push(isLoan ? "who borrowed" : "who was paid");

@@ -5,6 +5,7 @@ import { QueryProvider } from "@/components/providers/QueryProvider";
 import { SyncStatusBar } from "@/components/sync/SyncStatusBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import type { AuthUser, TeamMember } from "@/lib/auth/types";
 
 export function AppShell({ user, team, children }: { user: AuthUser; team: TeamMember[]; children: ReactNode }) {
@@ -12,15 +13,19 @@ export function AppShell({ user, team, children }: { user: AuthUser; team: TeamM
     <AuthProvider user={user} team={team}>
       <QueryProvider>
         <div className="flex min-h-dvh flex-col">
+          <div className="theme-stripe" aria-hidden />
           <div className="flex min-h-9 items-center justify-between border-b border-border bg-surface px-4 text-xs text-muted">
             <span>
               {user.name} · {user.role === "demo" ? "public read-only demo" : user.role}
             </span>
-            <form action="/api/logout" method="POST">
-              <button type="submit" className="min-h-9 px-2 text-muted-strong active:text-foreground">
-                Sign out
-              </button>
-            </form>
+            <div className="flex items-center">
+              <ThemeToggle userId={user.userId} />
+              <form action="/api/logout" method="POST">
+                <button type="submit" className="min-h-9 px-2 text-muted-strong active:text-foreground">
+                  Sign out
+                </button>
+              </form>
+            </div>
           </div>
           <SyncStatusBar />
           <div className="flex-1 overflow-y-auto pb-4">{children}</div>

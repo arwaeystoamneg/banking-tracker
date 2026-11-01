@@ -6,7 +6,7 @@ import { useRounds } from "@/hooks/useRounds";
 import { EdgeSummaryTable } from "@/components/rollups/EdgeSummaryTable";
 import { computeRollup } from "@/lib/math/rollup";
 import { computePersonStats } from "@/lib/stats/personStats";
-import { formatDateForDisplay } from "@/lib/dates";
+import { formatDateForDisplay, formatDuration } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
 
 export default function RollupsPage() {
@@ -41,7 +41,7 @@ export default function RollupsPage() {
                   </div>
                   <div className="text-right">
                     <p className={`num text-xl font-semibold ${person.netCash.isNegative() ? "text-red-400" : "text-emerald-400"}`}>
-                      {formatMoney(person.netCash)}
+                      {person.completedCount ? formatMoney(person.netCash) : "—"}
                     </p>
                     <p className="text-[11px] uppercase tracking-wide text-muted">net cash</p>
                   </div>
@@ -52,10 +52,10 @@ export default function RollupsPage() {
                   <Stat label="Completed" value={String(person.completedCount)} />
                   <Stat label="Still open" value={String(openCount)} />
                   <Stat label="Win rate" value={winRate === null ? "—" : `${winRate.toFixed(1)}%`} />
-                  <Stat label="Total buy-in" value={formatMoney(person.totalBuyIn)} />
-                  <Stat label="Total buy-out" value={formatMoney(person.totalBuyOut)} />
+                  <Stat label="Buy-in (finished)" value={person.completedCount ? formatMoney(person.totalBuyIn) : "—"} />
+                  <Stat label="Buy-out (finished)" value={person.completedCount ? formatMoney(person.totalBuyOut) : "—"} />
                   <Stat label="Average result" value={person.averageNet === null ? "—" : formatMoney(person.averageNet)} />
-                  <Stat label="Hours recorded" value={(person.totalMinutes / 60).toFixed(1)} />
+                  <Stat label="Hours recorded" value={person.totalMinutes > 0 ? formatDuration(person.totalMinutes) : "—"} />
                 </div>
               </section>
             );

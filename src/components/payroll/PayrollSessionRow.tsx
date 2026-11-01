@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { OvertimeControl } from "@/components/payroll/OvertimeControl";
 import { useSessions } from "@/hooks/useSessions";
-import { formatDateForDisplay, formatDateTimeForDisplay } from "@/lib/dates";
+import { formatDateForDisplay, formatDateTimeForDisplay, formatTimeRange } from "@/lib/dates";
 import { formatHours, sessionHours } from "@/lib/payroll";
 import { formatMoney, type Decimal } from "@/lib/decimal";
 import type { Session } from "@/lib/validation/schemas";
@@ -37,7 +37,7 @@ export function PayrollSessionRow({ session, canMark, pay }: { session: Session;
             <span className="num">{formatDateForDisplay(session.date)}</span>
             <span className="text-muted">
               {" "}
-              · {session.time_in || "—"}–{session.time_out || "now"}
+              · {formatTimeRange(session.time_in, session.time_out)}
             </span>
           </p>
           {paid ? (

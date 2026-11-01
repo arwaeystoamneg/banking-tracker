@@ -413,6 +413,9 @@ export function createAuthorizedRepositories(
         const session = await requiredSession(repos, id);
         assertOwnsSession(user, session);
         assertVersion("Sessions", id, session, expectedVersion);
+        if (session.payroll_paid_at && !canMarkPayrollPaid(user)) {
+          throw new AuthorizationError("This session has been paid; ask Ray or an admin to delete it");
+        }
         const rounds = (await repos.rounds.list()).filter((row) => row.session_id === id);
         for (const round of rounds) {
           await repos.rounds.remove(round.round_id, round._row_version);

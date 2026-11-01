@@ -1,5 +1,6 @@
 "use client";
 
+import { parseMoneyInput } from "@/lib/decimal";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -93,7 +94,7 @@ export function LossForm({ session }: { session?: Session }) {
       return;
     }
 
-    const amountValue = Number(amount);
+    const amountValue = parseMoneyInput(amount);
     if (!casino.trim() || !occurredAt || !circumstances.trim() || !Number.isFinite(amountValue) || amountValue <= 0) {
       setError("Amount, when it happened, casino, and what happened are required.");
       return;

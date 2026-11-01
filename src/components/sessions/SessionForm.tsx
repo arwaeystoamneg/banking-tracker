@@ -1,11 +1,14 @@
 "use client";
 
+import { parseMoneyInput } from "@/lib/decimal";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSessions } from "@/hooks/useSessions";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
+import { EndSessionCard } from "@/components/sessions/SessionSummaryCard";
+import { serverReachable } from "@/lib/reachable";
 import { formatDateForDisplay, nowIso, startDateForTimeIn } from "@/lib/dates";
 import { useLiveTime } from "@/hooks/useLiveTime";
 import { getRememberedLoggedBy, getRememberedPlayer, rememberLoggedBy, rememberPlayer } from "@/lib/loggedInAs";
@@ -26,7 +29,9 @@ export function SessionForm({ session }: { session?: Session }) {
   const user = useCurrentUser();
   const team = useTeam();
   const router = useRouter();
-  const { create, update } = useSessions();
+  const { sessions, create, update } = useSessions();
+  // Set when a save worked but the server can't be reached: stay here instead of opening a page that can't load.
+  const [savedOffline, setSavedOffline] = useState<string | null>(null);
   const editing = session !== undefined;
   const isAccount = isConfiguredAccountRole(user.role);
   const closed = session !== undefined && !isSessionOpen(session);
@@ -64,8 +69,8 @@ export function SessionForm({ session }: { session?: Session }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const player = selectedPlayer();
-    const buyInAmount = Number(buyIn);
-    const buyOutAmount = Number(buyOut);
+    const buyInAmount = parseMoneyInput(buyIn);
+    const buyOutAmount = parseMoneyInput(buyOut);
     const time = timeInForSave();
     const startDate = pickedDate || startDateForTimeIn(time);
     const problems: string[] = [];
@@ -97,7 +102,11 @@ export function SessionForm({ session }: { session?: Session }) {
 
       if (session) {
         await update(session.session_id, fields, session._row_version);
-        router.replace(`/sessions/${session.session_id}`);
+        if (await serverReachable()) router.replace(`/sessions/${session.session_id}`);
+        else {
+          setSavedOffline(session.session_id);
+          setSubmitting(false);
+        }
         return;
       }
 
@@ -123,11 +132,28 @@ export function SessionForm({ session }: { session?: Session }) {
         logged_at: nowIso(),
         owner_id: user.userId,
       });
-      router.push(`/sessions/${id}`);
+      if (await serverReachable()) router.push(`/sessions/${id}`);
+      else {
+        setSavedOffline(id);
+        setSubmitting(false);
+      }
     } catch {
       setError("Could not save. Nothing was lost; check sync status and try again.");
       setSubmitting(false);
     }
+  }
+
+  if (savedOffline) {
+    const saved = sessions.find((s) => s.session_id === savedOffline);
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
+          <p className="font-medium text-foreground">Saved on this phone</p>
+          <p className="text-muted">No signal right now. It will sync on its own when the phone reconnects — nothing is lost.</p>
+        </div>
+        {saved && !editing && saved.time_out === "" ? <EndSessionCard session={saved} /> : null}
+      </div>
+    );
   }
 
   return (

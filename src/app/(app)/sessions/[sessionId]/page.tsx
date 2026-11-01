@@ -1,12 +1,13 @@
 "use client";
 
+import { RunningFor } from "@/components/sessions/RunningFor";
 import { use } from "react";
 import Link from "next/link";
 import { useSessions } from "@/hooks/useSessions";
 import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { Badge } from "@/components/ui/Badge";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
-import { formatDateForDisplay } from "@/lib/dates";
+import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
 import { d, formatMoney } from "@/lib/decimal";
 import { canonicalCasino } from "@/lib/names";
 import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
@@ -43,9 +44,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
           </div>
           <p className="text-sm text-muted">
             {session.casino ? `${canonicalCasino(session.casino)} · ` : ""}
-            {formatDateForDisplay(session.date)} ·{" "}
-            {session.time_in || "—"}
-            {session.time_out ? `–${session.time_out}` : ""}
+            {formatDateForDisplay(session.date)} · {formatTimeRange(session.time_in, session.time_out)}
+            {open ? <RunningFor date={session.date} timeIn={session.time_in} /> : null}
           </p>
           {loggedOnBehalf(session) ? <p className="text-xs text-muted">Logged by {session.logged_by}</p> : null}
         </div>

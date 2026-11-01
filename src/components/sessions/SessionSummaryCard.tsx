@@ -5,7 +5,7 @@ import { useRounds } from "@/hooks/useRounds";
 import { useSessions } from "@/hooks/useSessions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { d, formatMoney, formatPercent } from "@/lib/decimal";
+import { d, formatMoney, formatPercent, parseMoneyInput } from "@/lib/decimal";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 import type { Round, Session } from "@/lib/validation/schemas";
 import { useLiveTime } from "@/hooks/useLiveTime";
@@ -31,7 +31,7 @@ export function EndSessionCard({ session }: { session: Session }) {
   const [closeError, setCloseError] = useState("");
 
   const totals = useMemo(() => roundTotals(rounds), [rounds]);
-  const buyOutAmount = Number(buyOut);
+  const buyOutAmount = parseMoneyInput(buyOut);
   const validBuyOut = buyOut !== "" && Number.isFinite(buyOutAmount) && buyOutAmount >= 0;
   // Rounds with no offered action would close without coverage, which round analytics depend on.
   const roundsMissingCoverage = rounds.length > 0 && totals.coveragePct === null;

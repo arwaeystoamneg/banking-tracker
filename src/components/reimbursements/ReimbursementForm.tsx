@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { formatDateForDisplay, todayDateString } from "@/lib/dates";
-import { formatMoney } from "@/lib/decimal";
+import { formatMoney, parseMoneyInput } from "@/lib/decimal";
 import { getRememberedLoggedBy, rememberLoggedBy } from "@/lib/loggedInAs";
 import type { Reimbursement, Session } from "@/lib/validation/schemas";
 import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
@@ -69,7 +69,7 @@ export function ReimbursementForm({ item, fromSession }: { item?: Reimbursement;
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const payee = selectedPayee();
-    const value = Number(amount);
+    const value = parseMoneyInput(amount);
     const problems: string[] = [];
     if (!payee.payee) problems.push("who is owed");
     if (amount === "" || !Number.isFinite(value) || value <= 0) problems.push("amount");

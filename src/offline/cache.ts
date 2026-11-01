@@ -73,6 +73,8 @@ export async function refreshTabCache(tab: CacheTab): Promise<unknown[]> {
       await table.clear();
       await table.bulkPut([...merged.values()]);
     });
+    // A successful read is a sync too — otherwise "Last synced" only moves when this phone saves something.
+    await setLastSyncedAt(new Date().toISOString());
   }
   return rows;
 }

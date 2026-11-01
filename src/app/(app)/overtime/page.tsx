@@ -8,7 +8,7 @@ import { PaySwitcher } from "@/components/payroll/PaySwitcher";
 import { OvertimeControl } from "@/components/payroll/OvertimeControl";
 import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
 import { canMarkPayrollPaid, canSeeAllPayroll, formatHours, payrollPeople, sessionHours } from "@/lib/payroll";
-import { formatDateForDisplay } from "@/lib/dates";
+import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
 import { formatMinutes, overtimeByPerson, ratesFor, sessionPay, totalPay, type PayRates, type PersonOvertime } from "@/lib/overtime";
 import type { Session } from "@/lib/validation/schemas";
@@ -125,7 +125,7 @@ function Row({ session, rates }: { session: Session; rates: PayRates | null }) {
           <span className="num">{formatDateForDisplay(session.date)}</span>
           <span className="text-muted">
             {" "}
-            · {session.time_in}–{session.time_out} · {formatHours(sessionHours(session))}
+            · {formatTimeRange(session.time_in, session.time_out)} · {formatHours(sessionHours(session))}
           </span>
         </Link>
         {pay ? <span className="num shrink-0 text-sm font-semibold text-foreground">{formatMoney(pay)}</span> : null}

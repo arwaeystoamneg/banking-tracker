@@ -6,7 +6,7 @@ import { usePayrollMembers } from "@/hooks/usePayrollMembers";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { formatMoney } from "@/lib/decimal";
+import { formatMoney, parseMoneyInput } from "@/lib/decimal";
 import { ratesFor, sessionPay, totalPay, type PayRates } from "@/lib/overtime";
 import type { PayrollMember } from "@/lib/validation/schemas";
 import { PaySwitcher } from "@/components/payroll/PaySwitcher";
@@ -133,7 +133,7 @@ function RatesEditor({ personId, personName, member, onDone }: { personId: strin
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const parse = (value: string) => (value.trim() === "" ? null : Number(value));
+  const parse = (value: string) => (value.trim() === "" ? null : parseMoneyInput(value));
   async function save() {
     const rates = { hourly_rate: parse(base), overtime_rate: parse(overtime) };
     if (Object.values(rates).some((rate) => rate !== null && (!Number.isFinite(rate) || rate < 0))) return setError("Rates must be dollar amounts.");
@@ -195,7 +195,15 @@ function EmployeeCard({
   const [payingAll, setPayingAll] = useState(false);
   const owed = summary.unpaid.length;
 
+  const [confirmAll, setConfirmAll] = useState(false);
   async function markAllPaid() {
+    // A stray tap shouldn't pay everyone: the first tap asks, the second pays.
+    if (!confirmAll) {
+      setConfirmAll(true);
+      setTimeout(() => setConfirmAll(false), 5000);
+      return;
+    }
+    setConfirmAll(false);
     setPayingAll(true);
     try {
       for (const session of summary.unpaid) {
@@ -247,7 +255,7 @@ function EmployeeCard({
         </div>
         {canMark && owed > 1 ? (
           <Button onClick={markAllPaid} disabled={payingAll} className="h-10 shrink-0 px-3 text-xs">
-            {payingAll ? "Saving…" : "Mark all paid"}
+            {payingAll ? "Saving…" : confirmAll ? `Pay ${owed}${unpaidPay ? ` · ${formatMoney(unpaidPay)}` : ""}?` : "Mark all paid"}
           </Button>
         ) : null}
       </div>
