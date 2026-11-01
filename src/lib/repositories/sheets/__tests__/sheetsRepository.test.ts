@@ -61,11 +61,32 @@ function fakeSheets(initial: Record<string, { columns: number; rows: string[][] 
       count("spreadsheets.get");
       return { data: { sheets: [...tabs].map(([title, t]) => ({ properties: { title, sheetId: t.id, gridProperties: { columnCount: t.columns } } })) } };
     },
-    async batchUpdate({ requestBody }: { requestBody: { requests: { appendDimension?: { sheetId: number; length: number } }[] } }) {
+    async batchUpdate({
+      requestBody,
+    }: {
+      requestBody: {
+        requests: {
+          appendDimension?: { sheetId: number; length: number };
+          appendCells?: { sheetId: number; rows: { values: { userEnteredValue?: { stringValue?: string; numberValue?: number } }[] }[] };
+        }[];
+      };
+    }) {
       count("spreadsheets.batchUpdate");
       for (const request of requestBody.requests) {
         const grow = request.appendDimension;
         if (grow) for (const t of tabs.values()) if (t.id === grow.sheetId) t.columns += grow.length;
+        const add = request.appendCells;
+        if (add) {
+          // Like Google: after the last row that has any data, starting at column A.
+          const tab = [...tabs.values()].find((t) => t.id === add.sheetId)!;
+          let last = tab.rows.length;
+          while (last > 0 && tab.rows[last - 1].every((c) => !String(c ?? "").trim())) last -= 1;
+          for (const row of add.rows) {
+            const cells = row.values.map((cell) => String(cell.userEnteredValue?.numberValue ?? cell.userEnteredValue?.stringValue ?? ""));
+            tab.rows.splice(last, 0, cells);
+            last += 1;
+          }
+        }
       }
       return { data: { replies: [] } };
     },
@@ -127,14 +148,15 @@ describe("sheets repository against a narrow, pre-payroll Sessions tab", () => {
     expect((await repo.list()).filter((s) => s.session_id === "s2")).toHaveLength(1);
   });
 
-  it("a new row fills the gap a deleted row left, without shifting any other row", async () => {
+  it("adds new rows at the end starting in column A, never shifting or misplacing existing rows", async () => {
     const tab = sheets.tabs.get("Sessions")!;
     tab.rows.push(sessionRow("s2", 1), sessionRow("s3", 1));
     await repo.remove("s2", 1); // leaves a blank row 3 between s1 (row 2) and s3 (row 4)
     expect(tab.rows[2].every((c) => !c)).toBe(true);
     await repo.create({ date: "2026-10-30", buy_in: 15000, time_in: "19:00", logged_by: "Ray Tang", logged_at: "z" }, "new");
-    const ids = tab.rows.map((r) => r[0]);
-    expect(ids.slice(1)).toEqual(["s1", "new", "s3"]); // s3 still on row 4
+    expect(sheets.calls["values.append"]).toBeUndefined(); // the column-guessing call is never used
+    const ids = tab.rows.map((r) => r[0] ?? "");
+    expect(ids.slice(1)).toEqual(["s1", "", "s3", "new"]); // s3 still on row 4; the id is in the id column
     // So a save that looked up s3's row number before the create still lands on s3.
     const saved = await repo.update("s3", { buy_in: 777 }, 1);
     expect(saved.buy_in).toBe(777);

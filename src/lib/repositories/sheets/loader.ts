@@ -145,3 +145,13 @@ export async function ensureColumnCount(spreadsheetId: string, tabName: string, 
     },
   });
 }
+
+/** The numeric sheetId of a worksheet, refetching once if the cached list is stale or only a placeholder. */
+export async function sheetIdFor(spreadsheetId: string, tabName: string): Promise<number> {
+  const cached = (await getSheetGridIds(spreadsheetId))[tabName];
+  if (typeof cached === "number" && cached >= 0) return cached;
+  gridIdsCache.invalidate(spreadsheetId);
+  const fresh = (await getSheetGridIds(spreadsheetId))[tabName];
+  if (typeof fresh !== "number" || fresh < 0) throw new Error(`Worksheet ${tabName} not found`);
+  return fresh;
+}

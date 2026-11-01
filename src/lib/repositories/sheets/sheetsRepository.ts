@@ -8,6 +8,7 @@ import {
   fetchAllTabsFresh,
   fetchAllTabsRaw,
   invalidateSheetCache,
+  sheetIdFor,
 } from "@/lib/repositories/sheets/loader";
 import {
   fullTabRange,
@@ -148,16 +149,21 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
         if (existing) return existing;
         const row = { [tabConfig.idField]: rowId, ...(data as object), _row_version: 1 };
         const parsed = rowSchema.parse(row);
-        await sheets.spreadsheets.values.append({
+        // appendCells, never values.append. values.append guesses where "the table" is and writes from that
+        // table's first column — on the live Sessions tab it guessed column V, so new rows landed 21 columns to
+        // the right with their id outside the id column and silently vanished from the app. appendCells adds
+        // the row after the last row with data, always starting at column A, atomically (no row-number race
+        // between servers), and never shifts existing rows.
+        const cells = objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers).map((value) =>
+          value === ""
+            ? {}
+            : { userEnteredValue: typeof value === "number" ? { numberValue: value } : { stringValue: String(value) } },
+        );
+        await sheets.spreadsheets.batchUpdate({
           spreadsheetId,
-          range: `${tabConfig.tabName}!A:${columnLetter(headers.length)}`,
-          valueInputOption: "RAW",
-          // OVERWRITE, never INSERT_ROWS: Google appends after the first blank row it meets, and a deleted
-          // (cleared) row leaves one mid-sheet. INSERT_ROWS would insert there and shift every row below down
-          // one — so an update or delete that had just looked up a row number would hit a different session.
-          // OVERWRITE fills the gap and leaves every other row where it is.
-          insertDataOption: "OVERWRITE",
-          requestBody: { values: [objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers)] },
+          requestBody: {
+            requests: [{ appendCells: { sheetId: await sheetIdFor(spreadsheetId, tabConfig.tabName), fields: "userEnteredValue", rows: [{ values: cells }] } }],
+          },
         });
         invalidateSheetCache(spreadsheetId);
         return parsed;
