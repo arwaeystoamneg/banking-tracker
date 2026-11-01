@@ -131,3 +131,37 @@ body {
 [data-theme="pride"] .bg-emerald-600\/20 {
   background-color: rgb(168 85 247 / 0.2);
 }
+
+/* Whole-page pride: the rainbow runs behind everything, darkened so text stays readable in dim rooms, and
+   the surfaces (cards, bars) become slightly see-through so it shows around and through them. */
+[data-theme="pride"] body {
+  background:
+    linear-gradient(rgb(8 8 10 / 0.6), rgb(8 8 10 / 0.6)),
+    linear-gradient(180deg, #e40303 0%, #ff8c00 18%, #ffed00 36%, #008026 54%, #24408e 74%, #732982 100%);
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+
+[data-theme="pride"] .bg-surface {
+  background-color: rgb(19 19 23 / 0.78);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="pride"] .bg-surface-raised {
+  background-color: rgb(28 28 34 / 0.85);
+}
+
+[data-theme="pride"] .bg-surface-inset {
+  background-color: rgb(15 15 18 / 0.85);
+}
+
+[data-theme="pride"] .bg-surface\/95 {
+  background-color: rgb(19 19 23 / 0.7);
+}
+
+/* Headings sit straight on the rainbow; a soft shadow keeps them crisp over the bright bands. */
+[data-theme="pride"] main h1,
+[data-theme="pride"] main > div > p,
+[data-theme="pride"] main h2 {
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
