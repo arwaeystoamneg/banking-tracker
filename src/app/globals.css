@@ -93,75 +93,117 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * Pride theme. Purely decorative: a rainbow stripe and rainbow accents on primary actions. Money
- * colours (green win / red loss) stay as they are — they carry meaning. Deeper hues than the flag so
- * white button text stays readable.
+ * Themes (Normal is the default above). Purely decorative. Each theme sets the same few variables;
+ * the shared rules below make surfaces translucent and tinted so cards, bars, inputs and buttons blend
+ * into the page instead of sitting on it as solid slabs. Money colours (green win / red loss) never
+ * change — they carry meaning.
  * ------------------------------------------------------------------------------------------- */
-:root {
-  --pride: linear-gradient(90deg, #c81e1e, #d9620b, #c9a400, #1f8a3a, #2a4fb3, #7a2fa0);
-}
-
 .theme-stripe {
   display: none;
 }
 
-[data-theme="pride"] .theme-stripe {
-  display: block;
-  height: 4px;
-  background: var(--pride);
-}
-
-[data-theme="pride"] .bg-emerald-600 {
-  background-image: var(--pride);
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.55);
-}
-
-[data-theme="pride"] nav .bg-emerald-400 {
-  background: var(--pride);
-}
-
-[data-theme="pride"] nav {
-  border-image: var(--pride) 1;
-}
-
-[data-theme="pride"] .border-emerald-500\/70 {
-  border-color: #a855f7;
-}
-
-[data-theme="pride"] .bg-emerald-600\/20 {
-  background-color: rgb(168 85 247 / 0.2);
-}
-
-/* Whole-page pride: the rainbow runs behind everything, darkened so text stays readable in dim rooms, and
-   the surfaces (cards, bars) become slightly see-through so it shows around and through them. */
-[data-theme="pride"] body {
-  background:
+[data-theme="pride"] {
+  --t-page:
     linear-gradient(rgb(8 8 10 / 0.6), rgb(8 8 10 / 0.6)),
     linear-gradient(180deg, #e40303 0%, #ff8c00 18%, #ffed00 36%, #008026 54%, #24408e 74%, #732982 100%);
+  --t-surface: rgb(12 10 18 / 0.42);
+  --t-raised: rgb(255 255 255 / 0.08);
+  --t-inset: rgb(0 0 0 / 0.32);
+  --t-bar: rgb(0 0 0 / 0.38);
+  --t-border: rgb(255 255 255 / 0.12);
+  --t-primary: linear-gradient(90deg, rgb(200 30 30 / 0.7), rgb(217 98 11 / 0.7), rgb(201 164 0 / 0.7), rgb(31 138 58 / 0.7), rgb(42 79 179 / 0.7), rgb(122 47 160 / 0.7));
+  --t-primary-border: rgb(255 255 255 / 0.18);
+  --t-accent: #c4a7ff;
+  --t-chip: rgb(168 85 247 / 0.22);
+  --t-chip-border: rgb(196 167 255 / 0.6);
+  --t-stripe: linear-gradient(90deg, #c81e1e, #d9620b, #c9a400, #1f8a3a, #2a4fb3, #7a2fa0);
+}
+
+[data-theme="halloween"] {
+  --t-page:
+    radial-gradient(120% 60% at 50% 110%, rgb(255 117 24 / 0.28), transparent 60%),
+    radial-gradient(80% 50% at 85% -10%, rgb(124 58 237 / 0.25), transparent 60%),
+    linear-gradient(180deg, #160b26 0%, #0d0812 55%, #120a08 100%);
+  --t-surface: rgb(30 14 44 / 0.45);
+  --t-raised: rgb(255 140 60 / 0.09);
+  --t-inset: rgb(0 0 0 / 0.35);
+  --t-bar: rgb(10 5 16 / 0.55);
+  --t-border: rgb(255 140 60 / 0.16);
+  --t-primary: linear-gradient(180deg, rgb(234 88 12 / 0.85), rgb(194 65 12 / 0.85));
+  --t-primary-border: rgb(255 170 90 / 0.35);
+  --t-accent: #ff9a3c;
+  --t-chip: rgb(255 117 24 / 0.18);
+  --t-chip-border: rgb(255 154 60 / 0.65);
+  --t-stripe: repeating-linear-gradient(90deg, #ff7518 0 18px, #1a0b2e 18px 30px);
+}
+
+:is([data-theme="pride"], [data-theme="halloween"]) body {
+  background: var(--t-page);
   background-attachment: fixed;
   min-height: 100dvh;
 }
 
-[data-theme="pride"] .bg-surface {
-  background-color: rgb(19 19 23 / 0.78);
-  backdrop-filter: blur(8px);
+:is([data-theme="pride"], [data-theme="halloween"]) .theme-stripe {
+  display: block;
+  height: 3px;
+  background: var(--t-stripe);
 }
 
-[data-theme="pride"] .bg-surface-raised {
-  background-color: rgb(28 28 34 / 0.85);
+:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface {
+  background-color: var(--t-surface);
+  backdrop-filter: blur(10px);
 }
 
-[data-theme="pride"] .bg-surface-inset {
-  background-color: rgb(15 15 18 / 0.85);
+:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface-raised {
+  background-color: var(--t-raised);
 }
 
-[data-theme="pride"] .bg-surface\/95 {
-  background-color: rgb(19 19 23 / 0.7);
+:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface-inset {
+  background-color: var(--t-inset);
 }
 
-/* Headings sit straight on the rainbow; a soft shadow keeps them crisp over the bright bands. */
-[data-theme="pride"] main h1,
-[data-theme="pride"] main > div > p,
-[data-theme="pride"] main h2 {
+:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface\/95,
+:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface\/95 {
+  background-color: var(--t-bar);
+}
+
+:is([data-theme="pride"], [data-theme="halloween"]) .border-border {
+  border-color: var(--t-border);
+}
+
+/* Primary buttons take the theme's colours, softly, with a hairline edge instead of a solid slab. */
+:is([data-theme="pride"], [data-theme="halloween"]) .bg-emerald-600 {
+  background-color: transparent;
+  background-image: var(--t-primary);
+  box-shadow: inset 0 0 0 1px var(--t-primary-border);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.55);
+}
+
+:is([data-theme="pride"], [data-theme="halloween"]) nav .bg-emerald-400 {
+  background: var(--t-stripe);
+}
+
+:is([data-theme="pride"], [data-theme="halloween"]) nav .text-emerald-400 {
+  color: var(--t-accent);
+}
+
+:is([data-theme="pride"], [data-theme="halloween"]) .border-emerald-500\/70 {
+  border-color: var(--t-chip-border);
+}
+
+:is([data-theme="pride"], [data-theme="halloween"]) .bg-emerald-600\/20 {
+  background-color: var(--t-chip);
+}
+
+/* Headings sit straight on the background; a soft shadow keeps them crisp over bright bands. */
+:is([data-theme="pride"], [data-theme="halloween"]) main h1,
+:is([data-theme="pride"], [data-theme="halloween"]) main h2,
+:is([data-theme="pride"], [data-theme="halloween"]) main > div > p {
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+/* Focused fields glow in the theme's accent, not the default green. */
+:is([data-theme="pride"], [data-theme="halloween"]) :is(input, select, textarea):focus {
+  border-color: var(--t-chip-border) !important;
+  box-shadow: 0 0 0 2px var(--t-chip) !important;
 }

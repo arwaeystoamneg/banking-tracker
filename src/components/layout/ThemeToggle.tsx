@@ -1,27 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { defaultTheme, storedTheme, storeTheme, type Theme } from "@/lib/theme";
+import { defaultTheme, storedTheme, storeTheme, THEME_LABEL, THEMES, type Theme } from "@/lib/theme";
 
-/** Switches between the normal and pride themes and remembers the choice per person on this device. */
+/** Theme picker in the top bar. The choice is remembered per person on this device. */
 export function ThemeToggle({ userId }: { userId: string }) {
-  // Read on first render; on the server there's no storage, so it renders the default and the label is
-  // corrected on hydration (hence suppressHydrationWarning on the button).
+  // Read on first render; on the server there's no storage, so it renders the default and the value is
+  // corrected on hydration (hence suppressHydrationWarning).
   const [theme, setTheme] = useState<Theme>(() => storedTheme(userId) ?? defaultTheme(userId));
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  function toggle() {
-    const next: Theme = theme === "pride" ? "normal" : "pride";
-    setTheme(next);
-    storeTheme(userId, next);
-  }
-
   return (
-    <button type="button" onClick={toggle} className="min-h-9 px-2 text-muted-strong active:text-foreground" aria-pressed={theme === "pride"} suppressHydrationWarning>
-      {theme === "pride" ? "Normal theme" : "Pride theme"}
-    </button>
+    <label className="flex min-h-9 items-center gap-1 px-2 text-muted-strong">
+      <span className="sr-only">Theme</span>
+      <select
+        value={theme}
+        onChange={(e) => {
+          const next = e.target.value as Theme;
+          setTheme(next);
+          storeTheme(userId, next);
+        }}
+        suppressHydrationWarning
+        className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs text-muted-strong outline-none"
+      >
+        {THEMES.map((value) => (
+          <option key={value} value={value} className="bg-surface text-foreground">
+            {THEME_LABEL[value]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
