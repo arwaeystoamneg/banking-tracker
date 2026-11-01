@@ -1,12 +1,14 @@
 import { db, getActivePrincipalId, setLastSyncedAt, type CacheTab } from "@/offline/db";
 import { isQueueTab, TAB_CLIENT_CONFIG } from "@/offline/tabConfig";
 import { queueItemMatchesPrincipal } from "@/offline/legacyQueue";
+import { recentState } from "@/offline/recent";
 
 export function mergeServerRowsWithLocal(
   serverRows: Record<string, unknown>[],
   localRows: Record<string, unknown>[],
   idField: string,
   keepLocalOnly: boolean,
+  recent: (id: string) => "saved" | "deleted" | null = () => null,
 ): Map<string, Record<string, unknown>> {
   const localById = new Map(localRows.map((row) => [String(row[idField]), row]));
   const merged = new Map(serverRows.map((row) => [String(row[idField]), row]));
@@ -16,10 +18,13 @@ export function mergeServerRowsWithLocal(
     const local = localById.get(id);
     if (local && Number(local._row_version) > Number(server._row_version)) merged.set(id, local);
   }
-  if (keepLocalOnly) {
-    for (const [id, local] of localById) {
-      if (!merged.has(id)) merged.set(id, local);
-    }
+  for (const [id, local] of localById) {
+    // A row this phone saved seconds ago may not be in a slightly old server copy yet: keep it.
+    if (!merged.has(id) && (keepLocalOnly || recent(id) === "saved")) merged.set(id, local);
+  }
+  for (const id of [...merged.keys()]) {
+    // …and a row it just deleted may still be in one: don't bring it back.
+    if (recent(id) === "deleted") merged.delete(id);
   }
   return merged;
 }
@@ -43,6 +48,7 @@ export async function refreshTabCache(tab: CacheTab): Promise<unknown[]> {
         localRows,
         idField,
         !isQueueTab(tab),
+        (id) => recentState(tab, id),
       );
       const principalId = getActivePrincipalId();
       const queued =

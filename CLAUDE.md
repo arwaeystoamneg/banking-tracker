@@ -219,6 +219,12 @@ connection is the worst failure mode this app has.
   readable offline.
 - Queue writes (round logs, session saves, game edits) in IndexedDB and flush on reconnect.
 - Show sync state explicitly: pending write count and last-synced timestamp. Never silently drop a write.
+- Write queue rules (`src/offline/queue.ts`): one flush at a time across tabs (Web Locks); writes left
+  "syncing" by a closed app are retried; a conflict/refusal only holds back later writes to the same row; on a
+  409 an update auto-merges when its fields still hold their pre-edit values (`baseValues`) on the server; when
+  a write settles, later queued writes for that row move to the new version; deleting a never-synced row cancels
+  it locally. `src/offline/recent.ts` stops a few-seconds-old server list from hiding or reviving rows this
+  device just saved or deleted. Covered end to end in `src/offline/__tests__/flush.test.ts`.
 - Sheets read quota (~60/min) is shared by the whole team through one service account. List reads share one
   batched read of every tab for 5s per server (`fetchAllTabsRaw`, cleared by any write on that server);
   `get`/`listFresh` and every write read live rows, so the shared copy can never cause an overwrite. Clients

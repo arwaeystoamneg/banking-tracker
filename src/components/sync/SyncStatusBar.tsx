@@ -54,7 +54,7 @@ export function SyncStatusBar() {
         <div className="flex items-center gap-3">
           {conflictCount > 0 ? (
             <button onClick={() => setConflictsOpen(true)} className="font-semibold text-red-400 underline">
-              {conflictCount} conflict{conflictCount === 1 ? "" : "s"}
+              {conflictCount} need{conflictCount === 1 ? "s" : ""} you
             </button>
           ) : null}
           <button

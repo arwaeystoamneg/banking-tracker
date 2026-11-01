@@ -9,6 +9,7 @@ import {
 import { TAB_CLIENT_CONFIG } from "@/offline/tabConfig";
 import { makeId, type IdKind } from "@/lib/ids";
 import { queueItemMatchesPrincipal } from "@/offline/legacyQueue";
+import { markRecent } from "@/offline/recent";
 
 const TAB_ID_KIND: Record<QueueTab, IdKind> = {
   games: "game",
@@ -62,7 +63,7 @@ export async function enqueueUpdate(
   const principalId = requireActivePrincipal();
 
   await database.transaction("rw", database.table(tab), database.writeQueue, async () => {
-    const existing = await database.table(tab).get(id);
+    const existing = (await database.table(tab).get(id)) as Record<string, unknown> | undefined;
     if (existing) await database.table(tab).put({ ...existing, ...patch });
     await database.writeQueue.add({
       tab,
@@ -70,6 +71,7 @@ export async function enqueueUpdate(
       targetId: id,
       payload: patch,
       expectedVersion,
+      baseValues: existing ? Object.fromEntries(Object.keys(patch).map((key) => [key, existing[key] ?? null])) : undefined,
       status: "pending",
       createdAt: new Date().toISOString(),
       principalId,
@@ -85,6 +87,18 @@ export async function enqueueDelete(tab: QueueTab, id: string): Promise<void> {
   const existing = await database.table(tab).get(id);
   const expectedVersion = (existing as { _row_version?: unknown } | undefined)?._row_version;
   if (typeof expectedVersion !== "number") throw new Error(`Cannot delete missing ${tab}/${id}`);
+
+  // Deleting something whose create never left this phone: cancel it locally instead of sending a create
+  // and then a delete. A create already in flight ("syncing") can't be recalled, so that one goes through.
+  const sameRow = await database.writeQueue.where("tab").equals(tab).filter((item) => item.targetId === id).toArray();
+  const unsentCreate = sameRow.find((item) => item.op === "create" && item.status !== "syncing");
+  if (unsentCreate) {
+    await database.transaction("rw", database.table(tab), database.writeQueue, async () => {
+      await database.table(tab).delete(id);
+      await database.writeQueue.bulkDelete(sameRow.map((item) => item.id).filter((qid): qid is number => qid !== undefined));
+    });
+    return;
+  }
 
   await database.transaction("rw", database.table(tab), database.writeQueue, async () => {
     await database.table(tab).delete(id);
@@ -142,129 +156,182 @@ export function chainVersionAfterSettle<T extends Versionable>(
 let flushing = false;
 
 class HttpResponseError extends Error {
-  constructor(public readonly status: number, operation: string) {
-    super(`${operation} failed: ${status}`);
+  constructor(public readonly status: number, operation: string, detail = "") {
+    super(`${operation} failed: ${status}${detail ? ` — ${detail}` : ""}`);
   }
 }
 
-/** Flushes queued writes FIFO. Safe to call repeatedly — re-entrant calls are no-ops while one is in flight. */
+/** Statuses the flush picks up. "syncing" left behind by a closed app is retried, not stranded. */
+const RETRYABLE = new Set(["pending", "error", "syncing"]);
+/** Statuses that need a person to decide; later writes to the same row wait behind them. */
+const STUCK = new Set(["conflict", "blocked"]);
+
+const rowKey = (item: { tab: string; targetId: string }) => `${item.tab}:${item.targetId}`;
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * True when a conflicting update can be applied on top of the server's newer row without losing anything:
+ * every field this edit touches still holds what it held before the edit (or already holds the new value),
+ * so whoever saved in between changed only *other* fields. Deletes never auto-merge.
+ */
+export function canAutoMerge(
+  item: Pick<WriteQueueItem, "op" | "payload" | "baseValues">,
+  serverRow: Record<string, unknown>,
+): boolean {
+  if (item.op !== "update" || !item.baseValues) return false;
+  return Object.entries(item.payload).every(
+    ([field, mine]) => sameValue(serverRow[field], item.baseValues?.[field]) || sameValue(serverRow[field], mine),
+  );
+}
+
+async function readDetail(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    const parsed = JSON.parse(text) as { message?: string; error?: string };
+    return parsed.message ?? parsed.error ?? text.slice(0, 200);
+  } catch {
+    return "";
+  }
+}
+
+type Outcome = "settled" | "stuck" | "error";
+
+/** Sends one queued write. Updates its queue row to reflect the result and returns what happened. */
+async function sendOne(database: NonNullable<typeof db>, item: WriteQueueItem & { id: number }): Promise<Outcome> {
+  const { apiPath } = TAB_CLIENT_CONFIG[item.tab];
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let res: Response;
+      if (item.op === "create") {
+        res = await fetch(apiPath, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item.payload) });
+      } else {
+        res = await fetch(`${apiPath}/${item.targetId}`, {
+          method: item.op === "update" ? "PATCH" : "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.op === "update" ? { patch: item.payload, expectedVersion: item.expectedVersion } : { expectedVersion: item.expectedVersion }),
+        });
+      }
+
+      if (res.ok || (item.op === "delete" && res.status === 404)) {
+        const serverRow = item.op === "delete" ? null : ((await res.json()) as Record<string, unknown>);
+        await settle(database, item, serverRow);
+        return "settled";
+      }
+
+      if (res.status === 409 && item.op !== "create") {
+        const conflict = (await res.json()) as { serverRow?: Record<string, unknown> };
+        const serverRow = conflict.serverRow;
+        if (attempt === 0 && serverRow && typeof serverRow._row_version === "number" && canAutoMerge(item, serverRow)) {
+          // Someone saved other fields of this row in between: apply this edit on top of their version.
+          item.expectedVersion = serverRow._row_version;
+          await database.writeQueue.update(item.id, { expectedVersion: item.expectedVersion });
+          continue;
+        }
+        await database.writeQueue.update(item.id, { status: "conflict", lastError: JSON.stringify(serverRow ?? {}) });
+        return "stuck";
+      }
+
+      if (res.status >= 400 && res.status < 500) {
+        const detail = res.status === 404 ? "This was deleted on another device." : await readDetail(res);
+        throw new HttpResponseError(res.status, item.op, detail);
+      }
+      throw new HttpResponseError(res.status, item.op);
+    }
+    // Auto-merge retry conflicted again: someone is editing this row right now; ask.
+    await database.writeQueue.update(item.id, { status: "conflict" });
+    return "stuck";
+  } catch (err) {
+    const permanent = err instanceof HttpResponseError && err.status >= 400 && err.status < 500;
+    await database.writeQueue.update(item.id, {
+      status: permanent ? "blocked" : "error",
+      lastError: err instanceof Error ? err.message : String(err),
+    });
+    return permanent ? "stuck" : "error";
+  }
+}
+
+/**
+ * A write landed: store the server's row, drop the queue item, and move every later queued write for the
+ * same row onto the new version. Those were made on top of this one (from the same base version), so
+ * without this they would collide with this device's own save. Reads the queue fresh rather than a
+ * snapshot, so an edit made while this write was in flight is covered too.
+ */
+async function settle(database: NonNullable<typeof db>, item: WriteQueueItem & { id: number }, serverRow: Record<string, unknown> | null) {
+  const newVersion = serverRow?._row_version;
+  const baseVersion = item.op === "create" ? 0 : item.expectedVersion;
+  await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
+    if (serverRow) await database.table(item.tab).put(serverRow);
+    else await database.table(item.tab).delete(item.targetId);
+    await database.writeQueue.delete(item.id);
+    if (typeof newVersion !== "number") return;
+    const later = await database.writeQueue
+      .where("tab")
+      .equals(item.tab)
+      .filter(
+        (other) =>
+          other.targetId === item.targetId &&
+          other.id !== item.id &&
+          (other.op === "update" || other.op === "delete") &&
+          other.status !== "syncing" &&
+          (other.expectedVersion === baseVersion || (item.op === "create" && other.expectedVersion === undefined)),
+      )
+      .toArray();
+    for (const other of later) {
+      if (other.id !== undefined) await database.writeQueue.update(other.id, { expectedVersion: newVersion });
+    }
+  });
+  markRecent(item.tab, item.targetId, serverRow ? "saved" : "deleted");
+  await setLastSyncedAt(new Date().toISOString());
+}
+
+/**
+ * Sends queued writes oldest first. A write that needs a decision (conflict, or refused by the server)
+ * only holds back later writes to that same row; everything else keeps syncing. A network or server
+ * error ends the pass — the next tick retries. Only one flush runs at a time, across browser tabs too.
+ */
 export async function flushQueue(): Promise<void> {
   if (!db || flushing) return;
-  // Captured as a local const so nested closures below stay narrowed to non-null — TS otherwise
-  // loses the narrowing on `db` once it's read inside an arrow function passed to itself.
   const database = db;
   const principalId = getActivePrincipalId();
   if (!principalId) return;
   flushing = true;
-  // Ids handled this pass. Lets us pick up writes enqueued *during* the flush (so they don't wait for
-  // the next interval tick) without re-processing an item that just errored into a tight retry loop.
-  const handled = new Set<number>();
   try {
-    for (;;) {
-      const items = (await database.writeQueue.where("status").anyOf("pending", "error").sortBy("createdAt")).filter(
-        (item): item is WriteQueueItem & { id: number } =>
-          item.id !== undefined && !handled.has(item.id) && queueItemMatchesPrincipal(item, principalId),
-      );
-      if (items.length === 0) break;
-
-      let shouldStop = false;
-      for (let idx = 0; idx < items.length; idx += 1) {
-        const item = items[idx];
-        handled.add(item.id);
-        await database.writeQueue.update(item.id, { status: "syncing" });
-
-        try {
-          const { apiPath } = TAB_CLIENT_CONFIG[item.tab];
-
-          if (item.op === "create") {
-            const res = await fetch(apiPath, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(item.payload),
-            });
-            if (!res.ok) throw new HttpResponseError(res.status, "create");
-            const serverRow = await res.json();
-
-            // Same id as the optimistic row (see enqueueCreate) — this just refreshes _row_version
-            // and any server-side defaults, it never needs to move the row to a new key.
-            await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
-              await database.table(item.tab).put(serverRow);
-              await database.writeQueue.delete(item.id);
-            });
-            await applyVersionChain(database, items, idx, serverRow);
-            await setLastSyncedAt(new Date().toISOString());
-          } else if (item.op === "update") {
-            const res = await fetch(`${apiPath}/${item.targetId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ patch: item.payload, expectedVersion: item.expectedVersion }),
-            });
-
-            if (res.status === 409) {
-              const conflict = await res.json();
-              await database.writeQueue.update(item.id, {
-                status: "conflict",
-                lastError: JSON.stringify(conflict.serverRow ?? {}),
-              });
-              shouldStop = true;
-              break;
-            }
-            if (!res.ok) throw new HttpResponseError(res.status, "update");
-
-            const serverRow = await res.json();
-            await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
-              await database.table(item.tab).put(serverRow);
-              await database.writeQueue.delete(item.id);
-            });
-            await applyVersionChain(database, items, idx, serverRow);
-            await setLastSyncedAt(new Date().toISOString());
-          } else {
-            const res = await fetch(`${apiPath}/${item.targetId}`, {
-              method: "DELETE",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ expectedVersion: item.expectedVersion }),
-            });
-            if (res.status === 409) {
-              const conflict = await res.json();
-              await database.writeQueue.update(item.id, {
-                status: "conflict",
-                lastError: JSON.stringify(conflict.serverRow ?? {}),
-              });
-              shouldStop = true;
-              break;
-            }
-            if (!res.ok && res.status !== 404) throw new HttpResponseError(res.status, "delete");
-            await database.writeQueue.delete(item.id);
-            await setLastSyncedAt(new Date().toISOString());
-          }
-        } catch (err) {
-          await database.writeQueue.update(item.id, {
-            status: err instanceof HttpResponseError && err.status >= 400 && err.status < 500 ? "blocked" : "error",
-            lastError: err instanceof Error ? err.message : String(err),
-          });
-          shouldStop = true;
-          break;
-        }
-      }
-      if (shouldStop) break;
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    if (locks?.request) {
+      // ifAvailable: if another tab is already flushing this account's queue, let it.
+      await locks.request(`cbt-flush-${principalId}`, { ifAvailable: true }, async (lock) => {
+        if (lock) await flushPass(database, principalId);
+      });
+    } else {
+      await flushPass(database, principalId);
     }
   } finally {
     flushing = false;
   }
 }
 
-/** Persists the expectedVersion advance for later same-row updates after a settle (see chainVersionAfterSettle). */
-async function applyVersionChain(
-  database: NonNullable<typeof db>,
-  items: (WriteQueueItem & { id: number })[],
-  settledIndex: number,
-  serverRow: unknown,
-): Promise<void> {
-  const newVersion = (serverRow as { _row_version?: unknown })?._row_version;
-  if (typeof newVersion !== "number") return;
-  const touched = chainVersionAfterSettle(items, settledIndex, newVersion);
-  for (const queueId of touched) {
-    await database.writeQueue.update(queueId, { expectedVersion: newVersion });
+async function flushPass(database: NonNullable<typeof db>, principalId: string): Promise<void> {
+  // Each item is tried at most once per flush, so an error can't spin; items added mid-flush still go.
+  const handled = new Set<number>();
+  for (;;) {
+    const all = (await database.writeQueue.toArray()).filter((item) => queueItemMatchesPrincipal(item, principalId));
+    const stuckRows = new Set(all.filter((item) => STUCK.has(item.status)).map(rowKey));
+    const items = all
+      .filter((item): item is WriteQueueItem & { id: number } => item.id !== undefined && RETRYABLE.has(item.status) && !handled.has(item.id))
+      .sort((a, b) => (a.createdAt === b.createdAt ? a.id - b.id : a.createdAt.localeCompare(b.createdAt)));
+    if (items.length === 0) return;
+
+    for (const snapshot of items) {
+      handled.add(snapshot.id);
+      // Writes to a row stay in order: nothing goes ahead of an earlier write to the same row that's stuck.
+      if (stuckRows.has(rowKey(snapshot))) continue;
+      const item = await database.writeQueue.get(snapshot.id); // fresh: settle() may have moved its version
+      if (!item || item.id === undefined || !RETRYABLE.has(item.status)) continue;
+      await database.writeQueue.update(item.id, { status: "syncing" });
+      const outcome = await sendOne(database, item as WriteQueueItem & { id: number });
+      if (outcome === "stuck") stuckRows.add(rowKey(item));
+      if (outcome === "error") return;
+    }
   }
 }
 

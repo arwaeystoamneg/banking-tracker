@@ -36,6 +36,11 @@ export interface WriteQueueItem {
   targetId: string;
   payload: Record<string, unknown>;
   expectedVersion?: number;
+  /**
+   * Update only: what the edited fields held before this edit. On a conflict, if the server still has these
+   * values (someone changed *other* fields), the edit is safe to apply on top — no need to ask.
+   */
+  baseValues?: Record<string, unknown>;
   status: QueueStatus;
   createdAt: string;
   lastError?: string;
