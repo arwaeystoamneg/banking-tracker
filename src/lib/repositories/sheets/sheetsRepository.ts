@@ -152,7 +152,11 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
           spreadsheetId,
           range: `${tabConfig.tabName}!A:${columnLetter(headers.length)}`,
           valueInputOption: "RAW",
-          insertDataOption: "INSERT_ROWS",
+          // OVERWRITE, never INSERT_ROWS: Google appends after the first blank row it meets, and a deleted
+          // (cleared) row leaves one mid-sheet. INSERT_ROWS would insert there and shift every row below down
+          // one — so an update or delete that had just looked up a row number would hit a different session.
+          // OVERWRITE fills the gap and leaves every other row where it is.
+          insertDataOption: "OVERWRITE",
           requestBody: { values: [objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers)] },
         });
         invalidateSheetCache(spreadsheetId);

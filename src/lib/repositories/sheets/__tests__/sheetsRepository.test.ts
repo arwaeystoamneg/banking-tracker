@@ -38,9 +38,16 @@ function fakeSheets(initial: Record<string, { columns: number; rows: string[][] 
       const row = tab.rows[r1 - 1];
       requestBody.values[0].forEach((v, i) => (row[c1 - 1 + i] = String(v)));
     },
-    async append({ range, requestBody }: { range: string; requestBody: { values: string[][] } }) {
+    // Like Google: the "table" runs from row 1 to the first fully blank row; append writes right after it.
+    // INSERT_ROWS inserts a new row there (shifting everything below); OVERWRITE writes into it.
+    async append({ range, requestBody, insertDataOption }: { range: string; requestBody: { values: string[][] }; insertDataOption?: string }) {
       count("values.append");
-      parse(range).tab.rows.push(requestBody.values[0].map(String));
+      const rows = parse(range).tab.rows;
+      const blank = rows.findIndex((r, i) => i > 0 && r.every((c) => !String(c ?? "").trim()));
+      const at = blank === -1 ? rows.length : blank;
+      const row = requestBody.values[0].map(String);
+      if (insertDataOption === "INSERT_ROWS") rows.splice(at, 0, row);
+      else rows[at] = row;
     },
     async clear({ range }: { range: string }) {
       count("values.clear");
@@ -119,4 +126,19 @@ describe("sheets repository against a narrow, pre-payroll Sessions tab", () => {
     expect(retried).toEqual(created);
     expect((await repo.list()).filter((s) => s.session_id === "s2")).toHaveLength(1);
   });
+
+  it("a new row fills the gap a deleted row left, without shifting any other row", async () => {
+    const tab = sheets.tabs.get("Sessions")!;
+    tab.rows.push(sessionRow("s2", 1), sessionRow("s3", 1));
+    await repo.remove("s2", 1); // leaves a blank row 3 between s1 (row 2) and s3 (row 4)
+    expect(tab.rows[2].every((c) => !c)).toBe(true);
+    await repo.create({ date: "2026-10-30", buy_in: 15000, time_in: "19:00", logged_by: "Ray Tang", logged_at: "z" }, "new");
+    const ids = tab.rows.map((r) => r[0]);
+    expect(ids.slice(1)).toEqual(["s1", "new", "s3"]); // s3 still on row 4
+    // So a save that looked up s3's row number before the create still lands on s3.
+    const saved = await repo.update("s3", { buy_in: 777 }, 1);
+    expect(saved.buy_in).toBe(777);
+    expect((await repo.list()).find((s) => s.session_id === "new")?.buy_in).toBe(15000);
+  });
 });
+

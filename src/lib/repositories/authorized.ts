@@ -45,7 +45,7 @@ import {
   type Session,
   type Sidebet,
 } from "@/lib/validation/schemas";
-import { isSessionOpen } from "@/lib/sessionHelpers";
+import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
 import { canMarkPayrollPaid, payrollPeople, sessionEmployee } from "@/lib/payroll";
 import { correctFutureStartDate } from "@/lib/dates";
 
@@ -302,6 +302,14 @@ export function createAuthorizedRepositories(
           ...resolveSessionPlayer(data, user, team, stamped.logged_by),
           date: correctFutureStartDate(stamped.date, stamped.time_in, now()),
         };
+        // The same session arriving twice under different ids — a phone uploading a save it was stuck on after
+        // someone re-entered it by hand — is one session, not two.
+        const samePerson = (s: Session) =>
+          withPlayer.player_id ? s.player_id === withPlayer.player_id : sessionPlayerName(s).toLowerCase() === withPlayer.player.toLowerCase();
+        const duplicate = (await (repos.sessions.listFresh?.() ?? repos.sessions.list())).find(
+          (s) => s.session_id !== id && samePerson(s) && s.date === withPlayer.date && s.time_in === withPlayer.time_in && s.buy_in === withPlayer.buy_in,
+        );
+        if (duplicate) return duplicate;
         const candidate = sessionSchema.parse({ session_id: id ?? "pending", ...withPlayer, _row_version: 1 });
         // A finished cash session (buy-out + time-out) may be logged in one step. Round totals without
         // coverage may not: coverage is what separates a bad game from an underbanked one.

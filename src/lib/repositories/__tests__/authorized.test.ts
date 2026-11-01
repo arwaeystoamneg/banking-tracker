@@ -608,3 +608,18 @@ describe("overtime requests", () => {
     );
   });
 });
+
+describe("duplicate sessions", () => {
+  it("the same session arriving under a second id is returned, not added again", async () => {
+    const repos = fixtureRepos({});
+    const authorized = createAuthorizedRepositories(repos, ray, team);
+    const fields = { date: "2026-10-30", buy_in: 15000, time_in: "19:00", logged_by: "Ray Tang", logged_at: "", casino: "", player_id: "dana" };
+    const first = await authorized.sessions.create(fields, "typed-by-hand");
+    const late = await authorized.sessions.create(fields, "stuck-on-phone");
+    expect(late.session_id).toBe(first.session_id);
+    expect(await repos.sessions.list()).toHaveLength(1);
+    // A genuinely different session that night is still added.
+    await authorized.sessions.create({ ...fields, time_in: "23:30" }, "second-session");
+    expect(await repos.sessions.list()).toHaveLength(2);
+  });
+});
