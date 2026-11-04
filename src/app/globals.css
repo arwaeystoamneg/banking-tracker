@@ -234,3 +234,38 @@ body {
 :is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) :focus-visible {
   outline-color: var(--t-chip-border);
 }
+
+/* BLM backdrop: a raised fist over "Black Lives Matter", fixed behind everything and faint enough that the
+   cards and figures on top stay easy to read. */
+.theme-backdrop {
+  display: none;
+}
+
+[data-theme="blm"] .theme-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2vh;
+  pointer-events: none;
+  color: #ffd400;
+  opacity: 0.11;
+}
+
+[data-theme="blm"] .theme-backdrop svg {
+  height: 32vh;
+  width: auto;
+}
+
+[data-theme="blm"] .theme-backdrop p {
+  margin: 0;
+  font-weight: 900;
+  font-size: min(15vw, 11vh);
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  text-align: center;
+  text-transform: uppercase;
+}
