@@ -1,7 +1,7 @@
-export const THEMES = ["normal", "pride", "halloween"] as const;
+export const THEMES = ["normal", "pride", "halloween", "blm"] as const;
 export type Theme = (typeof THEMES)[number];
 
-export const THEME_LABEL: Record<Theme, string> = { normal: "Normal", pride: "Pride", halloween: "Halloween" };
+export const THEME_LABEL: Record<Theme, string> = { normal: "Normal", pride: "Pride", halloween: "Halloween", blm: "BLM" };
 
 const isDamon = (userId: string) => userId.trim().toLowerCase() === "damon";
 

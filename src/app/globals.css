@@ -137,73 +137,100 @@ body {
   --t-stripe: repeating-linear-gradient(90deg, #ff7518 0 18px, #1a0b2e 18px 30px);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) body {
+[data-theme="blm"] {
+  --t-page:
+    radial-gradient(90% 55% at 50% -10%, rgb(255 212 0 / 0.16), transparent 60%),
+    linear-gradient(180deg, #0c0c0c 0%, #050505 100%);
+  --t-surface: rgb(24 22 14 / 0.55);
+  --t-raised: rgb(255 212 0 / 0.08);
+  --t-inset: rgb(0 0 0 / 0.4);
+  --t-bar: rgb(0 0 0 / 0.6);
+  --t-border: rgb(255 212 0 / 0.16);
+  --t-primary: linear-gradient(180deg, rgb(255 212 0 / 0.9), rgb(230 180 0 / 0.9));
+  --t-primary-border: rgb(255 230 120 / 0.45);
+  --t-accent: #ffd400;
+  --t-chip: rgb(255 212 0 / 0.16);
+  --t-chip-border: rgb(255 212 0 / 0.65);
+  --t-stripe: repeating-linear-gradient(90deg, #ffd400 0 22px, #0a0a0a 22px 34px);
+}
+
+/* Yellow buttons need dark text to stay readable. */
+[data-theme="blm"] .bg-emerald-600 {
+  color: #0a0a0a !important;
+  text-shadow: none !important;
+}
+
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) body {
   background: var(--t-page);
   background-attachment: fixed;
   min-height: 100dvh;
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .theme-stripe {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .theme-stripe {
   display: block;
   height: 3px;
   background: var(--t-stripe);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .bg-surface {
   background-color: var(--t-surface);
   backdrop-filter: blur(10px);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface-raised {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .bg-surface-raised {
   background-color: var(--t-raised);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface-inset {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .bg-surface-inset {
   background-color: var(--t-inset);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface\/95,
-:is([data-theme="pride"], [data-theme="halloween"]) .bg-surface\/95 {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .bg-surface\/95,
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .bg-surface\/95 {
   background-color: var(--t-bar);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .border-border {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .border-border {
   border-color: var(--t-border);
 }
 
 /* Primary buttons take the theme's colours, softly, with a hairline edge instead of a solid slab. */
-:is([data-theme="pride"], [data-theme="halloween"]) .bg-emerald-600 {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .bg-emerald-600 {
   background-color: transparent;
   background-image: var(--t-primary);
   box-shadow: inset 0 0 0 1px var(--t-primary-border);
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.55);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) nav .bg-emerald-400 {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) nav .bg-emerald-400 {
   background: var(--t-stripe);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) nav .text-emerald-400 {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) nav .text-emerald-400 {
   color: var(--t-accent);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .border-emerald-500\/70 {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .border-emerald-500\/70 {
   border-color: var(--t-chip-border);
 }
 
-:is([data-theme="pride"], [data-theme="halloween"]) .bg-emerald-600\/20 {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) .bg-emerald-600\/20 {
   background-color: var(--t-chip);
 }
 
 /* Headings sit straight on the background; a soft shadow keeps them crisp over bright bands. */
-:is([data-theme="pride"], [data-theme="halloween"]) main h1,
-:is([data-theme="pride"], [data-theme="halloween"]) main h2,
-:is([data-theme="pride"], [data-theme="halloween"]) main > div > p {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) main h1,
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) main h2,
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) main > div > p {
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
 }
 
 /* Focused fields glow in the theme's accent, not the default green. */
-:is([data-theme="pride"], [data-theme="halloween"]) :is(input, select, textarea):focus {
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) :is(input, select, textarea):focus {
   border-color: var(--t-chip-border) !important;
   box-shadow: 0 0 0 2px var(--t-chip) !important;
+}
+
+:is([data-theme="pride"], [data-theme="halloween"], [data-theme="blm"]) :focus-visible {
+  outline-color: var(--t-chip-border);
 }
