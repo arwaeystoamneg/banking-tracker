@@ -28,6 +28,7 @@ const FIELD_LABEL: Record<string, string> = {
   payroll_paid_at: "Paid",
   payroll_paid_by: "Paid by",
   overtime_status: "Overtime",
+  ray_sponsored: "Ray sponsored only",
   amount: "Amount",
   hourly_rate: "Base rate",
   overtime_rate: "Overtime rate",

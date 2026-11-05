@@ -157,6 +157,8 @@ export const sessionSchema = z
     overtime_status: z
       .preprocess((value) => (typeof value === "string" ? value.trim().toLowerCase() : value), z.enum(OVERTIME_STATUSES))
       .catch(""),
+    /** Ray or admin flags a session Ray alone sponsored; shown as a "Ray sponsored only" tag. */
+    ray_sponsored: z.boolean().default(false),
   })
   .merge(rowVersion);
 export type Session = z.infer<typeof sessionSchema>;
@@ -187,6 +189,7 @@ export const sessionCreateSchema = sessionSchema
     payroll_paid_at: true,
     payroll_paid_by: true,
     overtime_status: true,
+    ray_sponsored: true,
   })
   .extend({
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.

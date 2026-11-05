@@ -29,6 +29,7 @@ function session(overrides: Partial<Session> & { session_id: string; date: strin
     payroll_paid_at: "",
     payroll_paid_by: "",
     overtime_status: "",
+    ray_sponsored: false,
     logged_by: "Ray",
     logged_at: `${overrides.date}T20:00:00.000Z`,
     _row_version: 1,

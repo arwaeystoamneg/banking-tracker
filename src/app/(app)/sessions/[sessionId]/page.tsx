@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSessions } from "@/hooks/useSessions";
 import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { Badge } from "@/components/ui/Badge";
+import { RaySponsoredBadge, RaySponsoredToggle } from "@/components/sessions/RaySponsored";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
 import { d, formatMoney } from "@/lib/decimal";
@@ -38,9 +39,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
     <main className="mx-auto max-w-lg space-y-5 px-4 pt-4 pb-8">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="truncate text-xl font-semibold text-foreground">{sessionPlayerName(session) || "Unknown player"}</h1>
             {open ? <Badge tone="warning">Open</Badge> : <Badge tone="accent">Closed</Badge>}
+            <RaySponsoredBadge session={session} />
           </div>
           <p className="text-sm text-muted">
             {session.casino ? `${canonicalCasino(session.casino)} · ` : ""}
@@ -80,6 +82,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
           <p className="col-span-3 border-t border-border pt-2 whitespace-pre-wrap text-foreground">{session.notes}</p>
         ) : null}
       </section>
+
+      <RaySponsoredToggle session={session} />
 
       {sessionEmployee(session, payrollPeople(team, payrollMembers)) ? <PayrollStatus session={session} /> : null}
 

@@ -607,6 +607,20 @@ describe("overtime requests", () => {
       "already paid",
     );
   });
+
+  it("only Ray or admin can tag a session Ray sponsored, even a paid one, and new sessions start untagged", async () => {
+    const repos = fixtureRepos({ sessions: [played({ payroll_paid_at: "2026-10-25" })] });
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { ray_sponsored: true }, 1)).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    const tagged = await createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { ray_sponsored: true }, 1);
+    expect(tagged).toMatchObject({ ray_sponsored: true, payroll_paid_at: "2026-10-25" });
+    const fresh = await createAuthorizedRepositories(repos, damonUser, roster).sessions.create(
+      { date: "2026-10-21", buy_in: 50, time_in: "12:00", logged_by: "Damon", logged_at: "", ray_sponsored: true } as never,
+      "o2",
+    );
+    expect(fresh.ray_sponsored).toBeFalsy();
+  });
 });
 
 describe("duplicate sessions", () => {

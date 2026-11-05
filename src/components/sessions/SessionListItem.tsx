@@ -1,6 +1,7 @@
 import { RunningFor } from "@/components/sessions/RunningFor";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
+import { RaySponsoredBadge } from "@/components/sessions/RaySponsored";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
 import { canonicalCasino } from "@/lib/names";
@@ -28,7 +29,10 @@ export function SessionListItem({ session }: { session: Session }) {
           </p>
           {loggedOnBehalf(session) ? <p className="text-xs text-muted">Logged by {session.logged_by}</p> : null}
         </div>
-        {open ? <Badge tone="warning">Open</Badge> : <Badge tone="accent">Closed</Badge>}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {open ? <Badge tone="warning">Open</Badge> : <Badge tone="accent">Closed</Badge>}
+          <RaySponsoredBadge session={session} />
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">

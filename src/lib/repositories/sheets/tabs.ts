@@ -116,6 +116,7 @@ export const SESSIONS_TAB: TabConfig = {
     "payroll_paid_at",
     "payroll_paid_by",
     "overtime_status",
+    "ray_sponsored",
   ],
   numberFields: ["buy_in", "_row_version"],
   nullableNumberFields: [
@@ -130,7 +131,7 @@ export const SESSIONS_TAB: TabConfig = {
     "net_pnl",
     "peak_drawdown",
   ],
-  booleanFields: [],
+  booleanFields: ["ray_sponsored"],
 };
 
 export const ROUNDS_TAB: TabConfig = {
