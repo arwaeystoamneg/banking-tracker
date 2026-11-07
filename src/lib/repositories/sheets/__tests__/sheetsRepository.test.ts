@@ -38,6 +38,10 @@ function fakeSheets(initial: Record<string, { columns: number; rows: string[][] 
       const row = tab.rows[r1 - 1];
       requestBody.values[0].forEach((v, i) => (row[c1 - 1 + i] = String(v)));
     },
+    async batchUpdate({ requestBody }: { requestBody: { data: { range: string; values: string[][] }[] } }) {
+      count("values.batchUpdate");
+      for (const { range, values: cells } of requestBody.data) await values.update({ range, requestBody: { values: cells } });
+    },
     // Like Google: the "table" runs from row 1 to the first fully blank row; append writes right after it.
     // INSERT_ROWS inserts a new row there (shifting everything below); OVERWRITE writes into it.
     async append({ range, requestBody, insertDataOption }: { range: string; requestBody: { values: string[][] }; insertDataOption?: string }) {
@@ -162,5 +166,29 @@ describe("sheets repository against a narrow, pre-payroll Sessions tab", () => {
     expect(saved.buy_in).toBe(777);
     expect((await repo.list()).find((s) => s.session_id === "new")?.buy_in).toBe(15000);
   });
-});
 
+  it("a save only writes the cells it changed, so hand edits elsewhere in the row survive", async () => {
+    await repo.update("s1", { buy_in: 5 }, 3); // first save also adds the payroll columns
+    const tab = sheets.tabs.get("Sessions")!;
+    const col = (h: string) => tab.rows[0].indexOf(h);
+    tab.rows[1][col("notes")] = "typed in the sheet";
+    tab.rows[1][col("time_in")] = "7:30 PM"; // typed by hand, 12-hour
+    tab.rows[1][col("buy_out")] = "$15,000";
+    const saved = await repo.update("s1", { casino: "Bike" }, 4);
+    expect(saved).toMatchObject({ time_in: "19:30", buy_out: 15000, notes: "typed in the sheet" });
+    expect(tab.rows[1][col("notes")]).toBe("typed in the sheet");
+    expect(tab.rows[1][col("time_in")]).toBe("7:30 PM");
+    expect(tab.rows[1][col("casino")]).toBe("Bike");
+  });
+
+  it("live reads close together share one Google read, but never one from before a save", async () => {
+    await repo.update("s1", { buy_in: 5 }, 3);
+    for (const key of Object.keys(sheets.calls)) delete sheets.calls[key];
+    await Promise.all([repo.get("s1"), repo.listFresh!(), repo.get("s1")]);
+    await repo.list(); // the live read also refreshed the shared copy
+    expect(sheets.calls["values.batchGet"]).toBe(1);
+    await repo.update("s1", { buy_in: 6 }, 4);
+    expect((await repo.get("s1"))?.buy_in).toBe(6);
+    expect(sheets.calls["values.batchGet"]).toBe(2);
+  });
+});

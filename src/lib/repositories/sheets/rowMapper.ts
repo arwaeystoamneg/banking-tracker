@@ -33,15 +33,20 @@ export function sheetRowsToObjectsWithPositions(config: TabConfig, values: strin
     });
 }
 
+/** A number as typed or shown in the sheet: "$15,000", "15,000" and " 15000 " are all 15000. */
+function sheetNumber(raw: string): number {
+  return Number(String(raw).replace(/[$,\s]/g, ""));
+}
+
 function coerceCell(header: string, raw: string, config: TabConfig): unknown {
   if (config.booleanFields.includes(header)) {
     return raw.trim().toUpperCase() === "TRUE";
   }
   if (config.nullableNumberFields.includes(header)) {
-    return raw === "" ? null : Number(raw);
+    return raw.trim() === "" ? null : sheetNumber(raw);
   }
   if (config.numberFields.includes(header)) {
-    return raw === "" ? 0 : Number(raw);
+    return raw.trim() === "" ? 0 : sheetNumber(raw);
   }
   return raw;
 }

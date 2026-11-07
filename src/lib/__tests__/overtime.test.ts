@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { overtimeByPerson, ratesFor, sessionPay, totalPay } from "@/lib/overtime";
 import { sessionSchema, type Session } from "@/lib/validation/schemas";
+import { d } from "@/lib/decimal";
 import type { TeamMember } from "@/lib/auth/types";
 
 const damon: TeamMember = { id: "damon", name: "Damon", role: "employee" };
@@ -44,3 +45,11 @@ describe("overtime is approved per session", () => {
     expect(String(totalPay(sessions.slice(0, 2), rates))).toBe("765"); // 4.5h × $90 + 6h × $60
   });
 });
+
+describe("pay across daylight saving", () => {
+  it("pays the extra hour the night clocks fall back", () => {
+    const night = { date: "2026-10-31", time_in: "19:00", time_out: "03:00", overtime_status: "" as const };
+    expect(sessionPay(night, { base: d(60), overtime: d(90) })?.toNumber()).toBe(540);
+  });
+});
+

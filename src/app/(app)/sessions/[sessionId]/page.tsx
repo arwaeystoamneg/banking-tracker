@@ -1,7 +1,9 @@
 "use client";
 
 import { RunningFor } from "@/components/sessions/RunningFor";
-import { use } from "react";
+import { use, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { mergedId } from "@/offline/queue";
 import Link from "next/link";
 import { useSessions } from "@/hooks/useSessions";
 import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
@@ -28,6 +30,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
   const { sessions, isLoading } = useSessions();
 
   const session = sessions.find((s) => s.session_id === sessionId);
+  const router = useRouter();
+  const missing = !isLoading && !session;
+
+  // This phone's copy was merged into a session that already existed: go to that one.
+  useEffect(() => {
+    if (!missing) return;
+    void mergedId("sessions", sessionId).then((id) => {
+      if (id) router.replace(`/sessions/${id}`);
+    });
+  }, [missing, sessionId, router]);
 
   if (isLoading) return <p className="px-4 pt-4 text-sm text-muted">Loading…</p>;
   if (!session) return <p className="px-4 pt-4 text-sm text-muted">Session not found (try syncing).</p>;

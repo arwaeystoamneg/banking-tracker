@@ -1,6 +1,7 @@
 import { sameIdentity } from "@/lib/auth/permissions";
 import type { AuthUser, TeamMember } from "@/lib/auth/types";
 import { d, type Decimal } from "@/lib/decimal";
+import { normalizeTime, sessionSpanMinutes } from "@/lib/dates";
 import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
 import type { PayrollMember, Session } from "@/lib/validation/schemas";
 
@@ -51,13 +52,20 @@ export function payrollState(session: Session): PayrollState {
 }
 
 function minutesOf(time: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})/.exec(time.trim());
+  const match = /^(\d{1,2}):(\d{2})$/.exec(normalizeTime(time));
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
-/** Whole minutes between time in and time out; a time out earlier than time in ran past midnight. */
-export function sessionMinutes(session: Pick<Session, "time_in" | "time_out">): number | null {
+/**
+ * Whole minutes between time in and time out; a time out earlier than time in ran past midnight. With the
+ * session's date this is real elapsed time, so a session across a daylight-saving change pays its true hours.
+ */
+export function sessionMinutes(session: Pick<Session, "time_in" | "time_out"> & { date?: string }): number | null {
+  if (session.date) {
+    const span = sessionSpanMinutes(session.date, session.time_in, session.time_out);
+    if (span !== null) return span;
+  }
   const start = minutesOf(session.time_in);
   const end = minutesOf(session.time_out);
   if (start === null || end === null) return null;
@@ -65,7 +73,7 @@ export function sessionMinutes(session: Pick<Session, "time_in" | "time_out">): 
 }
 
 /** Hours between time in and time out; a time out earlier than time in ran past midnight. */
-export function sessionHours(session: Pick<Session, "time_in" | "time_out">): Decimal | null {
+export function sessionHours(session: Pick<Session, "time_in" | "time_out"> & { date?: string }): Decimal | null {
   const minutes = sessionMinutes(session);
   return minutes === null ? null : d(minutes).dividedBy(60);
 }

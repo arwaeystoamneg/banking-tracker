@@ -195,18 +195,20 @@ export function createSheetsRepository<T extends { _row_version: number }, TCrea
         _row_version: existingVersion + 1,
       };
       const parsed = rowSchema.parse(updated);
-      const existingRawRow = positioned.rawRow;
+      // Write only the cells this save changes (plus the version). Rewriting the whole row would replace
+      // whatever someone typed into the sheet by hand — another column, a formula, a format — with this
+      // server's reading of it.
       const serialized = objectToSheetRow(tabConfig, parsed as unknown as Record<string, unknown>, headers);
-      headers.forEach((header, index) => {
-        if (!tabConfig.headers.includes(header)) serialized[index] = existingRawRow[index] ?? "";
-      });
-
+      const changed = new Set([...Object.keys(patch as object), "_row_version"]);
       const sheetRowNumber = positioned.sheetRowNumber;
-      await sheets.spreadsheets.values.update({
+      const data = headers.flatMap((header, index) =>
+        changed.has(header) && tabConfig.headers.includes(header)
+          ? [{ range: `${tabConfig.tabName}!${columnLetter(index + 1)}${sheetRowNumber}`, values: [[serialized[index]]] }]
+          : [],
+      );
+      await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
-        range: `${tabConfig.tabName}!A${sheetRowNumber}:${columnLetter(headers.length)}${sheetRowNumber}`,
-        valueInputOption: "RAW",
-        requestBody: { values: [serialized] },
+        requestBody: { valueInputOption: "RAW", data },
       });
       invalidateSheetCache(spreadsheetId);
 

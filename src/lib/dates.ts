@@ -87,6 +87,63 @@ export function correctFutureStartDate(date: string, timeIn: string, now = new D
   return `${earlier} ${time}` <= limit ? earlier : date;
 }
 
+/**
+ * A time as the app stores it ("19:30"), from however it reached the sheet: typed by hand as "7:30 PM", "7pm" or
+ * "7:30:00 PM", or shown by Sheets as "19:30:00". Without this "7:30 PM" read as 7:30 in the morning. Anything
+ * unrecognizable is returned trimmed, unchanged.
+ */
+export function normalizeTime(value: string): string {
+  const text = value.trim();
+  const twelve = /^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*([ap])\.?\s*m?\.?$/i.exec(text);
+  if (twelve) {
+    const hour = Number(twelve[1]);
+    const minute = twelve[2] ?? "00";
+    if (hour < 1 || hour > 12 || Number(minute) > 59) return text;
+    const pm = twelve[3].toLowerCase() === "p";
+    return `${String((hour % 12) + (pm ? 12 : 0)).padStart(2, "0")}:${minute}`;
+  }
+  const day = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(text);
+  if (day && Number(day[1]) < 24 && Number(day[2]) < 60) return `${day[1].padStart(2, "0")}:${day[2]}`;
+  return text;
+}
+
+/** How far cardroom wall-clock time is ahead of UTC at this instant, in minutes (−420 or −480). */
+function cardroomOffsetMinutes(at: number): number {
+  const stamp = cardroomStamp(new Date(at));
+  const wall = Date.UTC(+stamp.slice(0, 4), +stamp.slice(5, 7) - 1, +stamp.slice(8, 10), +stamp.slice(11, 13), +stamp.slice(14, 16));
+  return Math.round((wall - Math.floor(at / 60_000) * 60_000) / 60_000);
+}
+
+/** The real instant of a cardroom wall-clock date and "HH:mm", allowing for daylight saving. Null if unparseable. */
+export function cardroomInstant(date: string, time: string): number | null {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const t = /^(\d{1,2}):(\d{2})$/.exec(normalizeTime(time));
+  if (!d || !t) return null;
+  const wall = Date.UTC(+d[1], +d[2] - 1, +d[3], +t[1], +t[2]);
+  // Guess with the offset at that wall time read as UTC, then correct once with the offset at the guess.
+  const guess = wall - cardroomOffsetMinutes(wall) * 60_000;
+  return wall - cardroomOffsetMinutes(guess) * 60_000;
+}
+
+function nextDay(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+/**
+ * Real minutes between time in and time out of a session that started on `date`; a time out earlier than
+ * time in is the next morning. Counts the actual hours, so the night clocks fall back is an hour longer and
+ * the night they spring forward an hour shorter.
+ */
+export function sessionSpanMinutes(date: string, timeIn: string, timeOut: string): number | null {
+  const start = normalizeTime(timeIn);
+  const end = normalizeTime(timeOut);
+  const startAt = cardroomInstant(date, start);
+  if (startAt === null || !/^\d{2}:\d{2}$/.test(end)) return null;
+  const endAt = cardroomInstant(end >= start ? date : nextDay(date), end);
+  return endAt === null ? null : Math.round((endAt - startAt) / 60_000);
+}
+
 /** "19:00" → "7:00 PM"; anything unparseable is returned as-is (older rows typed by hand). */
 export function formatClock(time: string): string {
   if (/[ap]\.?m\.?$/i.test(time.trim())) return time.trim(); // already 12-hour
@@ -124,9 +181,8 @@ export function formatDateRange(start: string, end: string): string {
 
 /** Minutes from a session's start (date + time in) until now, for "running 3h 20m". Null if unknown. */
 export function minutesSince(date: string, timeIn: string, now = new Date()): number | null {
-  const match = /^(\d{1,2}):(\d{2})/.exec(timeIn.trim());
-  if (!match || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const start = new Date(`${date}T${match[1].padStart(2, "0")}:${match[2]}:00`);
-  const minutes = Math.floor((now.getTime() - start.getTime()) / 60_000);
+  const start = cardroomInstant(date, timeIn);
+  if (start === null) return null;
+  const minutes = Math.floor((now.getTime() - start) / 60_000);
   return minutes >= 0 ? minutes : null;
 }

@@ -218,22 +218,38 @@ Cardroom floors have poor signal and rounds get logged live at the table. Losing
 connection is the worst failure mode this app has.
 
 - Cache the app shell in a service worker and game reference data in IndexedDB. Reference data must be fully
-  readable offline.
+  readable offline. `src/sw.ts` saves each app page when it's opened (NetworkFirst, cache `app-pages`, never
+  redirects/login/API) so the app opens with no signal; a never-opened page gets `public/offline.html`. The
+  login page clears `app-pages` so one account's pages never open for another. (Serwist 9 ignores a top-level
+  `navigateFallback`; offline fallbacks go in `fallbacks`.)
 - Queue writes (round logs, session saves, game edits) in IndexedDB and flush on reconnect.
 - Show sync state explicitly: pending write count and last-synced timestamp. Never silently drop a write.
 - Write queue rules (`src/offline/queue.ts`): one flush at a time across tabs (Web Locks); writes left
   "syncing" by a closed app are retried; a conflict/refusal only holds back later writes to the same row; on a
   409 an update auto-merges when its fields still hold their pre-edit values (`baseValues`) on the server; when
-  a write settles, later queued writes for that row move to the new version; deleting a never-synced row cancels
-  it locally. `src/offline/recent.ts` stops a few-seconds-old server list from hiding or reviving rows this
+  a write settles, later queued writes for that row move to the new version. Writes go in queue-id order (the
+  order they were made), never `createdAt` (the phone's clock can jump back). Deleting a row whose create is still
+  "pending" (never sent) or "blocked" (refused) cancels it locally; any other create may have reached the
+  server, so the delete is queued behind it. A create the server merges into an existing row (duplicate session)
+  moves later queued writes to that row's id and records `alias:<tab>:<id>` in Dexie meta (`mergedId`). A 401 (or
+  a redirect) is "signed out": the write stays queued as `error`, meta `signedOut` drives a "Sign in" bar —
+  never treat it as done or refused. `src/proxy.ts` answers signed-out `/api/*` with 401, never a redirect to
+  /login (fetch would follow it and see 200). `enqueueUpdate` drops fields that didn't change. `src/offline/recent.ts` stops a few-seconds-old server list from hiding or reviving rows this
   device just saved or deleted. Covered end to end in `src/offline/__tests__/flush.test.ts`.
 - Sheets read quota (~60/min) is shared by the whole team through one service account. List reads share one
   batched read of every tab for 5s per server (`fetchAllTabsRaw`, cleared by any write on that server);
   `get`/`listFresh` and every write read live rows, so the shared copy can never cause an overwrite. Clients
   never let a server list roll back a row they hold a newer `_row_version` of.
+  Live reads (`fetchAllTabsFresh`) started within 1s share one Google read unless this server wrote in between
+  (a write bumps a generation counter), and refresh the shared list copy.
 - Sheets writes are last-write-wins. Do a read-modify-write against the live rows so two people editing
   different games don't clobber each other, and surface a conflict rather than overwriting when the same row
-  changed underneath.
+  changed underneath. An update writes only the cells it changes (plus `_row_version`), so hand edits elsewhere
+  in the row survive. Hand edits don't bump `_row_version`, so PATCH bodies carry `baseValues` and
+  `assertUnchangedSinceBase` (crudRoute) returns 409 when a patched field changed underneath.
+- Hand-typed sheet values: session times are normalized to "HH:mm" on read (`normalizeTime`: "7:30 PM" → "19:30"),
+  and number cells accept "$15,000". Session length/pay use `sessionSpanMinutes` (real elapsed time in
+  America/Los_Angeles, so DST nights count their true hours).
 
 ---
 

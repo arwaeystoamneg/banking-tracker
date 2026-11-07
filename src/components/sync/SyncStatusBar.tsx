@@ -19,9 +19,24 @@ function relativeTime(iso: string | null): string {
 
 export function SyncStatusBar() {
   const online = useOnlineStatus();
-  const { pendingCount, conflictCount, lastSyncedAt } = useSyncStatus();
+  const { pendingCount, conflictCount, lastSyncedAt, signedOut } = useSyncStatus();
   const [conflictsOpen, setConflictsOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  if (signedOut && online) {
+    // Saved changes stay on this phone; signing back in sends them.
+    const here = typeof window === "undefined" ? "/" : window.location.pathname;
+    return (
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-red-500/10 px-4 py-1.5 text-xs text-red-300">
+        <span>
+          Signed out. <span className="num font-semibold">{pendingCount}</span> saved change{pendingCount === 1 ? " is" : "s are"} waiting on this phone.
+        </span>
+        <a href={`/login?from=${encodeURIComponent(here)}`} className="font-semibold text-red-200 underline">
+          Sign in
+        </a>
+      </div>
+    );
+  }
 
   const hasWork = pendingCount > 0 || conflictCount > 0 || !online;
   const dotClass = !online

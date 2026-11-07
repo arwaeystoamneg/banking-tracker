@@ -54,7 +54,7 @@ export async function refreshTabCache(tab: CacheTab): Promise<unknown[]> {
       const queued =
         !isQueueTab(tab) || principalId == null
           ? []
-          : (await database.writeQueue.where("tab").equals(tab).sortBy("createdAt")).filter((item) =>
+          : (await database.writeQueue.where("tab").equals(tab).toArray()).sort((a, b) => (a.id ?? 0) - (b.id ?? 0)).filter((item) =>
               queueItemMatchesPrincipal(item, principalId),
             );
 

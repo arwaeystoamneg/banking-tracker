@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { correctFutureStartDate, startDateForTimeIn } from "@/lib/dates";
+import { correctFutureStartDate, normalizeTime, sessionSpanMinutes, startDateForTimeIn } from "@/lib/dates";
 
 const at = (iso: string) => new Date(iso);
 
@@ -45,3 +45,28 @@ describe("correctFutureStartDate (cardroom time, UTC-7 in October)", () => {
     expect(correctFutureStartDate("2026-11-01", "22:00", new Date("2026-11-01T08:00:00Z"))).toBe("2026-10-31");
   });
 });
+
+describe("sheet times and real session length", () => {
+  it("reads hand-typed sheet times the way they were meant", () => {
+    expect(normalizeTime("7:30 PM")).toBe("19:30");
+    expect(normalizeTime("7:30pm")).toBe("19:30");
+    expect(normalizeTime("12:15 AM")).toBe("00:15");
+    expect(normalizeTime("12:05 PM")).toBe("12:05");
+    expect(normalizeTime("7 pm")).toBe("19:00");
+    expect(normalizeTime("7:30:00 PM")).toBe("19:30");
+    expect(normalizeTime("19:30:00")).toBe("19:30");
+    expect(normalizeTime("9:05")).toBe("09:05");
+    expect(normalizeTime("")).toBe("");
+    expect(normalizeTime("late")).toBe("late");
+  });
+
+  it("counts the real hours across daylight saving", () => {
+    expect(sessionSpanMinutes("2026-10-30", "19:00", "00:15")).toBe(315);
+    // Clocks fell back at 2am on Nov 1, 2026: 7pm to 3am that night was 9 hours.
+    expect(sessionSpanMinutes("2026-10-31", "19:00", "03:00")).toBe(540);
+    // Clocks sprang forward at 2am on Mar 8, 2026: 10pm to 4am was 5 hours.
+    expect(sessionSpanMinutes("2026-03-07", "22:00", "04:00")).toBe(300);
+    expect(sessionSpanMinutes("2026-10-31", "7:00 PM", "3:00 AM")).toBe(540);
+  });
+});
+

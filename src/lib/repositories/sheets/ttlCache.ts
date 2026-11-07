@@ -18,6 +18,10 @@ export function createTtlCache<T>(ttlMs: number, now: () => number = Date.now) {
       });
       return value;
     },
+    /** Stores a value fetched elsewhere (e.g. a live read) so the next get reuses it. */
+    prime(key: string, value: T): void {
+      entries.set(key, { at: now(), value: Promise.resolve(value) });
+    },
     invalidate(key: string): void {
       entries.delete(key);
     },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { assertFitsInCells, providedKeysOnly } from "@/lib/api/crudRoute";
+import { assertFitsInCells, assertUnchangedSinceBase, providedKeysOnly } from "@/lib/api/crudRoute";
+import { ConflictError } from "@/lib/repositories/types";
 import { gamePatchSchema, sessionPatchSchema } from "@/lib/validation/schemas";
 
 describe("providedKeysOnly", () => {
@@ -26,3 +27,15 @@ describe("assertFitsInCells", () => {
     expect(() => assertFitsInCells(undefined)).not.toThrow();
   });
 });
+
+describe("edits made underneath", () => {
+  it("refuses to overwrite a field someone changed in the sheet since this edit was made", () => {
+    const current = { buy_out: 400, notes: "typed in sheet" };
+    expect(() => assertUnchangedSinceBase("sessions", "s1", current, { buy_out: 300 }, { buy_out: 350 })).toThrow(ConflictError);
+    // Unchanged underneath, or already what this edit sets: fine.
+    expect(() => assertUnchangedSinceBase("sessions", "s1", current, { buy_out: 300 }, { buy_out: 400 })).not.toThrow();
+    expect(() => assertUnchangedSinceBase("sessions", "s1", current, { buy_out: 400 }, { buy_out: 1 })).not.toThrow();
+    expect(() => assertUnchangedSinceBase("sessions", "s1", current, { buy_out: 300 }, undefined)).not.toThrow();
+  });
+});
+

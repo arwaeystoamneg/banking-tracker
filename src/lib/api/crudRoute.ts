@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getRepositoriesForUser } from "@/lib/repositories";
-import type { CrudRepository, Repositories } from "@/lib/repositories/types";
+import { ConflictError, type CrudRepository, type Repositories } from "@/lib/repositories/types";
 import { apiError } from "@/lib/api/respond";
 import { InputError, requireCurrentUser } from "@/lib/auth/session";
 
@@ -63,6 +63,29 @@ export function providedKeysOnly<T>(parsed: T, raw: unknown): T {
   return Object.fromEntries(Object.entries(parsed).filter(([key]) => provided.has(key))) as T;
 }
 
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * The version number only moves when the app saves, so a value someone typed straight into the sheet doesn't
+ * change it. `baseValues` (what each edited field held when this edit was made) catches that: if a field now
+ * holds something that is neither that nor this edit's value, someone changed it in between — refuse with a
+ * conflict instead of silently overwriting it.
+ */
+export function assertUnchangedSinceBase(
+  tab: string,
+  id: string,
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>,
+  baseValues: unknown,
+): void {
+  if (!baseValues || typeof baseValues !== "object") return;
+  const base = baseValues as Record<string, unknown>;
+  const changedUnderneath = Object.keys(patch).some(
+    (field) => field in base && !sameValue(current[field], base[field]) && !sameValue(current[field], patch[field]),
+  );
+  if (changedUnderneath) throw new ConflictError(tab, id, current);
+}
+
 /**
  * Generic item route (GET one / PATCH / DELETE) shared by every tab's /api/<tab>/[id] route.
  * PATCH body shape: `{ patch: Partial<T>, expectedVersion: number }` — the offline write queue
@@ -91,6 +114,13 @@ export function makeItemRoutes<T, TCreate, TPatch>(repoKey: keyof Repositories, 
         const expectedVersion = Number(body.expectedVersion);
         const repos = await getRepositoriesForUser(await requireCurrentUser());
         const repo = repos[repoKey] as unknown as CrudRepository<T, TCreate, TPatch>;
+        if (body.baseValues) {
+          // A live read the update's own permission check shares (see loader.ts), so this costs no extra read.
+          const current = await repo.get(id);
+          if (current) {
+            assertUnchangedSinceBase(String(repoKey), id, current as Record<string, unknown>, parsedPatch as Record<string, unknown>, body.baseValues);
+          }
+        }
         const updated = await repo.update(id, parsedPatch, expectedVersion);
         return NextResponse.json(updated);
       } catch (err) {

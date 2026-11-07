@@ -11,6 +11,8 @@ import { makeId, type IdKind } from "@/lib/ids";
 import { queueItemMatchesPrincipal } from "@/offline/legacyQueue";
 import { markRecent } from "@/offline/recent";
 
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 const TAB_ID_KIND: Record<QueueTab, IdKind> = {
   games: "game",
   sidebets: "sidebet",
@@ -64,14 +66,18 @@ export async function enqueueUpdate(
 
   await database.transaction("rw", database.table(tab), database.writeQueue, async () => {
     const existing = (await database.table(tab).get(id)) as Record<string, unknown> | undefined;
-    if (existing) await database.table(tab).put({ ...existing, ...patch });
+    // Send only what this edit changes. A form re-sending every field from this phone's copy would overwrite
+    // anything changed elsewhere since — by another phone, or typed straight into the sheet.
+    const changes = existing ? Object.fromEntries(Object.entries(patch).filter(([key, value]) => !sameValue(existing[key], value))) : patch;
+    if (Object.keys(changes).length === 0) return;
+    if (existing) await database.table(tab).put({ ...existing, ...changes });
     await database.writeQueue.add({
       tab,
       op: "update",
       targetId: id,
-      payload: patch,
+      payload: changes,
       expectedVersion,
-      baseValues: existing ? Object.fromEntries(Object.keys(patch).map((key) => [key, existing[key] ?? null])) : undefined,
+      baseValues: existing ? Object.fromEntries(Object.keys(changes).map((key) => [key, existing[key] ?? null])) : undefined,
       status: "pending",
       createdAt: new Date().toISOString(),
       principalId,
@@ -89,9 +95,11 @@ export async function enqueueDelete(tab: QueueTab, id: string): Promise<void> {
   if (typeof expectedVersion !== "number") throw new Error(`Cannot delete missing ${tab}/${id}`);
 
   // Deleting something whose create never left this phone: cancel it locally instead of sending a create
-  // and then a delete. A create already in flight ("syncing") can't be recalled, so that one goes through.
+  // and then a delete. Only a create that was never sent ("pending") or that the server refused ("blocked")
+  // can be cancelled. One that errored or was mid-send may well have reached the server with the reply lost,
+  // so the delete is queued behind it and removes the row there too.
   const sameRow = await database.writeQueue.where("tab").equals(tab).filter((item) => item.targetId === id).toArray();
-  const unsentCreate = sameRow.find((item) => item.op === "create" && item.status !== "syncing");
+  const unsentCreate = sameRow.find((item) => item.op === "create" && (item.status === "pending" || item.status === "blocked"));
   if (unsentCreate) {
     await database.transaction("rw", database.table(tab), database.writeQueue, async () => {
       await database.table(tab).delete(id);
@@ -167,7 +175,6 @@ const RETRYABLE = new Set(["pending", "error", "syncing"]);
 const STUCK = new Set(["conflict", "blocked"]);
 
 const rowKey = (item: { tab: string; targetId: string }) => `${item.tab}:${item.targetId}`;
-const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /**
  * True when a conflicting update can be applied on top of the server's newer row without losing anything:
@@ -196,6 +203,8 @@ async function readDetail(res: Response): Promise<string> {
 
 type Outcome = "settled" | "stuck" | "error";
 
+export const SIGNED_OUT = "Signed out — sign in again to send this.";
+
 /** Sends one queued write. Updates its queue row to reflect the result and returns what happened. */
 async function sendOne(database: NonNullable<typeof db>, item: WriteQueueItem & { id: number }): Promise<Outcome> {
   const { apiPath } = TAB_CLIENT_CONFIG[item.tab];
@@ -208,8 +217,20 @@ async function sendOne(database: NonNullable<typeof db>, item: WriteQueueItem & 
         res = await fetch(`${apiPath}/${item.targetId}`, {
           method: item.op === "update" ? "PATCH" : "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(item.op === "update" ? { patch: item.payload, expectedVersion: item.expectedVersion } : { expectedVersion: item.expectedVersion }),
+          body: JSON.stringify(
+            item.op === "update"
+              ? { patch: item.payload, expectedVersion: item.expectedVersion, baseValues: item.baseValues }
+              : { expectedVersion: item.expectedVersion },
+          ),
         });
+      }
+
+      // Signed out (or an old server redirecting to the login page): nothing was saved. Keep the write
+      // exactly as it is and stop until the person signs in again — never count it as done or refused.
+      if (res.status === 401 || res.redirected) {
+        await database.writeQueue.update(item.id, { status: "error", lastError: SIGNED_OUT });
+        await database.meta.put({ key: "signedOut", value: "1" });
+        return "error";
       }
 
       if (res.ok || (item.op === "delete" && res.status === 404)) {
@@ -259,10 +280,19 @@ async function sendOne(database: NonNullable<typeof db>, item: WriteQueueItem & 
 async function settle(database: NonNullable<typeof db>, item: WriteQueueItem & { id: number }, serverRow: Record<string, unknown> | null) {
   const newVersion = serverRow?._row_version;
   const baseVersion = item.op === "create" ? 0 : item.expectedVersion;
-  await database.transaction("rw", database.table(item.tab), database.writeQueue, async () => {
+  const { idField } = TAB_CLIENT_CONFIG[item.tab];
+  // The server may answer a create with a row that already existed under another id (the same session saved
+  // twice is merged into one). Everything queued for this phone's id then belongs to that row instead.
+  const mergedInto = item.op === "create" && serverRow && serverRow[idField] !== item.targetId ? String(serverRow[idField]) : null;
+  await database.transaction("rw", database.table(item.tab), database.writeQueue, database.meta, async () => {
+    if (mergedInto) {
+      await database.table(item.tab).delete(item.targetId);
+      await database.meta.put({ key: aliasKey(item.tab, item.targetId), value: mergedInto });
+    }
     if (serverRow) await database.table(item.tab).put(serverRow);
     else await database.table(item.tab).delete(item.targetId);
     await database.writeQueue.delete(item.id);
+    await database.meta.delete("signedOut");
     if (typeof newVersion !== "number") return;
     const later = await database.writeQueue
       .where("tab")
@@ -273,19 +303,33 @@ async function settle(database: NonNullable<typeof db>, item: WriteQueueItem & {
           other.id !== item.id &&
           (other.op === "update" || other.op === "delete") &&
           other.status !== "syncing" &&
-          (other.expectedVersion === baseVersion || (item.op === "create" && other.expectedVersion === undefined)),
+          (mergedInto !== null || other.expectedVersion === baseVersion || (item.op === "create" && other.expectedVersion === undefined)),
       )
       .toArray();
     for (const other of later) {
-      if (other.id !== undefined) await database.writeQueue.update(other.id, { expectedVersion: newVersion });
+      if (other.id === undefined) continue;
+      await database.writeQueue.update(other.id, { expectedVersion: newVersion, ...(mergedInto ? { targetId: mergedInto } : {}) });
     }
   });
-  markRecent(item.tab, item.targetId, serverRow ? "saved" : "deleted");
+  if (mergedInto) {
+    markRecent(item.tab, item.targetId, "deleted");
+    markRecent(item.tab, mergedInto, "saved");
+  } else {
+    markRecent(item.tab, item.targetId, serverRow ? "saved" : "deleted");
+  }
   await setLastSyncedAt(new Date().toISOString());
 }
 
+const aliasKey = (tab: string, id: string) => `alias:${tab}:${id}`;
+
+/** The id a row now lives under, if this phone's copy was merged into an existing row when it synced. */
+export async function mergedId(tab: QueueTab, id: string): Promise<string | null> {
+  if (!db) return null;
+  return (await db.meta.get(aliasKey(tab, id)))?.value ?? null;
+}
+
 /**
- * Sends queued writes oldest first. A write that needs a decision (conflict, or refused by the server)
+ * Sends queued writes in the order they were made. A write that needs a decision (conflict, or refused by the server)
  * only holds back later writes to that same row; everything else keeps syncing. A network or server
  * error ends the pass — the next tick retries. Only one flush runs at a time, across browser tabs too.
  */
@@ -318,7 +362,9 @@ async function flushPass(database: NonNullable<typeof db>, principalId: string):
     const stuckRows = new Set(all.filter((item) => STUCK.has(item.status)).map(rowKey));
     const items = all
       .filter((item): item is WriteQueueItem & { id: number } => item.id !== undefined && RETRYABLE.has(item.status) && !handled.has(item.id))
-      .sort((a, b) => (a.createdAt === b.createdAt ? a.id - b.id : a.createdAt.localeCompare(b.createdAt)));
+      // In the order they were made. The queue id counts up as writes are added; createdAt is the phone's
+      // clock, which can jump backwards (time sync, a dead battery, travel) and would send an edit before its create.
+      .sort((a, b) => a.id - b.id);
     if (items.length === 0) return;
 
     for (const snapshot of items) {
@@ -358,6 +404,10 @@ export async function resolveConflict(queueItemId: number, resolution: "keep-min
   await database.writeQueue.update(queueItemId, {
     status: "pending",
     expectedVersion: serverVersion,
+    // "Use mine" means overwrite what's there now, so what's there now is the new starting point.
+    ...(item.op === "update" && serverRow
+      ? { baseValues: Object.fromEntries(Object.keys(item.payload).map((key) => [key, serverRow[key] ?? null])) }
+      : {}),
     lastError: undefined,
   });
   void flushQueue();

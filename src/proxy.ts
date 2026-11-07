@@ -11,6 +11,12 @@ export async function proxy(request: NextRequest) {
     // A missing AUTH_COOKIE_SECRET must not 500 every page; send the user to sign in instead.
   }
 
+  // An API call gets a plain 401, never a redirect: fetch follows redirects, so an expired sign-in would get the
+  // login page back as "200 OK" and the offline queue would count a queued delete as done.
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  }
+
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("from", request.nextUrl.pathname);
   return NextResponse.redirect(loginUrl);

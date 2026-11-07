@@ -18,6 +18,11 @@ function fakeServer() {
   const calls: string[] = [];
   let hold: Promise<void> | null = null;
   let offline = false;
+  let signedOut = false;
+  let loseReplies = false;
+  /** A create the server answers with a row it already had under another id (a merged duplicate). */
+  const mergeInto = new Map<string, string>();
+  const bodies: Record<string, unknown>[] = [];
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
   const fetchMock = vi.fn(async (input: string, init: RequestInit = {}) => {
@@ -27,9 +32,20 @@ function fakeServer() {
     calls.push(`${method} ${id ?? ""}`.trim());
     if (offline) throw new TypeError("Failed to fetch");
     if (hold) await hold;
+    if (signedOut) return json({ error: "unauthorized" }, 401);
     const body = init.body ? JSON.parse(String(init.body)) : {};
+    bodies.push(body);
+    if (loseReplies) {
+      // The server saves it, but the reply never makes it back to the phone.
+      loseReplies = false;
+      const { id: newId, ...rest } = body;
+      if (method === "POST") rows.set(newId, { ...rest, session_id: newId, _row_version: 1 } as Row);
+      throw new TypeError("Network connection was lost");
+    }
     if (method === "POST") {
       const { id: newId, ...rest } = body;
+      const target = mergeInto.get(newId);
+      if (target && rows.has(target)) return json(rows.get(target), 201);
       const existing = rows.get(newId);
       if (existing) return json(existing, 201);
       const row = { ...rest, session_id: newId, _row_version: 1 } as Row;
@@ -52,7 +68,11 @@ function fakeServer() {
     rows,
     calls,
     fetchMock,
+    bodies,
+    mergeInto,
     setOffline: (value: boolean) => (offline = value),
+    setSignedOut: (value: boolean) => (signedOut = value),
+    loseNextReply: () => (loseReplies = true),
     holdRequests() {
       let release!: () => void;
       hold = new Promise((resolve) => (release = resolve));
@@ -176,6 +196,76 @@ describe("write queue sync", () => {
     await flushQueue();
     expect(await queue()).toEqual([]);
     expect(server.rows.get(first)).toMatchObject({ buy_out: 90, _row_version: 2 });
+  });
+});
+
+describe("sync bugs", () => {
+  it("sends writes in the order they were made, even if the phone's clock jumped back", async () => {
+    server.setOffline(true);
+    const id = await enqueueCreate("sessions", { date: "2026-10-20", buy_in: 100, time_in: "19:00" });
+    await enqueueUpdate("sessions", id, { buy_out: 90, time_out: "22:00" }, 0);
+    const [create, update] = await queue();
+    // The clock was corrected backwards between the two saves.
+    await database().writeQueue.update(create.id!, { createdAt: "2026-10-20T23:00:00.000Z" });
+    await database().writeQueue.update(update.id!, { createdAt: "2026-10-20T21:00:00.000Z" });
+    server.setOffline(false);
+    await flushQueue();
+    expect(server.calls).toEqual(["POST", `PATCH ${id}`]);
+    expect(server.rows.get(id)).toMatchObject({ buy_out: 90, _row_version: 2 });
+  });
+
+  it("an expired sign-in keeps every saved change, deletes included, and sends them after signing in", async () => {
+    server.rows.set("s1", session("s1"));
+    await database().table("sessions").put(session("s1"));
+    server.setSignedOut(true);
+    await enqueueDelete("sessions", "s1");
+    await flushQueue();
+    const [item] = await queue();
+    expect(item).toMatchObject({ op: "delete", status: "error" });
+    expect(await database().meta.get("signedOut")).toBeTruthy();
+    expect(server.rows.has("s1")).toBe(true);
+    server.setSignedOut(false);
+    await flushQueue();
+    expect(await queue()).toEqual([]);
+    expect(server.rows.has("s1")).toBe(false);
+    expect(await database().meta.get("signedOut")).toBeUndefined();
+  });
+
+  it("ending a session that the server merged into an existing one ends that one", async () => {
+    server.rows.set("existing", session("existing"));
+    server.setOffline(true);
+    const id = await enqueueCreate("sessions", { date: "2026-10-20", buy_in: 100, time_in: "19:00" });
+    await enqueueUpdate("sessions", id, { buy_out: 250, time_out: "23:00" }, 0);
+    server.mergeInto.set(id, "existing");
+    server.setOffline(false);
+    await flushQueue();
+    expect(await queue()).toEqual([]);
+    expect(server.rows.get("existing")).toMatchObject({ buy_out: 250, time_out: "23:00", _row_version: 2 });
+    expect(await database().table("sessions").get(id)).toBeUndefined();
+    const { mergedId } = await import("@/offline/queue");
+    expect(await mergedId("sessions", id)).toBe("existing");
+  });
+
+  it("deleting a session whose create may have reached the server deletes it there too", async () => {
+    const id = await enqueueCreate("sessions", { date: "2026-10-20", buy_in: 100, time_in: "19:00" });
+    server.loseNextReply();
+    await flushQueue(); // saved on the server, but the phone only saw an error
+    expect(server.rows.has(id)).toBe(true);
+    await enqueueDelete("sessions", id);
+    await flushQueue();
+    expect(await queue()).toEqual([]);
+    expect(server.rows.has(id)).toBe(false);
+  });
+
+  it("an edit sends only the fields it changed, with what they held before", async () => {
+    server.rows.set("s1", session("s1"));
+    await database().table("sessions").put(session("s1"));
+    // The edit form re-sends every field; only the buy-out actually changed.
+    await enqueueUpdate("sessions", "s1", { date: "2026-10-20", buy_in: 100, time_in: "19:00", buy_out: 300 }, 1);
+    await enqueueUpdate("sessions", "s1", { buy_in: 100 }, 1); // nothing changed: nothing queued
+    expect(await queue()).toHaveLength(1);
+    await flushQueue();
+    expect(server.bodies.at(-1)).toEqual({ patch: { buy_out: 300 }, expectedVersion: 1, baseValues: { buy_out: null } });
   });
 });
 

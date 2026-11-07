@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeTime } from "@/lib/dates";
 
 /**
  * Every tab carries a trailing, non-authoritative `_row_version` column (bumped on every write) so all
@@ -15,6 +16,8 @@ const inputDate = z.string().refine((value) => {
 }, "Enter a real date (YYYY-MM-DD)");
 /** 24-hour H:mm or HH:mm. */
 const inputTime = z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/, "Enter a time like 19:30");
+
+const sheetTime = z.preprocess((value) => (typeof value === "string" ? normalizeTime(value) : (value ?? "")), z.string());
 
 const rowVersion = z.object({ _row_version: z.number().int().positive() });
 
@@ -122,8 +125,9 @@ export const sessionSchema = z
     casino: z.string().default(""),
     buy_in: z.number().nonnegative().default(0),
     buy_out: z.number().nonnegative().nullable().default(null),
-    time_in: z.string().default(""),
-    time_out: z.string().default(""),
+    // Hand-typed sheet times ("7:30 PM") are read as the app's "19:30".
+    time_in: sheetTime,
+    time_out: sheetTime,
     // Kept for compatibility with existing round analytics, but new sessions are not tied to a game.
     game_id: z.string().default(""),
     schedule_option: z.string().default(""),

@@ -3,42 +3,18 @@ import { getRepositoriesForUser } from "@/lib/repositories";
 import { apiError } from "@/lib/api/respond";
 import { requireCurrentUser } from "@/lib/auth/session";
 
-/** Snapshot every tab to a single JSON file the user can download and keep. */
+/**
+ * Snapshot every tab to a single JSON file the user can download and keep. The tabs come from the
+ * repositories themselves, so a tab added later is exported without anyone remembering to list it here.
+ */
 export async function GET() {
   try {
     const user = await requireCurrentUser();
     const repos = await getRepositoriesForUser(user);
-    const [games, sidebets, paytables, feeSchedules, sessions, rounds, lossReports, lossEvidence, auditLog, reimbursements, payrollMembers, loans] =
-      await Promise.all([
-        repos.games.list(),
-        repos.sidebets.list(),
-        repos.paytables.list(),
-        repos.feeSchedules.list(),
-        repos.sessions.list(),
-        repos.rounds.list(),
-        repos.lossReports.list(),
-        repos.lossEvidence.list(),
-        repos.auditLog.list(),
-        repos.reimbursements.list(),
-        repos.payrollMembers.list(),
-        repos.loans.list(),
-      ]);
-
-    const snapshot = {
-      games,
-      sidebets,
-      paytables,
-      feeSchedules,
-      sessions,
-      rounds,
-      lossReports,
-      lossEvidence,
-      auditLog,
-      reimbursements,
-      payrollMembers,
-      loans,
-      exportedAt: new Date().toISOString(),
-    };
+    const tabs = await Promise.all(
+      Object.entries(repos).map(async ([name, repo]) => [name, await (repo as { list(): Promise<unknown[]> }).list()] as const),
+    );
+    const snapshot = { ...Object.fromEntries(tabs), exportedAt: new Date().toISOString() };
 
     return new NextResponse(JSON.stringify(snapshot, null, 2), {
       headers: {

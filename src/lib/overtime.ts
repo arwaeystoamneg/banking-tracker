@@ -8,6 +8,9 @@ import type { PayrollMember, Session } from "@/lib/validation/schemas";
  * Overtime is an approval, not a calculation: the player requests it for a session, Ray or admin approves it,
  * and only then does that whole session pay at the person's overtime rate instead of their base rate.
  */
+/** What pay needs from a session; the date makes hours across a daylight-saving change exact. */
+type PaySession = Pick<Session, "time_in" | "time_out" | "overtime_status"> & { date?: string };
+
 export interface PayRates {
   base: Decimal;
   overtime: Decimal;
@@ -25,13 +28,13 @@ export function ratesFor(
 }
 
 /** What one finished session pays, or null without a rate or usable times. */
-export function sessionPay(session: Pick<Session, "time_in" | "time_out" | "overtime_status">, rates: PayRates | null): Decimal | null {
+export function sessionPay(session: PaySession, rates: PayRates | null): Decimal | null {
   const minutes = sessionMinutes(session);
   if (!rates || minutes === null) return null;
   return (session.overtime_status === "approved" ? rates.overtime : rates.base).times(minutes).dividedBy(60).toDecimalPlaces(2);
 }
 
-export function totalPay(sessions: Pick<Session, "time_in" | "time_out" | "overtime_status">[], rates: PayRates | null): Decimal | null {
+export function totalPay(sessions: PaySession[], rates: PayRates | null): Decimal | null {
   if (!rates) return null;
   return sessions.reduce((total, session) => total.plus(sessionPay(session, rates) ?? 0), d(0));
 }

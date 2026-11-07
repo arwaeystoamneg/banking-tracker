@@ -7,11 +7,20 @@ import { createTtlCache } from "@/lib/repositories/sheets/ttlCache";
 
 /** How long one batched read of every tab is reused before going back to Google. */
 const TABS_TTL_MS = 5_000;
+/**
+ * Live reads (permission and version checks) started within this long of each other share one Google read,
+ * unless this server wrote in between. One save checks the row, the payroll list and duplicates; without
+ * sharing each was its own read, and several phones saving at once multiplied that.
+ */
+const FRESH_SHARE_MS = 1_000;
 /** Worksheet titles change only when the app adds a tab (which updates this cache itself). */
 const GRID_IDS_TTL_MS = 5 * 60_000;
 
 const tabsCache = createTtlCache<Record<string, string[][]>>(TABS_TTL_MS);
+const freshCache = createTtlCache<Record<string, string[][]>>(FRESH_SHARE_MS);
 const gridIdsCache = createTtlCache<Record<string, number>>(GRID_IDS_TTL_MS);
+/** Bumped by every write on this server, so a read that started before a write is never handed out after it. */
+const generations = new Map<string, number>();
 
 /**
  * One batched read for every tab (a single spreadsheets.values.batchGet), shared by every request on this
@@ -26,13 +35,24 @@ export function fetchAllTabsRaw(spreadsheetId = getSheetId()): Promise<Record<st
   return tabsCache.get(spreadsheetId, () => loadAllTabs(spreadsheetId));
 }
 
-/** The same batched read, bypassing the shared copy — for permission and version checks before a write. */
-export async function fetchAllTabsFresh(spreadsheetId = getSheetId()): Promise<Record<string, string[][]>> {
-  return loadAllTabs(spreadsheetId);
+/**
+ * The same batched read, live rather than the few-seconds-old shared copy — for permission and version checks
+ * before a write. Live reads that start within a second of each other (and with no write from this server in
+ * between) share one Google call, and the result also refreshes the shared copy that lists use.
+ */
+export function fetchAllTabsFresh(spreadsheetId = getSheetId()): Promise<Record<string, string[][]>> {
+  return freshCache.get(spreadsheetId, async () => {
+    const generation = generations.get(spreadsheetId) ?? 0;
+    const values = await loadAllTabs(spreadsheetId);
+    if ((generations.get(spreadsheetId) ?? 0) === generation) tabsCache.prime(spreadsheetId, values);
+    return values;
+  });
 }
 
 export function invalidateSheetCache(spreadsheetId = getSheetId()): void {
+  generations.set(spreadsheetId, (generations.get(spreadsheetId) ?? 0) + 1);
   tabsCache.invalidate(spreadsheetId);
+  freshCache.invalidate(spreadsheetId);
 }
 
 async function loadAllTabs(spreadsheetId: string): Promise<Record<string, string[][]>> {

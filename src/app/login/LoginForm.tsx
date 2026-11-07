@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { isLoginErrorCode, LOGIN_ERROR_MESSAGES } from "@/lib/auth/loginErrors";
@@ -26,6 +27,11 @@ function SubmitButton({
 }
 
 export function LoginForm() {
+  // Pages saved for offline use belong to whoever was signed in; drop them before anyone signs in (see sw.ts).
+  useEffect(() => {
+    if (typeof caches !== "undefined") void caches.delete("app-pages").catch(() => {});
+  }, []);
+
   const searchParams = useSearchParams();
   const from = searchParams.get("from") ?? "/";
   const errorCode = searchParams.get("error");
