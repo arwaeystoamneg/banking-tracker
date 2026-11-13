@@ -6,7 +6,7 @@ import { useRounds } from "@/hooks/useRounds";
 import { EdgeSummaryTable } from "@/components/rollups/EdgeSummaryTable";
 import { ResultStatsCard } from "@/components/stats/ResultStatsCard";
 import { computeRollup } from "@/lib/math/rollup";
-import { groupSessionsIntoTrips } from "@/lib/trips";
+import { groupSessionsIntoTrips, sessionTrip } from "@/lib/trips";
 import { canonicalPerson, normalizePersonKey } from "@/lib/names";
 import { sessionPlayerName } from "@/lib/sessionHelpers";
 import type { Session } from "@/lib/validation/schemas";
@@ -25,6 +25,13 @@ function byPlayer(sessions: Session[]): { label: string; sessions: Session[] }[]
     groups.set(key, group);
   }
   return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** A player's sessions per trip, most recent trip first, then any not in a trip. */
+function byTrip(sessions: Session[]): { label: string; sessions: Session[] }[] {
+  const rows = groupSessionsIntoTrips(sessions).map((trip) => ({ label: trip.name, sessions: trip.sessions }));
+  const loose = sessions.filter((session) => !sessionTrip(session));
+  return loose.length ? [...rows, { label: "Not in a trip", sessions: loose }] : rows;
 }
 
 export default function RollupsPage() {
@@ -62,7 +69,14 @@ export default function RollupsPage() {
         players.length === 0 ? (
           <p className="text-sm text-muted">No sessions logged yet.</p>
         ) : (
-          players.map((player) => <ResultStatsCard key={player.label} title={player.label} sessions={player.sessions} />)
+          players.map((player) => (
+            <ResultStatsCard
+              key={player.label}
+              title={player.label}
+              sessions={player.sessions}
+              breakdowns={[{ heading: "By trip", rows: byTrip(player.sessions) }]}
+            />
+          ))
         )
       ) : null}
       {!isLoading && view === "trips" ? (
@@ -70,7 +84,7 @@ export default function RollupsPage() {
           <p className="text-sm text-muted">No trips yet. Put sessions in a trip from the Sessions tab.</p>
         ) : (
           trips.map((trip) => (
-            <ResultStatsCard key={trip.id} title={trip.name} sessions={trip.sessions} breakdown={byPlayer(trip.sessions)} />
+            <ResultStatsCard key={trip.id} title={trip.name} sessions={trip.sessions} breakdowns={[{ heading: "By player", rows: byPlayer(trip.sessions) }]} />
           ))
         )
       ) : null}

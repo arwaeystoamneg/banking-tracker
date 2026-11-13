@@ -14,6 +14,13 @@ export interface ResultStats {
   minutes: number;
   /** Net per hour over the sessions that have times; null with no timed sessions. */
   hourly: Decimal | null;
+  /**
+   * Standard deviation per hour of play: each session's miss from the hourly rate, weighted by its length
+   * (σ² = Σ (result − hourly·hours)² / hours ÷ sessions). Null with fewer than two timed sessions.
+   */
+  sdPerHour: number | null;
+  /** 95% range for the true hourly given the hours played (hourly ± 1.96·σ/√hours); null without σ. */
+  hourlyRange: [number, number] | null;
   best: Session | null;
   worst: Session | null;
   /** Deepest fall from a running high, session by session in play order (0 if it never fell). */
@@ -40,6 +47,7 @@ export function computeResultStats(sessions: Session[]): ResultStats {
   let worst: Session | null = null;
   let high = d(0);
   let maxDrawdown = d(0);
+  const timed: { result: number; hours: number }[] = [];
 
   for (const session of finished) {
     const r = result(session);
@@ -51,10 +59,17 @@ export function computeResultStats(sessions: Session[]): ResultStats {
     if (played !== null && played > 0) {
       minutes += played;
       timedNet = timedNet.plus(r);
+      timed.push({ result: r.toNumber(), hours: played / 60 });
     }
     if (net.greaterThan(high)) high = net;
     if (high.minus(net).greaterThan(maxDrawdown)) maxDrawdown = high.minus(net);
   }
+
+  const hours = minutes / 60;
+  const rate = hours > 0 ? timedNet.toNumber() / hours : 0;
+  const sdPerHour =
+    timed.length >= 2 ? Math.sqrt(timed.reduce((sum, t) => sum + (t.result - rate * t.hours) ** 2 / t.hours, 0) / timed.length) : null;
+  const margin = sdPerHour === null ? null : (1.96 * sdPerHour) / Math.sqrt(hours);
 
   const dates = sessions.map((s) => s.date).sort();
   return {
@@ -64,6 +79,8 @@ export function computeResultStats(sessions: Session[]): ResultStats {
     net,
     minutes,
     hourly: minutes > 0 ? timedNet.dividedBy(minutes).times(60) : null,
+    sdPerHour,
+    hourlyRange: margin === null ? null : [rate - margin, rate + margin],
     best,
     worst,
     maxDrawdown,

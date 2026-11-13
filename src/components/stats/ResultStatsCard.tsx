@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatDateForDisplay, formatDuration } from "@/lib/dates";
-import { formatMoney, type Decimal } from "@/lib/decimal";
+import { d, formatMoney, type Decimal } from "@/lib/decimal";
 import { cardroomColor } from "@/lib/cardroomColors";
 import { computeResultStats, statsByRoom, type ResultStats } from "@/lib/stats/resultStats";
 import { sessionPlayerName } from "@/lib/sessionHelpers";
@@ -10,6 +10,10 @@ import type { Session } from "@/lib/validation/schemas";
 
 function tone(value: Decimal): string {
   return value.isNegative() ? "text-red-400" : "text-emerald-400";
+}
+
+function wholeDollars(value: Decimal.Value): string {
+  return formatMoney(d(value).toDecimalPlaces(0)).replace(/\.00$/, "");
 }
 
 function hourlyText(stats: ResultStats): string {
@@ -20,12 +24,12 @@ function hourlyText(stats: ResultStats): string {
 export function ResultStatsCard({
   title,
   sessions,
-  breakdown,
+  breakdowns = [],
 }: {
   title: string;
   sessions: Session[];
-  /** Extra rows under the room split, like each player on a trip. */
-  breakdown?: { label: string; sessions: Session[] }[];
+  /** Extra splits under the room split, like each player on a trip or each trip for a player. */
+  breakdowns?: { heading: string; rows: { label: string; sessions: Session[] }[] }[];
 }) {
   const stats = computeResultStats(sessions);
   const rooms = statsByRoom(sessions);
@@ -41,6 +45,8 @@ export function ResultStatsCard({
           <h2 className="truncate text-base font-semibold text-foreground">{title}</h2>
           <p className="num text-xs text-muted">
             {stats.firstDate ? `${formatDateForDisplay(stats.firstDate)}–${formatDateForDisplay(stats.lastDate)}` : ""}
+            {" · "}
+            {stats.sessionCount} session{stats.sessionCount === 1 ? "" : "s"}
             {open > 0 ? <span className="text-amber-400"> · {open} open</span> : null}
           </p>
         </div>
@@ -51,7 +57,13 @@ export function ResultStatsCard({
       </div>
 
       <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface-inset p-3">
-        <Stat label="Hourly" value={hourlyText(stats)} className={stats.hourly ? tone(stats.hourly) : undefined} />
+        <Stat
+          label="Hourly"
+          value={hourlyText(stats)}
+          className={stats.hourly ? tone(stats.hourly) : undefined}
+          note={stats.hourlyRange ? `likely ${wholeDollars(stats.hourlyRange[0])} to ${wholeDollars(stats.hourlyRange[1])}` : undefined}
+          hint="95% range for the true hourly, given the hours played"
+        />
         <Stat label="Hours played" value={stats.minutes > 0 ? formatDuration(stats.minutes) : "—"} />
         <Stat label="Win rate" value={winRate === null ? "—" : `${winRate}% (${stats.winningCount}/${stats.completedCount})`} />
         <Stat label="Avg session" value={avgLength ? formatDuration(avgLength) : "—"} />
@@ -63,7 +75,11 @@ export function ResultStatsCard({
           className={stats.maxDrawdown.isZero() ? undefined : "text-red-400"}
           hint="Biggest drop from a high point"
         />
-        <Stat label="Sessions" value={String(stats.sessionCount)} />
+        <Stat
+          label="Std dev / hr"
+          value={stats.sdPerHour === null ? "—" : `${wholeDollars(stats.sdPerHour)}/hr`}
+          hint="How much an hour's result typically swings around the hourly"
+        />
       </div>
 
       {rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== "No room") ? (
@@ -77,12 +93,15 @@ export function ResultStatsCard({
           }))}
         />
       ) : null}
-      {breakdown && breakdown.length > 1 ? (
-        <Breakdown
-          heading="By player"
-          rows={breakdown.map((row) => ({ key: row.label, label: row.label, dot: null, stats: computeResultStats(row.sessions) }))}
-        />
-      ) : null}
+      {breakdowns
+        .filter(({ rows }) => rows.length > 1)
+        .map(({ heading, rows }) => (
+          <Breakdown
+            key={heading}
+            heading={heading}
+            rows={rows.map((row) => ({ key: row.label, label: row.label, dot: null, stats: computeResultStats(row.sessions) }))}
+          />
+        ))}
     </section>
   );
 }
@@ -118,11 +137,12 @@ function Breakdown({
   );
 }
 
-function Stat({ label, value, className, hint }: { label: string; value: string; className?: string; hint?: string }) {
+function Stat({ label, value, className, hint, note }: { label: string; value: string; className?: string; hint?: string; note?: string }) {
   return (
     <div title={hint}>
       <p className="text-xs text-muted">{label}</p>
       <p className={`num text-base font-semibold ${className ?? "text-foreground"}`}>{value}</p>
+      {note ? <p className="num truncate text-[11px] text-muted">{note}</p> : null}
     </div>
   );
 }

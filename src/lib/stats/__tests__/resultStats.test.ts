@@ -54,6 +54,10 @@ describe("computeResultStats", () => {
     expect(stats.worst?.session_id).toBe("b");
     // +1000 high, then down to -2000.
     expect(stats.maxDrawdown.toNumber()).toBe(3000);
+    // hourly -187.5: misses of 1375, -2250, 875 over 2h, 4h, 2h → σ² = (945312.5 + 1265625 + 382812.5) / 3.
+    expect(stats.sdPerHour).toBeCloseTo(Math.sqrt(2593750 / 3), 6);
+    const margin = (1.96 * Math.sqrt(2593750 / 3)) / Math.sqrt(8);
+    expect(stats.hourlyRange?.[0]).toBeCloseTo(-187.5 - margin, 6);
   });
 
   it("leaves untimed sessions out of hourly but keeps them in net", () => {
