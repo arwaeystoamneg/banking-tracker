@@ -1,18 +1,38 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSessions } from "@/hooks/useSessions";
 import { useRounds } from "@/hooks/useRounds";
 import { EdgeSummaryTable } from "@/components/rollups/EdgeSummaryTable";
+import { ResultStatsCard } from "@/components/stats/ResultStatsCard";
 import { computeRollup } from "@/lib/math/rollup";
-import { computePersonStats } from "@/lib/stats/personStats";
-import { formatDateForDisplay, formatDuration } from "@/lib/dates";
-import { formatMoney } from "@/lib/decimal";
+import { groupSessionsIntoTrips } from "@/lib/trips";
+import { canonicalPerson, normalizePersonKey } from "@/lib/names";
+import { sessionPlayerName } from "@/lib/sessionHelpers";
+import type { Session } from "@/lib/validation/schemas";
+
+type View = "players" | "trips";
+
+/** Sessions per player, credited to who played, name variants merged, alphabetical. */
+function byPlayer(sessions: Session[]): { label: string; sessions: Session[] }[] {
+  const groups = new Map<string, { label: string; sessions: Session[] }>();
+  for (const session of sessions) {
+    const name = sessionPlayerName(session);
+    const key = normalizePersonKey(name);
+    if (!key) continue;
+    const group = groups.get(key) ?? { label: canonicalPerson(name), sessions: [] };
+    group.sessions.push(session);
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
 
 export default function RollupsPage() {
   const { sessions, isLoading: sessionsLoading } = useSessions();
   const { rounds, isLoading: roundsLoading } = useRounds();
-  const people = useMemo(() => computePersonStats(sessions), [sessions]);
+  const [view, setView] = useState<View>("players");
+  const players = useMemo(() => byPlayer(sessions), [sessions]);
+  const trips = useMemo(() => groupSessionsIntoTrips(sessions), [sessions]);
   const roundStats = useMemo(() => computeRollup(rounds), [rounds]);
   const isLoading = sessionsLoading || roundsLoading;
 
@@ -20,47 +40,40 @@ export default function RollupsPage() {
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Stats</h1>
-        <p className="text-sm text-muted">All-time session totals for each player.</p>
+        <p className="text-sm text-muted">{view === "players" ? "All-time results for each player." : "Results for each trip."}</p>
+      </div>
+
+      <div className="inline-flex rounded-xl border border-border bg-surface p-0.5 text-sm">
+        {(["players", "trips"] as const).map((option) => (
+          <button
+            key={option}
+            onClick={() => setView(option)}
+            className={`min-h-9 rounded-lg px-3 py-1.5 font-medium transition-colors ${
+              view === option ? "bg-surface-raised text-foreground" : "text-muted active:text-foreground"
+            }`}
+          >
+            {option === "players" ? "Players" : "Trips"}
+          </button>
+        ))}
       </div>
 
       {isLoading ? <p className="text-sm text-muted">Loading…</p> : null}
-      {!isLoading && people.length === 0 ? <p className="text-sm text-muted">No sessions logged yet.</p> : null}
-
-      {!isLoading
-        ? people.map((person) => {
-            const openCount = person.sessionCount - person.completedCount;
-            const winRate = person.completedCount === 0 ? null : (person.winningCount / person.completedCount) * 100;
-            return (
-              <section key={person.name.toLocaleLowerCase()} className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">{person.name}</h2>
-                    <p className="num text-xs text-muted">
-                      {formatDateForDisplay(person.firstDate)}–{formatDateForDisplay(person.lastDate)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`num text-xl font-semibold ${person.netCash.isNegative() ? "text-red-400" : "text-emerald-400"}`}>
-                      {person.completedCount ? formatMoney(person.netCash) : "—"}
-                    </p>
-                    <p className="text-[11px] uppercase tracking-wide text-muted">net cash</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface-inset p-3">
-                  <Stat label="Sessions" value={String(person.sessionCount)} />
-                  <Stat label="Completed" value={String(person.completedCount)} />
-                  <Stat label="Still open" value={String(openCount)} />
-                  <Stat label="Win rate" value={winRate === null ? "—" : `${winRate.toFixed(1)}%`} />
-                  <Stat label="Buy-in (finished)" value={person.completedCount ? formatMoney(person.totalBuyIn) : "—"} />
-                  <Stat label="Buy-out (finished)" value={person.completedCount ? formatMoney(person.totalBuyOut) : "—"} />
-                  <Stat label="Average result" value={person.averageNet === null ? "—" : formatMoney(person.averageNet)} />
-                  <Stat label="Hours recorded" value={person.totalMinutes > 0 ? formatDuration(person.totalMinutes) : "—"} />
-                </div>
-              </section>
-            );
-          })
-        : null}
+      {!isLoading && view === "players" ? (
+        players.length === 0 ? (
+          <p className="text-sm text-muted">No sessions logged yet.</p>
+        ) : (
+          players.map((player) => <ResultStatsCard key={player.label} title={player.label} sessions={player.sessions} />)
+        )
+      ) : null}
+      {!isLoading && view === "trips" ? (
+        trips.length === 0 ? (
+          <p className="text-sm text-muted">No trips yet. Put sessions in a trip from the Sessions tab.</p>
+        ) : (
+          trips.map((trip) => (
+            <ResultStatsCard key={trip.id} title={trip.name} sessions={trip.sessions} breakdown={byPlayer(trip.sessions)} />
+          ))
+        )
+      ) : null}
 
       {!isLoading && roundStats.roundCount > 0 ? (
         <section className="space-y-2 pt-2">
@@ -72,14 +85,5 @@ export default function RollupsPage() {
         </section>
       ) : null}
     </main>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-muted">{label}</p>
-      <p className="num text-base font-semibold text-foreground">{value}</p>
-    </div>
   );
 }

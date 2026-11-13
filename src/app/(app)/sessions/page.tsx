@@ -147,9 +147,8 @@ export default function SessionsPage() {
               ) : null}
               {trips.map((trip) => (
                 <TripGroup
-                  key={`${trip.id}-${selecting}`}
+                  key={trip.id}
                   trip={trip}
-                  defaultOpen={selecting}
                   selected={selecting ? picked : undefined}
                   onToggle={selecting ? toggle : undefined}
                 />
