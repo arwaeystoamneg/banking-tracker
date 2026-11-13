@@ -1,5 +1,5 @@
 import { Decimal, d } from "@/lib/decimal";
-import { canonicalCasino } from "@/lib/names";
+import { sessionCardrooms } from "@/lib/names";
 import type { Session } from "@/lib/validation/schemas";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 
@@ -49,8 +49,7 @@ function summarize(sessions: Session[]): Trip {
   let totalMinutes = 0;
 
   for (const s of sessions) {
-    if (s.casino.trim()) {
-      const name = canonicalCasino(s.casino);
+    for (const name of sessionCardrooms(s.casino)) {
       if (!seenCasinos.has(name)) {
         seenCasinos.add(name);
         casinos.push(name);

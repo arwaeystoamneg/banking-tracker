@@ -3,6 +3,7 @@ import {
   canonicalCasino,
   canonicalCasinoList,
   canonicalPerson,
+  sessionCardroom,
   normalizeCasinoKey,
   normalizePersonKey,
 } from "@/lib/names";
@@ -61,5 +62,15 @@ describe("person normalization", () => {
   it("renders one consistent display form", () => {
     expect(canonicalPerson("ray tang")).toBe("Ray Tang");
     expect(canonicalPerson("RAY")).toBe("Ray");
+  });
+});
+
+describe("sessionCardroom", () => {
+  it("snaps shorthands to the tag's room and hides placeholders", () => {
+    expect(sessionCardroom("HPC")).toBe("Hollywood Park");
+    expect(sessionCardroom("The Bicycle")).toBe("Bicycle");
+    expect(sessionCardroom("artichoke joes")).toBe("Artichoke Joe's");
+    expect(sessionCardroom("Unspecified")).toBe("");
+    expect(sessionCardroom("HPC | Commerce | The Bicycle")).toBe("Hollywood Park + Commerce + Bicycle");
   });
 });

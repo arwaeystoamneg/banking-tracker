@@ -95,6 +95,19 @@ export function gameIsAtCasino(casinos: string, casino: string): boolean {
   return canonicalCasinoList(casinos).some((room) => normalizeCasinoKey(room) === key);
 }
 
+/** Placeholders that mean nobody wrote the room down. */
+const NO_ROOM = new Set(["unspecified", "unknown", "n a", "na", "none"]);
+
+/** The rooms a session was at (a night across rooms is pipe-delimited), without placeholders. */
+export function sessionCardrooms(raw: string): string[] {
+  return canonicalCasinoList(raw).filter((room) => !NO_ROOM.has(normalizeCasinoKey(room)));
+}
+
+/** The session's cardroom tag, "Hollywood Park + Commerce" for a night across rooms, or "" when none was recorded. */
+export function sessionCardroom(raw: string): string {
+  return sessionCardrooms(raw).join(" + ");
+}
+
 /** Display form for a casino — snaps known rooms and their listed aliases to a canonical name. */
 export function canonicalCasino(raw: string): string {
   const key = normalizeCasinoKey(raw);
