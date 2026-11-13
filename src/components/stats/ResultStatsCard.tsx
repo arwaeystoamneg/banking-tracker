@@ -98,6 +98,7 @@ export function ResultStatsCard({
       {rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== "No room") ? (
         <Breakdown
           heading="By cardroom"
+          showSd
           rows={rooms.map((room) => ({
             key: room.room,
             label: room.room,
@@ -122,8 +123,11 @@ export function ResultStatsCard({
 function Breakdown({
   heading,
   rows,
+  showSd = false,
 }: {
   heading: string;
+  /** Adds each row's std dev per hour next to its hourly. */
+  showSd?: boolean;
   rows: { key: string; label: string; dot: string | null; stats: ResultStats }[];
 }) {
   return (
@@ -141,7 +145,10 @@ function Breakdown({
               <span className={`font-semibold ${stats.completedCount ? tone(stats.net) : "text-muted"}`}>
                 {stats.completedCount ? formatMoney(stats.net) : "—"}
               </span>
-              <span className="block text-xs text-muted">{hourlyText(stats)}</span>
+              <span className="block text-xs text-muted">
+                {hourlyText(stats)}
+                {showSd && stats.sdPerHour !== null ? ` · SD ${wholeDollars(stats.sdPerHour)}/hr` : ""}
+              </span>
             </span>
           </div>
         ))}
