@@ -27,7 +27,10 @@ export function ResultStatsCard({
   sessions,
   breakdowns = [],
   href,
+  hideRooms = false,
 }: {
+  /** Leave out the cardroom split, e.g. on a single room's page. */
+  hideRooms?: boolean;
   title: string;
   /** Makes the title a link, e.g. to a trip's own page. */
   href?: string;
@@ -95,7 +98,7 @@ export function ResultStatsCard({
         />
       </div>
 
-      {rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== "No room") ? (
+      {!hideRooms && (rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== "No room")) ? (
         <Breakdown
           heading="By cardroom"
           showSd

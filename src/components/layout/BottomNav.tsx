@@ -24,11 +24,13 @@ function Icon({ path }: { path: ReactNode }) {
   );
 }
 
-const BANKING_ITEMS: { href: string; label: string; icon: ReactNode }[] = [
+const BANKING_ITEMS: { href: string; label: string; icon: ReactNode; also?: string[] }[] = [
   {
-    href: "/games",
-    label: "Games",
-    icon: <Icon path={<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 4v16" /></>} />,
+    href: "/casinos",
+    label: "Casinos",
+    // Game pages live under the casinos they're played at.
+    also: ["/games"],
+    icon: <Icon path={<><path d="M3 21h18M5 21V10l7-5 7 5v11" /><path d="M9 21v-6h6v6" /></>} />,
   },
   {
     href: "/ev",
