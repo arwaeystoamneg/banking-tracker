@@ -1,7 +1,7 @@
 import { Decimal, d } from "@/lib/decimal";
 import { sessionCardrooms } from "@/lib/names";
 import type { Session } from "@/lib/validation/schemas";
-import { isSessionOpen } from "@/lib/sessionHelpers";
+import { byPlayTimeNewestFirst, isSessionOpen } from "@/lib/sessionHelpers";
 
 /**
  * A "trip" is a set of sessions Ray or admin put together under one name (the session's `trip` field).
@@ -88,17 +88,15 @@ export function groupSessionsIntoTrips(sessions: Session[]): Trip[] {
     const key = name.toLowerCase();
     byName.set(key, [...(byName.get(key) ?? []), s]);
   }
-  const newestFirst = (a: Session, b: Session) =>
-    a.date === b.date ? b.logged_at.localeCompare(a.logged_at) : b.date.localeCompare(a.date);
   return [...byName.values()]
     .map((group) => {
-      const sorted = [...group].sort(newestFirst);
+      const sorted = [...group].sort(byPlayTimeNewestFirst);
       // Rooms listed in the order they were visited; the name as most recently typed wins.
       const trip = summarize(sessionTrip(sorted[0]), [...sorted].reverse());
       trip.sessions = sorted;
       return trip;
     })
-    .sort((a, b) => b.endDate.localeCompare(a.endDate) || a.name.localeCompare(b.name));
+    .sort((a, b) => byPlayTimeNewestFirst(a.sessions[0], b.sessions[0]) || a.name.localeCompare(b.name));
 }
 
 /** Trip names in use, most recent first, for picking one. */

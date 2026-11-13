@@ -76,6 +76,15 @@ describe("groupSessionsIntoTrips", () => {
     expect(trips[0].casinos).toEqual(["Bicycle", "Commerce"]);
   });
 
+  it("orders sessions by when play started, not when they were entered", () => {
+    const [trip] = groupSessionsIntoTrips([
+      session({ session_id: "late", date: "2026-08-01", time_in: "21:00", trip: "T", logged_at: "2026-08-01T01:00:00.000Z" }),
+      session({ session_id: "early", date: "2026-08-01", time_in: "13:00", trip: "T", logged_at: "2026-08-09T01:00:00.000Z" }),
+      session({ session_id: "next", date: "2026-08-02", time_in: "02:00", trip: "T", logged_at: "2026-08-01T00:00:00.000Z" }),
+    ]);
+    expect(trip.sessions.map((s) => s.session_id)).toEqual(["next", "late", "early"]);
+  });
+
   it("returns empty for no sessions", () => {
     expect(groupSessionsIntoTrips([])).toEqual([]);
   });

@@ -14,7 +14,7 @@ import type { Reimbursement, Session } from "@/lib/validation/schemas";
 import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
 import { isConfiguredAccountRole } from "@/lib/auth/types";
 import { canReassignReimbursementPayee } from "@/lib/auth/permissions";
-import { sessionPlayerName } from "@/lib/sessionHelpers";
+import { byPlayTimeNewestFirst, sessionPlayerName } from "@/lib/sessionHelpers";
 
 const OTHER = "other";
 const LABEL = "text-xs font-medium uppercase tracking-wide text-muted";
@@ -55,7 +55,7 @@ export function ReimbursementForm({ item, fromSession }: { item?: Reimbursement;
   const payeeLocked = item !== undefined && !canReassignReimbursementPayee(user, item);
 
   const sessionOptions = useMemo(() => {
-    const recent = [...sessions].sort((a, b) => (a.logged_at < b.logged_at ? 1 : -1)).slice(0, 30);
+    const recent = [...sessions].sort(byPlayTimeNewestFirst).slice(0, 30);
     const selected = sessions.find((s) => s.session_id === sessionId);
     return selected && !recent.includes(selected) ? [selected, ...recent] : recent;
   }, [sessions, sessionId]);

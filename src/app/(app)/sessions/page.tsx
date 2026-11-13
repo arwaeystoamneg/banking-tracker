@@ -9,7 +9,7 @@ import { TripGroup } from "@/components/sessions/TripGroup";
 import { BulkMarkPanel } from "@/components/sessions/BulkMarkPanel";
 import { groupSessionsIntoTrips, sessionTrip } from "@/lib/trips";
 import { canMarkPayrollPaid } from "@/lib/payroll";
-import { isSessionOpen } from "@/lib/sessionHelpers";
+import { byPlayTimeNewestFirst, isSessionOpen } from "@/lib/sessionHelpers";
 import { ownsSession } from "@/lib/auth/permissions";
 import { isConfiguredAccountRole } from "@/lib/auth/types";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
@@ -33,12 +33,12 @@ export default function SessionsPage() {
     [sessions, scope, canFilterMine, user],
   );
   const openNow = useMemo(
-    () => visible.filter(isSessionOpen).sort((a, b) => (a.logged_at < b.logged_at ? 1 : -1)),
+    () => visible.filter(isSessionOpen).sort(byPlayTimeNewestFirst),
     [visible],
   );
   // Open sessions are already listed above; trips still count them so trip totals stay whole.
   const sortedAll = useMemo(
-    () => visible.filter((s) => !isSessionOpen(s)).sort((a, b) => (a.logged_at < b.logged_at ? 1 : -1)),
+    () => visible.filter((s) => !isSessionOpen(s)).sort(byPlayTimeNewestFirst),
     [visible],
   );
   const trips = useMemo(() => groupSessionsIntoTrips(visible), [visible]);
