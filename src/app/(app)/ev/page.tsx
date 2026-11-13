@@ -67,6 +67,15 @@ import {
   twoWayWinnerBonusTop,
 } from "@/lib/math/twoWayWinner";
 import { maxPayoutMultiple } from "@/lib/payout";
+import {
+  TRIPS_HANDS,
+  TRIPS_LABELS,
+  realizedUthTripsEdge,
+  uthTripsPayoutsFromRows,
+  uthTripsSigma,
+  uthTripsTop,
+  type TripsHand,
+} from "@/lib/math/uthTrips";
 import { formatMoney } from "@/lib/decimal";
 import { calculatorOptions, detectGameFamily, isHighValueSidebet } from "@/lib/gameFamily";
 
@@ -119,15 +128,18 @@ export default function EvCalculatorPage() {
   const isThreeCard = selectedCalc?.family === "3cp" || detectGameFamily(game?.name ?? "") === "3cp";
   const isTwoWay = selectedCalc?.family === "2ww" || detectGameFamily(game?.name ?? "") === "2ww";
   const isPaiGow = selectedCalc?.family === "paigow" || detectGameFamily(game?.name ?? "") === "paigow";
+  const isUth = selectedCalc?.family === "uth" || detectedFamily === "uth";
   const gameId = selectedCalc?.canonicalGameId ?? "";
   const gameSidebets = useMemo(
     () =>
       sidebets.filter(
         (sidebet) =>
           sidebet.game_id === gameId &&
-          !(isBaccarat && /^main\s*\(banker\/player\/tie\)$/i.test(sidebet.name)),
+          !(isBaccarat && /^main\s*\(banker\/player\/tie\)$/i.test(sidebet.name)) &&
+          // CA Face-Up Three Card has no Ante Bonus; an old catalog row for one isn't a bet here.
+          !(isThreeCard && /ante\s*bonus/i.test(sidebet.name)),
       ),
-    [sidebets, gameId, isBaccarat],
+    [sidebets, gameId, isBaccarat, isThreeCard],
   );
 
   const sideExposure = useMemo(() => {
@@ -162,8 +174,12 @@ export default function EvCalculatorPage() {
     const size = Math.max(0, num(sideSizes[sidebetId] ?? ""));
     return isBaccarat ? size : n * size;
   };
+  // In felt order, so listed paytables read top line first.
   const paytableRowsOf = (sidebetId: string) =>
-    paytables.filter((p) => p.sidebet_id === sidebetId).map((p) => ({ outcome: p.outcome, payout: p.payout }));
+    paytables
+      .filter((p) => p.sidebet_id === sidebetId)
+      .sort((a, b) => a.ordinal - b.ordinal)
+      .map((p) => ({ outcome: p.outcome, payout: p.payout }));
 
   // The UTH Bad Beat Jackpot doesn't fit the exposure-multiple model: the bank collects every wager and
   // caps payouts by coverage. Its edge isn't a stored constant — it's computed from the validated
@@ -172,6 +188,8 @@ export default function EvCalculatorPage() {
   const bbjPayouts = bbjSidebet
     ? (badBeatPayoutsFromRows(paytableRowsOf(bbjSidebet.sidebet_id)) ?? BAD_BEAT_PAYOUTS)
     : BAD_BEAT_PAYOUTS;
+  // UTH Trips is priced exactly from seven-card hand counts and the room's own paytable.
+  const uthTripsSidebet = isUth ? gameSidebets.find((sb) => sb !== bbjSidebet && /trips/i.test(sb.name)) : undefined;
 
   const baccaratCappedSidebets = isBaccarat
     ? gameSidebets
@@ -191,9 +209,24 @@ export default function EvCalculatorPage() {
     : [];
   const tieFromSidebet = baccaratCappedSidebets.some((row) => row.kind === "tie");
 
+  /** Side bets the calculator prices from their own probabilities rather than a stored edge. */
+  const isModeledSidebet = (sb: (typeof gameSidebets)[number]) =>
+    sb === bbjSidebet ||
+    sb === uthTripsSidebet ||
+    (isBaccarat && matchBaccaratSidebet(sb.name) !== null) ||
+    (isBaccaratHpc && matchHpcFrogSidebet(sb.name) !== null) ||
+    (isThreeCard && (matchThreeCardSidebet(sb.name) === "pairPlus" || matchThreeCardSidebet(sb.name) === "sixCard")) ||
+    (isTwoWay && matchTwoWayWinnerBonus(sb.name)) ||
+    (isPaiGow && matchFortuneBonus(sb.name));
+  // A side bet with no model and no recorded edge has an unknown edge. Counting it would add swing with no
+  // expected value, so it's left out of the totals (and says so) rather than treated as a 0% bet.
+  const unknownEdgeSidebet = (sb: (typeof gameSidebets)[number]) => !isModeledSidebet(sb) && !sb.edge_pct;
+
   const otherSideLayers = gameSidebets
     .filter(
       (sb) =>
+        !unknownEdgeSidebet(sb) &&
+        sb !== uthTripsSidebet &&
         sb !== bbjSidebet &&
         !(isBaccarat && matchBaccaratSidebet(sb.name)) &&
         !(isBaccaratHpc && matchHpcFrogSidebet(sb.name)) &&
@@ -297,6 +330,18 @@ export default function EvCalculatorPage() {
     ? (tripsPayoutsFromRows(paytableRowsOf(tripsSidebet.sidebet_id)) ?? TRIPS_PAYOUTS_BY_BADBEAT)
     : TRIPS_PAYOUTS_BY_BADBEAT;
 
+  const uthTripsPayouts: Record<TripsHand, number> = (uthTripsSidebet
+    ? uthTripsPayoutsFromRows(paytableRowsOf(uthTripsSidebet.sidebet_id))
+    : null) ?? { royal: TRIPS_PAYOUTS_BY_BADBEAT.straightFlush, ...TRIPS_PAYOUTS_BY_BADBEAT };
+  const uthTripsAction = uthTripsSidebet ? sideActionOf(uthTripsSidebet.sidebet_id) : 0;
+  // Ante/Blind/Play settle first; Trips is paid from what the main bet leaves in the tray.
+  const uthMainBooked = isUth ? Math.min(baseAction, bankAmount / (game?.exposure_mult || 1)) : 0;
+  const uthTripsCap =
+    uthTripsAction > 0 ? Math.max(0, bankAmount - uthMainBooked * (game?.exposure_mult || 1)) / uthTripsAction : Infinity;
+  const uthTripsEdge = uthTripsAction > 0 ? realizedUthTripsEdge(uthTripsPayouts, uthTripsCap) : null;
+  const uthTripsBaseEdge = realizedUthTripsEdge(uthTripsPayouts);
+  const uthTripsTopPayout = uthTripsTop(uthTripsPayouts);
+
   const bbjSize = bbjSidebet ? num(sideSizes[bbjSidebet.sidebet_id] ?? "") : 0;
   const bbjAction = bbjSidebet ? sideActionOf(bbjSidebet.sidebet_id) : 0;
   const bbjSfCap = bbjSize > 0 ? badBeatHitMultipleAfterTrips(bankAmount, tripsSize, bbjSize, "straightFlush", tripsPayouts) : Infinity;
@@ -389,6 +434,18 @@ export default function EvCalculatorPage() {
 
   const sideLayers = [
     ...otherSideLayers,
+    ...(uthTripsSidebet && uthTripsAction > 0 && uthTripsEdge !== null
+      ? [
+          {
+            id: uthTripsSidebet.sidebet_id,
+            name: uthTripsSidebet.name,
+            actionOffered: uthTripsAction,
+            edge: uthTripsEdge,
+            exposureMult: 1,
+            sigma: uthTripsSigma(uthTripsPayouts, uthTripsCap),
+          },
+        ]
+      : []),
     ...(bbjSidebet && bbjAction > 0 && bbjEdge !== null
       ? [
           {
@@ -540,8 +597,9 @@ export default function EvCalculatorPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">EV &amp; SD calculator</h1>
         <p className="text-sm text-muted">
-          One calculator per game — Baccarat, UTH, Three Card, Pai Gow, No Bust, 2WW — not per casino.
-          Bet math is the same everywhere; type the collection the room is charging this round.
+          One calculator per game, not per casino
+          {calcOptions.length ? ` — ${calcOptions.map((option) => option.label).join(", ")}` : ""}. Bet math is the
+          same everywhere; type the collection the room is charging this round.
         </p>
       </div>
 
@@ -598,7 +656,9 @@ export default function EvCalculatorPage() {
                   ? `CA Face-Up · ${(CA_FACE_UP_ANTE.edge * 100).toFixed(2)}% of Ante · exposure ×${CA_FACE_UP_ANTE.exposureMult}`
                   : isTwoWay
                     ? `~${(TWO_WAY_WINNER.edge * 100).toFixed(0)}% skill-leak estimate · two Antes + Play`
-                    : `edge ${(game.edge_pct * 100).toFixed(3)}% · exposure ×${game.exposure_mult}`
+                    : isUth
+                      ? `edge ${(game.edge_pct * 100).toFixed(3)}% of Ante · exposure ×${game.exposure_mult}`
+                      : `edge ${(game.edge_pct * 100).toFixed(3)}% · exposure ×${game.exposure_mult}`
             }
           >
             {isBaccarat ? (
@@ -682,6 +742,14 @@ export default function EvCalculatorPage() {
                   Bonus is separate (~10% from the 7-card joker chart).
                 </p>
               </>
+            ) : isUth ? (
+              <>
+                <BetRow label="Ante ($)" value={mainSize} onChange={setMainSize} />
+                <p className="text-xs text-muted">
+                  Ante action = <span className="num text-muted-strong">{formatMoney(baseAction)}</span>. Blind matches the
+                  Ante and Play is 1–4×, so the edge and exposure are per $1 of Ante, not of TTA.
+                </p>
+              </>
             ) : (
               <>
                 <BetRow label="Main bet ($)" value={mainSize} onChange={setMainSize} />
@@ -710,7 +778,11 @@ export default function EvCalculatorPage() {
                     <BetRow
                       label={sb.name}
                       hint={
-                        sb === bbjSidebet
+                        unknownEdgeSidebet(sb)
+                          ? "edge unknown · not counted"
+                          : sb === uthTripsSidebet
+                            ? "edge from 7-card counts"
+                            : sb === bbjSidebet
                           ? "edge from Monte Carlo"
                           : isBaccarat && matchBaccaratSidebet(sb.name)
                             ? "edge from hand settlement"
@@ -739,7 +811,7 @@ export default function EvCalculatorPage() {
                       : "Sizes are total table action. Dragon and Panda/Koi are paid from the bank left on the hand they actually hit. Blank size = not offered."
                     : isTwoWay || isPaiGow || isThreeCard
                       ? "Computed side bets use coverage, not the stored edge_pct. Blank size = not offered."
-                      : "Side edge uses each bet's recorded edge_pct (0 = unknown; set it on the game page). Blank size = not offered."}
+                      : "Side bets without their own math use the edge recorded on the game page; a bet with no recorded edge isn't counted. Blank size = not offered."}
                 </p>
               </div>
             )}
@@ -777,7 +849,7 @@ export default function EvCalculatorPage() {
                     </div>
                   );
                 })}
-                {hpcFrogRows.map((row) => {
+                {hpcFrogRows.filter((row) => row.action > 0).map((row) => {
                     const raised = row.edge > row.baseEdge + 0.002;
                     const shortPay = row.payout < row.standardPayout;
                     const full = row.hitMultiple + 0.01 >= row.payout;
@@ -817,6 +889,43 @@ export default function EvCalculatorPage() {
                 Winners are paid from the buy-in (gross). Collecting losers on the same hand does not increase what
                 you can pay — $17k cannot cover a $20k Dragon. Panda 8 pays Player first, then Koi from what is left
                 of the tray. Those hits never share a round, so main is not reserved against a Dragon.
+              </p>
+            </Panel>
+          ) : null}
+
+          {uthTripsSidebet && uthTripsAction > 0 && uthTripsEdge !== null ? (
+            <Panel title="Trips edge" subtitle="exact · 7-card counts · settles before BBJ">
+              <div className="space-y-2 rounded-xl border border-border bg-surface-inset px-3 py-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-medium text-foreground">{uthTripsSidebet.name}</span>
+                  <span className="num text-[11px] text-muted">
+                    {uthTripsCap + 0.01 >= uthTripsTopPayout
+                      ? `pays full ${uthTripsTopPayout}:1 on a hit`
+                      : `pays ×${uthTripsCap.toFixed(1)} of ${uthTripsTopPayout}:1 on a hit`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Metric label="Full-coverage edge" value={`${(uthTripsBaseEdge * 100).toFixed(2)}%`} base="of Trips, fully banked" />
+                  <Metric
+                    label="Realized edge (this setup)"
+                    value={`${(uthTripsEdge * 100).toFixed(2)}%`}
+                    base={uthTripsEdge > uthTripsBaseEdge + 0.002 ? "raised by underbanking" : "≈ fully banked"}
+                    tone={uthTripsEdge > uthTripsBaseEdge + 0.002 ? "warning" : "positive"}
+                  />
+                </div>
+              </div>
+              <ul className="mt-3 space-y-1 text-xs text-foreground">
+                {TRIPS_HANDS.filter((hand) => uthTripsPayouts[hand] > 0).map((hand) => (
+                  <li key={hand} className="flex justify-between gap-2">
+                    <span>{TRIPS_LABELS[hand]}</span>
+                    <span className="num text-muted">{uthTripsPayouts[hand]}:1</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-muted">
+                Pays on the player&apos;s best five of seven, win or lose. Probabilities are exact counts over all
+                133,784,560 seven-card hands; the standard 50-40-30-8-6-5-3 table is 1.90%. Paid from what the
+                Ante/Blind/Play leave in the tray.
               </p>
             </Panel>
           ) : null}
@@ -1052,13 +1161,53 @@ export default function EvCalculatorPage() {
               <div className="grid grid-cols-2 gap-4">
                 <Metric label="N₀ (rounds to 1 SD)" value={result.n0.isFinite() ? Math.round(result.n0.toNumber()).toLocaleString() : "∞"} />
                 <Metric
-                  label="Risk of ruin"
+                  label="Long-run risk of ruin"
                   value={`${result.riskOfRuin.times(100).toFixed(result.riskOfRuin.greaterThan(0.001) ? 1 : 3)}%`}
+                  hint="exp(−2·EV·B/σ²), no time limit"
                   tone={result.riskOfRuin.greaterThan(0.1) ? "warning" : "neutral"}
                 />
                 <Metric label="Full-Kelly bank" value={result.kellyBank.isFinite() ? formatMoney(result.kellyBank) : "∞"} hint="σ²/EV" />
-                <Metric label="Breakeven action" value={result.breakevenActionBase.isFinite() ? formatMoney(result.breakevenActionBase) : "∞"} hint="C/edge, base" />
+                <Metric
+                  label="Breakeven action"
+                  value={collection === 0 ? "—" : result.breakevenActionBase.isFinite() ? formatMoney(result.breakevenActionBase) : "∞"}
+                  hint={collection === 0 ? "enter a collection" : "C/edge, base"}
+                />
               </div>
+              {!isBaccarat ? (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Where the EV comes from</p>
+                  <div className="divide-y divide-border rounded-xl border border-border bg-surface-inset text-xs">
+                    {[
+                      { name: isThreeCard || isUth || isTwoWay ? "Ante / main" : "Main bet", layer: result.base },
+                      ...result.sides.map((layer, i) => ({ name: sideLayers[i]?.name ?? "Side bet", layer })),
+                    ].map(({ name, layer }) => (
+                      <div key={name} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <span className="min-w-0">
+                          <span className="block truncate text-foreground">{name}</span>
+                          <span className="num text-muted">
+                            {formatMoney(layer.booked)} of {formatMoney(layer.offered)} booked
+                          </span>
+                        </span>
+                        <span className={`num shrink-0 font-semibold ${layer.ev.isNegative() ? "text-red-400" : "text-foreground"}`}>
+                          {formatMoney(layer.ev)}
+                        </span>
+                      </div>
+                    ))}
+                    {collection > 0 ? (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2">
+                        <span className="text-foreground">Collection</span>
+                        <span className="num font-semibold text-red-400">{formatMoney(-collection)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  {!isThreeCard ? (
+                    <p className="text-xs text-muted">
+                      SD treats the main bet as σ {mainSigmaValue} per $1 — an estimate, not solved for this game. Change
+                      it under volatility assumptions.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
           ) : null}
 
@@ -1085,7 +1234,7 @@ export default function EvCalculatorPage() {
                   <Metric label="EV / round (sim)" value={formatMoney(simResult.evPerRound)} tone={simResult.evPerRound < 0 ? "negative" : "positive"} />
                   <Metric label="SD / round (sim)" value={formatMoney(simResult.sdPerRound)} />
                   <Metric
-                    label={`Risk of ruin`}
+                    label="Ruin within the session"
                     value={`${(simResult.riskOfRuin * 100).toFixed(1)}%`}
                     hint={`over ${Math.max(1, Math.round(num(roundsPerSession, 50)))} rounds`}
                     tone={simResult.riskOfRuin > 0.1 ? "warning" : "neutral"}
