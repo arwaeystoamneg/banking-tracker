@@ -152,8 +152,8 @@ decline; approved sessions pay at the overtime rate; nothing changes once paid. 
 rule and no double time.
 `ray_sponsored` (TRUE/blank) is a display tag, "Ray sponsored only", that only Ray/admin can toggle (on any
 session, paid or not); it never affects pay. New sessions always start untagged. On the session page Ray/admin
-also tag the cardroom (`casino`) with one tap: M8trix, Artichoke Joe's, Oaks or Bay 101 (`TAG_CARDROOMS` in
-`names.ts`), again on anyone's session; it shows as a tag beside the session.
+also tag the cardroom (`casino`) with one tap: the Bay Area rooms (M8trix, Artichoke Joe's, Oaks, Bay 101) or
+the LA rooms (Hollywood Park, Bicycle, Commerce, Hustler, Gardens), listed in `TAG_CARDROOM_AREAS` in `names.ts`, again on anyone's session; it shows as a tag beside the session.
 
 `player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
 someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);

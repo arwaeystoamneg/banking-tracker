@@ -6,7 +6,7 @@ import { Chip } from "@/components/ui/Chip";
 import { useSessions } from "@/hooks/useSessions";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
 import { canMarkPayrollPaid } from "@/lib/payroll";
-import { canonicalCasino, normalizeCasinoKey, TAG_CARDROOMS } from "@/lib/names";
+import { canonicalCasino, normalizeCasinoKey, TAG_CARDROOM_AREAS, TAG_CARDROOMS } from "@/lib/names";
 import type { Session } from "@/lib/validation/schemas";
 
 /** The session's cardroom and "Ray sponsored only", shown as tags next to it. */
@@ -47,15 +47,22 @@ export function SessionTagEditor({ session }: { session: Session }) {
         <p className="font-medium text-foreground">Cardroom</p>
         <p className="text-xs text-muted">Tap again to clear{otherRoom ? ` · now ${otherRoom}` : ""}</p>
       </div>
-      <fieldset className="flex flex-wrap gap-2" disabled={saving}>
-        {TAG_CARDROOMS.map((room) => {
-          const active = normalizeCasinoKey(room) === roomKey;
-          return (
-            <Chip key={room} active={active} onClick={() => save({ casino: active ? "" : room })}>
-              {room}
-            </Chip>
-          );
-        })}
+      <fieldset className="space-y-2" disabled={saving}>
+        {TAG_CARDROOM_AREAS.map(({ area, rooms }) => (
+          <div key={area} className="space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">{area}</p>
+            <div className="flex flex-wrap gap-2">
+              {rooms.map((room) => {
+                const active = normalizeCasinoKey(room) === roomKey;
+                return (
+                  <Chip key={room} active={active} onClick={() => save({ casino: active ? "" : room })}>
+                    {room}
+                  </Chip>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </fieldset>
       <label className="flex min-h-12 items-center justify-between gap-3 border-t border-border pt-3">
         <span>
