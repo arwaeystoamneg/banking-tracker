@@ -21,6 +21,8 @@ import type {
   payrollMemberCreateSchema,
   payrollMemberPatchSchema,
   reimbursementPatchSchema,
+  roomColorCreateSchema,
+  roomColorPatchSchema,
 } from "@/lib/validation/schemas";
 
 export type GameCreate = z.infer<typeof gameCreateSchema>;
@@ -48,3 +50,5 @@ export type ReimbursementPatch = z.infer<typeof reimbursementPatchSchema>;
 export type LossReportCreate = z.infer<typeof lossReportCreateSchema>;
 export type LossEvidenceCreate = z.infer<typeof lossEvidenceCreateSchema>;
 export type AuditEntryCreate = z.infer<typeof auditEntryCreateSchema>;
+export type RoomColorCreate = z.infer<typeof roomColorCreateSchema>;
+export type RoomColorPatch = z.infer<typeof roomColorPatchSchema>;

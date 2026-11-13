@@ -4,8 +4,10 @@ import { useState } from "react";
 import { SessionListItem } from "@/components/sessions/SessionListItem";
 import { formatDateRange, formatDuration } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
-import type { Trip } from "@/lib/trips";
-import { cardroomColor } from "@/lib/cardroomColors";
+import Link from "next/link";
+import { tripHref, type Trip } from "@/lib/trips";
+import { roomDotStyle } from "@/lib/cardroomColors";
+import { useRoomColors } from "@/hooks/useRoomColors";
 
 /** A collapsible trip: summary row you tap to reveal the individual sessions inside it. */
 export function TripGroup({
@@ -21,6 +23,7 @@ export function TripGroup({
   onToggle?: (sessionId: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const { colorOf } = useRoomColors();
 
   const dateLabel = formatDateRange(trip.startDate, trip.endDate);
 
@@ -37,7 +40,7 @@ export function TripGroup({
             <span className="num">{dateLabel}</span> ·{" "}
             {trip.casinos.map((room) => (
               <span key={room} className="mr-1.5 inline-flex items-center gap-1">
-                <span aria-hidden className={`h-2 w-2 rounded-full ${cardroomColor(room).dot}`} />
+                <span aria-hidden className="h-2 w-2 rounded-full" style={roomDotStyle(colorOf(room))} />
                 {room}
               </span>
             ))}
@@ -72,6 +75,9 @@ export function TripGroup({
 
       {open ? (
         <div className="space-y-3 border-t border-border bg-background/40 p-3">
+          <Link href={tripHref(trip.name)} className="block text-sm font-medium text-emerald-400 underline underline-offset-4">
+            Trip stats ›
+          </Link>
           {trip.sessions.map((s) => (
             <SessionListItem
               key={s.session_id}

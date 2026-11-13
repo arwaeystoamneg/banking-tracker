@@ -270,6 +270,15 @@ export const LOANS_TAB: TabConfig = {
   booleanFields: [],
 };
 
+export const ROOM_COLORS_TAB: TabConfig = {
+  tabName: "RoomColors",
+  idField: "room",
+  headers: ["room", "color", "updated_by", "_row_version"],
+  numberFields: ["_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
 export const ALL_TABS = [
   GAMES_TAB,
   SIDEBETS_TAB,
@@ -283,4 +292,5 @@ export const ALL_TABS = [
   REIMBURSEMENTS_TAB,
   PAYROLL_MEMBERS_TAB,
   LOANS_TAB,
+  ROOM_COLORS_TAB,
 ];

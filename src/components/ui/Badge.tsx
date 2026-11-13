@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 type Tone = "neutral" | "warning" | "danger" | "accent" | "sponsor";
 
@@ -10,10 +10,20 @@ const TONE_CLASSES: Record<Tone, string> = {
   sponsor: "bg-violet-500/15 text-violet-300 border-violet-400/50 font-semibold",
 };
 
-/** `className` replaces the tone's colors, for badges colored per item (like cardrooms). */
-export function Badge({ children, tone = "neutral", className }: { children: ReactNode; tone?: Tone; className?: string }) {
+/** `style` replaces the tone's colors, for badges colored per item (like cardrooms). */
+export function Badge({
+  children,
+  tone = "neutral",
+  className,
+  style,
+}: {
+  children: ReactNode;
+  tone?: Tone;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${className ?? TONE_CLASSES[tone]}`}>
+    <span style={style} className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style ? "" : TONE_CLASSES[tone]} ${className ?? ""}`}>
       {children}
     </span>
   );

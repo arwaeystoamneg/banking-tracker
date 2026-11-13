@@ -106,6 +106,7 @@ function lockRepositories(base: Repositories): Repositories {
     reimbursements: lockRepository(base.reimbursements),
     payrollMembers: lockRepository(base.payrollMembers),
     loans: lockRepository(base.loans),
+    roomColors: lockRepository(base.roomColors),
     lossReports: lockLossReports(base.lossReports),
     lossEvidence: lockAppendOnly(base.lossEvidence),
     auditLog: lockAppendOnly(base.auditLog),
@@ -151,6 +152,7 @@ export async function getDemoRepositories(): Promise<Repositories> {
       reimbursements: fixtureRepository(reimbursements, "reimbursement_id"),
       payrollMembers: fixtureRepository(payrollMembers, "membership_id"),
       loans: fixtureRepository(loans, "loan_entry_id"),
+      roomColors: fixtureRepository([], "room"),
       lossReports: {
         ...appendOnlyFixtureRepository(lossReports, "loss_id"),
         recordDecision: async () => {

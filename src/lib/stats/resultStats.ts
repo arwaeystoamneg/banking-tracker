@@ -1,7 +1,7 @@
 import { Decimal, d } from "@/lib/decimal";
 import { sessionMinutes } from "@/lib/payroll";
-import { sessionCardrooms } from "@/lib/names";
-import { byPlayTimeNewestFirst, isSessionOpen } from "@/lib/sessionHelpers";
+import { canonicalPerson, normalizePersonKey, sessionCardrooms } from "@/lib/names";
+import { byPlayTimeNewestFirst, isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
 import type { Session } from "@/lib/validation/schemas";
 
 /** How a set of finished sessions went. Open sessions are counted but never enter the money figures. */
@@ -100,4 +100,18 @@ export function statsByRoom(sessions: Session[]): RoomStats[] {
   return [...groups.entries()]
     .map(([room, group]) => ({ room, ...computeResultStats(group) }))
     .sort((a, b) => b.minutes - a.minutes || b.completedCount - a.completedCount);
+}
+
+/** Sessions per player, credited to who played with name variants merged, alphabetical. */
+export function sessionsByPlayer(sessions: Session[]): { label: string; sessions: Session[] }[] {
+  const groups = new Map<string, { label: string; sessions: Session[] }>();
+  for (const session of sessions) {
+    const name = sessionPlayerName(session);
+    const key = normalizePersonKey(name);
+    if (!key) continue;
+    const group = groups.get(key) ?? { label: canonicalPerson(name), sessions: [] };
+    group.sessions.push(session);
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
 }

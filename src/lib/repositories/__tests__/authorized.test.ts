@@ -13,6 +13,7 @@ import {
   type FeeSchedule,
   type Game,
   type LoanEntry,
+  type RoomColor,
   type LossEvidence,
   type LossReport,
   type Paytable,
@@ -82,6 +83,7 @@ function fixtureRepos(seed: {
   reimbursements?: Reimbursement[];
   payrollMembers?: PayrollMember[];
   loans?: LoanEntry[];
+  roomColors?: RoomColor[];
 }): Repositories & {
   games: ReturnType<typeof memoryRepo<Game>>;
   sidebets: ReturnType<typeof memoryRepo<Sidebet>>;
@@ -92,6 +94,7 @@ function fixtureRepos(seed: {
   reimbursements: ReturnType<typeof memoryRepo<Reimbursement>>;
   payrollMembers: ReturnType<typeof memoryRepo<PayrollMember>>;
   loans: ReturnType<typeof memoryRepo<LoanEntry>>;
+  roomColors: ReturnType<typeof memoryRepo<RoomColor>>;
 } {
   return {
     games: memoryRepo(seed.games ?? [], "game_id"),
@@ -106,6 +109,7 @@ function fixtureRepos(seed: {
     reimbursements: memoryRepo(seed.reimbursements ?? [], "reimbursement_id"),
     payrollMembers: memoryRepo(seed.payrollMembers ?? [], "membership_id"),
     loans: memoryRepo(seed.loans ?? [], "loan_entry_id"),
+    roomColors: memoryRepo(seed.roomColors ?? [], "room"),
   };
 }
 
@@ -629,6 +633,18 @@ describe("overtime requests", () => {
     expect(tagged).toMatchObject({ casino: "Artichoke Joe's", ray_sponsored: true, payroll_paid_at: "2026-10-25" });
     const cleared = await auth.sessions.update("o1", { casino: "" }, tagged._row_version);
     expect(cleared.casino).toBe("");
+  });
+
+  it("only Ray or admin sets room colors, and setting one twice updates it", async () => {
+    const repos = fixtureRepos({});
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).roomColors.create({ room: "Oaks", color: "#8b5a2b", updated_by: "" })).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    const auth = createAuthorizedRepositories(repos, ray, roster);
+    await auth.roomColors.create({ room: "the oaks", color: "#8b5a2b", updated_by: "" });
+    const again = await auth.roomColors.create({ room: "Oaks", color: "#654321", updated_by: "" });
+    expect(again).toMatchObject({ room: "Oaks", color: "#654321", _row_version: 2 });
+    expect(await createAuthorizedRepositories(repos, damonUser, roster).roomColors.list()).toHaveLength(1);
   });
 
   it("only Ray or admin puts sessions in a trip, on anyone's session", async () => {

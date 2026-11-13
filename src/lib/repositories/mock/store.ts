@@ -20,6 +20,7 @@ export interface MockTables {
   reimbursements: Record<string, unknown>[];
   payrollMembers: Record<string, unknown>[];
   loans: Record<string, unknown>[];
+  roomColors: Record<string, unknown>[];
 }
 
 const TABLE_NAMES: (keyof MockTables)[] = [
@@ -35,6 +36,7 @@ const TABLE_NAMES: (keyof MockTables)[] = [
   "reimbursements",
   "payrollMembers",
   "loans",
+  "roomColors",
 ];
 
 const STORE_PATH = path.join(process.cwd(), ".data", "mock-store.json");

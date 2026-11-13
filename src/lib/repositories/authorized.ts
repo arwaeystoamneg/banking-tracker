@@ -28,6 +28,8 @@ import type {
   PaytablePatch,
   PayrollMemberCreate,
   PayrollMemberPatch,
+  RoomColorCreate,
+  RoomColorPatch,
   ReimbursementCreate,
   ReimbursementPatch,
   RoundCreate,
@@ -657,6 +659,26 @@ export function createAuthorizedRepositories(
         if (!row) throw new NotFoundError("PayrollMembers", id);
         assertVersion("PayrollMembers", id, row, expectedVersion);
         return repos.payrollMembers.remove(id, expectedVersion);
+      },
+    },
+    // Everyone sees the room colors; only Ray or admin picks them.
+    roomColors: {
+      list: () => repos.roomColors.list(),
+      get: (id) => repos.roomColors.get(id),
+      async create(data: RoomColorCreate) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change room colors");
+        const room = canonicalCasino(data.room);
+        const existing = await repos.roomColors.get(room);
+        if (existing) return repos.roomColors.update(room, { color: data.color, updated_by: user.name }, existing._row_version);
+        return repos.roomColors.create({ room, color: data.color, updated_by: user.name }, room);
+      },
+      async update(id: string, patch: RoomColorPatch, expectedVersion: number) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change room colors");
+        return repos.roomColors.update(id, { color: patch.color, updated_by: user.name }, expectedVersion);
+      },
+      async remove(id: string, expectedVersion: number) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change room colors");
+        return repos.roomColors.remove(id, expectedVersion);
       },
     },
   };

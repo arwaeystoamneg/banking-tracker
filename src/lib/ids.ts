@@ -11,6 +11,7 @@ const PREFIXES = {
   reimbursement: "rb",
   payrollMember: "pm",
   loanEntry: "ln",
+  roomColor: "rc",
 } as const;
 
 export type IdKind = keyof typeof PREFIXES;

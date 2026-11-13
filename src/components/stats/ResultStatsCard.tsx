@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { formatDateForDisplay, formatDuration } from "@/lib/dates";
 import { d, formatMoney, type Decimal } from "@/lib/decimal";
-import { cardroomColor } from "@/lib/cardroomColors";
+import { roomDotStyle } from "@/lib/cardroomColors";
+import { useRoomColors } from "@/hooks/useRoomColors";
 import { computeResultStats, statsByRoom, type ResultStats } from "@/lib/stats/resultStats";
 import { sessionPlayerName } from "@/lib/sessionHelpers";
 import type { Session } from "@/lib/validation/schemas";
@@ -25,12 +26,16 @@ export function ResultStatsCard({
   title,
   sessions,
   breakdowns = [],
+  href,
 }: {
   title: string;
+  /** Makes the title a link, e.g. to a trip's own page. */
+  href?: string;
   sessions: Session[];
   /** Extra splits under the room split, like each player on a trip or each trip for a player. */
   breakdowns?: { heading: string; rows: { label: string; sessions: Session[] }[] }[];
 }) {
+  const { colorOf } = useRoomColors();
   const stats = computeResultStats(sessions);
   const rooms = statsByRoom(sessions);
   const open = stats.sessionCount - stats.completedCount;
@@ -42,7 +47,15 @@ export function ResultStatsCard({
     <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold text-foreground">{title}</h2>
+          <h2 className="truncate text-base font-semibold text-foreground">
+            {href ? (
+              <Link href={href} className="underline decoration-border-strong underline-offset-4 active:text-muted">
+                {title} ›
+              </Link>
+            ) : (
+              title
+            )}
+          </h2>
           <p className="num text-xs text-muted">
             {stats.firstDate ? `${formatDateForDisplay(stats.firstDate)}–${formatDateForDisplay(stats.lastDate)}` : ""}
             {" · "}
@@ -88,7 +101,7 @@ export function ResultStatsCard({
           rows={rooms.map((room) => ({
             key: room.room,
             label: room.room,
-            dot: room.room === "No room" || room.room === "Several rooms" ? null : cardroomColor(room.room).dot,
+            dot: room.room === "No room" || room.room === "Several rooms" ? null : colorOf(room.room),
             stats: room,
           }))}
         />
@@ -120,7 +133,7 @@ function Breakdown({
         {rows.map(({ key, label, dot, stats }) => (
           <div key={key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
             <span className="flex min-w-0 items-center gap-2">
-              {dot ? <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} /> : null}
+              {dot ? <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={roomDotStyle(dot)} /> : null}
               <span className="truncate text-foreground">{label}</span>
               <span className="num shrink-0 text-xs text-muted">{stats.minutes > 0 ? formatDuration(stats.minutes) : `${stats.completedCount}×`}</span>
             </span>

@@ -103,3 +103,8 @@ export function groupSessionsIntoTrips(sessions: Session[]): Trip[] {
 export function tripNames(sessions: Session[]): string[] {
   return groupSessionsIntoTrips(sessions).map((trip) => trip.name);
 }
+
+/** Where a trip's own stats page lives. */
+export function tripHref(name: string): string {
+  return `/trips/${encodeURIComponent(name)}`;
+}

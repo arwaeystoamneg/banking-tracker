@@ -1,17 +1,51 @@
-/** One color per room so tags read at a glance. Full class strings so Tailwind keeps them. */
-const COLORS: Record<string, { badge: string; dot: string }> = {
-  "Artichoke Joe's": { badge: "bg-pink-500/15 text-pink-300 border-pink-400/50", dot: "bg-pink-400" },
-  M8trix: { badge: "bg-purple-700/30 text-purple-200 border-purple-500/70", dot: "bg-purple-600" },
-  Oaks: { badge: "bg-[#7b4a26]/40 text-[#e3b98f] border-[#9a5f33]", dot: "bg-[#8b5a2b]" },
-  "Bay 101": { badge: "bg-amber-400/15 text-amber-300 border-amber-400/60", dot: "bg-amber-400" },
-  "Hollywood Park": { badge: "bg-black text-neutral-100 border-neutral-500", dot: "bg-black ring-1 ring-neutral-400" },
-  Bicycle: { badge: "bg-blue-500/15 text-blue-300 border-blue-400/50", dot: "bg-blue-400" },
-  Commerce: { badge: "bg-teal-500/15 text-teal-300 border-teal-400/50", dot: "bg-teal-400" },
-  Hustler: { badge: "bg-cyan-500/15 text-cyan-300 border-cyan-400/50", dot: "bg-cyan-400" },
-  Gardens: { badge: "bg-lime-500/15 text-lime-300 border-lime-400/50", dot: "bg-lime-400" },
-};
-const OTHER = { badge: "bg-slate-500/15 text-slate-300 border-slate-400/50", dot: "bg-slate-400" };
+import type { CSSProperties } from "react";
 
-export function cardroomColor(room: string): { badge: string; dot: string } {
-  return COLORS[room] ?? OTHER;
+/** Each room's starting color; Ray or admin can change any of them in the app. */
+export const DEFAULT_ROOM_COLORS: Record<string, string> = {
+  "Artichoke Joe's": "#f472b6",
+  M8trix: "#7e22ce",
+  Oaks: "#8b5a2b",
+  "Bay 101": "#f59e0b",
+  "Hollywood Park": "#000000",
+  Bicycle: "#3b82f6",
+  Commerce: "#14b8a6",
+  Hustler: "#22d3ee",
+  Gardens: "#a3e635",
+};
+const OTHER = "#94a3b8";
+
+export function isHexColor(value: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+function channels(hex: string): [number, number, number] {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+}
+
+/** Very dark colors (like black) get a solid fill and a light outline so they stay visible on the dark page. */
+function isDark(hex: string): boolean {
+  const [r, g, b] = channels(hex);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 40;
+}
+
+/** The color mixed halfway to white, for readable text on the dark page. */
+function lighten(hex: string): string {
+  return `#${channels(hex)
+    .map((c) => Math.round(c + (255 - c) * 0.5).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+export function roomHex(room: string, chosen: Record<string, string> = {}): string {
+  const color = chosen[room] ?? DEFAULT_ROOM_COLORS[room] ?? OTHER;
+  return isHexColor(color) ? color : OTHER;
+}
+
+export function roomBadgeStyle(hex: string): CSSProperties {
+  return isDark(hex)
+    ? { backgroundColor: hex, borderColor: "#737373", color: "#f5f5f5" }
+    : { backgroundColor: `${hex}33`, borderColor: `${hex}99`, color: lighten(hex) };
+}
+
+export function roomDotStyle(hex: string): CSSProperties {
+  return isDark(hex) ? { backgroundColor: hex, boxShadow: "0 0 0 1px #a3a3a3" } : { backgroundColor: hex };
 }

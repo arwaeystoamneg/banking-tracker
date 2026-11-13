@@ -9,6 +9,7 @@ import type {
   Paytable,
   PayrollMember,
   Reimbursement,
+  RoomColor,
   Round,
   Session,
   Sidebet,
@@ -92,6 +93,8 @@ import type {
   PayrollMemberPatch,
   ReimbursementCreate,
   ReimbursementPatch,
+  RoomColorCreate,
+  RoomColorPatch,
   RoundCreate,
   RoundPatch,
   SessionCreate,
@@ -110,6 +113,7 @@ export interface Repositories {
   reimbursements: CrudRepository<Reimbursement, ReimbursementCreate, ReimbursementPatch>;
   payrollMembers: CrudRepository<PayrollMember, PayrollMemberCreate, PayrollMemberPatch>;
   loans: CrudRepository<LoanEntry, LoanEntryCreate, LoanEntryPatch>;
+  roomColors: CrudRepository<RoomColor, RoomColorCreate, RoomColorPatch>;
   lossReports: LossReportRepository;
   lossEvidence: AppendOnlyRepository<LossEvidence, LossEvidenceCreate>;
   auditLog: AppendOnlyRepository<AuditEntry, AuditEntryCreate>;

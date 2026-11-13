@@ -290,6 +290,19 @@ export const payrollMemberCreateSchema = payrollMemberSchema
     overtime_rate: payRate.default(null),
   });
 /** Only the pay rates change after someone is added; who they are does not. */
+/** A cardroom's color, chosen in the app by Ray or admin and shown to everyone. */
+const hexColor = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Pick a color like #8b5a2b");
+export const roomColorSchema = z
+  .object({
+    room: z.string(),
+    color: z.string().trim().default(""),
+    updated_by: z.string().default(""),
+  })
+  .merge(rowVersion);
+export type RoomColor = z.infer<typeof roomColorSchema>;
+export const roomColorCreateSchema = z.object({ room: z.string().trim().min(1), color: hexColor, updated_by: z.string().default("") });
+export const roomColorPatchSchema = z.object({ color: hexColor, updated_by: z.string().optional() });
+
 export const payrollMemberPatchSchema = z.object({
   hourly_rate: payRate.optional(),
   overtime_rate: payRate.optional(),

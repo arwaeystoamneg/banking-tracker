@@ -11,6 +11,7 @@ import {
   paytableSchema,
   payrollMemberSchema,
   reimbursementSchema,
+  roomColorSchema,
   roundSchema,
   sessionSchema,
   sidebetSchema,
@@ -81,6 +82,13 @@ export function createMockRepositories(): Repositories {
       idField: "loan_entry_id",
       makeId: () => makeId("loanEntry"),
       rowSchema: loanEntrySchema,
+    }),
+    roomColors: createMockRepository({
+      tab: "RoomColors",
+      table: "roomColors",
+      idField: "room",
+      makeId: () => makeId("roomColor"),
+      rowSchema: roomColorSchema,
     }),
     lossReports: toLossReportRepository(
       createMockRepository({

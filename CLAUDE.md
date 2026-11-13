@@ -157,6 +157,11 @@ the LA rooms (Hollywood Park, Bicycle, Commerce, Hustler, Gardens), listed in `T
 
 `trip` is a trip name Ray/admin set (session page, or Select on the Sessions list to mark many at once).
 Trips are only what's named there; nothing is inferred from dates. Sessions with no trip stand alone.
+Each trip has its own stats page at `/trips/<name>` (whole trip, then each person on it).
+
+Room colors live in the `RoomColors` tab (room, color hex, updated_by). Everyone reads them via
+`/api/room-colors`; only Ray/admin set them (session page → Cardroom → "Room colors"). They're kept out of the
+offline write queue on purpose: the phone caches the last colors it saw and falls back to `DEFAULT_ROOM_COLORS`.
 
 `player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
 someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);

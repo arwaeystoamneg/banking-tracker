@@ -6,26 +6,11 @@ import { useRounds } from "@/hooks/useRounds";
 import { EdgeSummaryTable } from "@/components/rollups/EdgeSummaryTable";
 import { ResultStatsCard } from "@/components/stats/ResultStatsCard";
 import { computeRollup } from "@/lib/math/rollup";
-import { groupSessionsIntoTrips, sessionTrip } from "@/lib/trips";
-import { canonicalPerson, normalizePersonKey } from "@/lib/names";
-import { sessionPlayerName } from "@/lib/sessionHelpers";
+import { groupSessionsIntoTrips, sessionTrip, tripHref } from "@/lib/trips";
+import { sessionsByPlayer } from "@/lib/stats/resultStats";
 import type { Session } from "@/lib/validation/schemas";
 
 type View = "players" | "trips";
-
-/** Sessions per player, credited to who played, name variants merged, alphabetical. */
-function byPlayer(sessions: Session[]): { label: string; sessions: Session[] }[] {
-  const groups = new Map<string, { label: string; sessions: Session[] }>();
-  for (const session of sessions) {
-    const name = sessionPlayerName(session);
-    const key = normalizePersonKey(name);
-    if (!key) continue;
-    const group = groups.get(key) ?? { label: canonicalPerson(name), sessions: [] };
-    group.sessions.push(session);
-    groups.set(key, group);
-  }
-  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
-}
 
 /** A player's sessions per trip, most recent trip first, then any not in a trip. */
 function byTrip(sessions: Session[]): { label: string; sessions: Session[] }[] {
@@ -38,7 +23,7 @@ export default function RollupsPage() {
   const { sessions, isLoading: sessionsLoading } = useSessions();
   const { rounds, isLoading: roundsLoading } = useRounds();
   const [view, setView] = useState<View>("players");
-  const players = useMemo(() => byPlayer(sessions), [sessions]);
+  const players = useMemo(() => sessionsByPlayer(sessions), [sessions]);
   const trips = useMemo(() => groupSessionsIntoTrips(sessions), [sessions]);
   const roundStats = useMemo(() => computeRollup(rounds), [rounds]);
   const isLoading = sessionsLoading || roundsLoading;
@@ -84,7 +69,7 @@ export default function RollupsPage() {
           <p className="text-sm text-muted">No trips yet. Put sessions in a trip from the Sessions tab.</p>
         ) : (
           trips.map((trip) => (
-            <ResultStatsCard key={trip.id} title={trip.name} sessions={trip.sessions} breakdowns={[{ heading: "By player", rows: byPlayer(trip.sessions) }]} />
+            <ResultStatsCard key={trip.id} title={trip.name} href={tripHref(trip.name)} sessions={trip.sessions} breakdowns={[{ heading: "By player", rows: sessionsByPlayer(trip.sessions) }]} />
           ))
         )
       ) : null}

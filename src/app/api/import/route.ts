@@ -7,6 +7,7 @@ import {
   feeScheduleSchema,
   gameSchema,
   loanEntrySchema,
+  roomColorSchema,
   lossEvidenceSchema,
   lossReportSchema,
   paytableSchema,
@@ -33,6 +34,7 @@ const snapshotSchema = z.object({
   reimbursements: z.array(reimbursementSchema).default([]),
   payrollMembers: z.array(payrollMemberSchema).default([]),
   loans: z.array(loanEntrySchema).default([]),
+  roomColors: z.array(roomColorSchema).default([]),
 });
 
 /**
