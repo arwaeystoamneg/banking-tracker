@@ -1,10 +1,9 @@
 import { RunningFor } from "@/components/sessions/RunningFor";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import { RaySponsoredBadge } from "@/components/sessions/RaySponsored";
+import { SessionTagBadges } from "@/components/sessions/SessionTags";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
-import { canonicalCasino } from "@/lib/names";
 import { d, formatMoney } from "@/lib/decimal";
 import type { Session } from "@/lib/validation/schemas";
 
@@ -24,14 +23,13 @@ export function SessionListItem({ session }: { session: Session }) {
         <div className="min-w-0">
           <p className="truncate text-base font-medium text-foreground">{sessionPlayerName(session) || "Unknown player"}</p>
           <p className="truncate text-sm text-muted">
-            {session.casino ? `${canonicalCasino(session.casino)} · ` : ""}
             <span className="num">{formatDateForDisplay(session.date)}</span> · {formatTimeRange(session.time_in, session.time_out)}
           </p>
           {loggedOnBehalf(session) ? <p className="text-xs text-muted">Logged by {session.logged_by}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           {open ? <Badge tone="warning">Open</Badge> : <Badge tone="accent">Closed</Badge>}
-          <RaySponsoredBadge session={session} />
+          <SessionTagBadges session={session} />
         </div>
       </div>
 

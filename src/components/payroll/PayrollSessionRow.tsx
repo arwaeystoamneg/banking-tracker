@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { OvertimeControl } from "@/components/payroll/OvertimeControl";
-import { RaySponsoredBadge } from "@/components/sessions/RaySponsored";
+import { SessionTagBadges } from "@/components/sessions/SessionTags";
 import { useSessions } from "@/hooks/useSessions";
 import { formatDateForDisplay, formatDateTimeForDisplay, formatTimeRange } from "@/lib/dates";
 import { formatHours, sessionHours } from "@/lib/payroll";
@@ -41,7 +41,9 @@ export function PayrollSessionRow({ session, canMark, pay }: { session: Session;
               · {formatTimeRange(session.time_in, session.time_out)}
             </span>
           </p>
-          <RaySponsoredBadge session={session} />
+          <span className="flex flex-wrap gap-1.5">
+            <SessionTagBadges session={session} />
+          </span>
           {paid ? (
             <p className="text-xs text-muted">
               Paid{session.payroll_paid_by && session.payroll_paid_by !== "…" ? ` by ${session.payroll_paid_by}` : ""} ·{" "}

@@ -1,6 +1,6 @@
 import "server-only";
-
 import { isConfiguredAccountRole, type AuthUser, type TeamMember } from "@/lib/auth/types";
+import { canonicalCasino } from "@/lib/names";
 import {
   canEditLoanEntry,
   canEditReimbursement,
@@ -321,8 +321,11 @@ export function createAuthorizedRepositories(
       async update(id: string, patch: SessionPatch, expectedVersion: number) {
         const session = await requiredSession(repos, id);
         const touchesPayroll = PAYROLL_KEYS.some((key) => key in patch);
-        const payrollOnly = touchesPayroll && Object.keys(patch).every((key) => PAYROLL_KEYS.includes(key));
         const approver = canMarkPayrollPaid(user);
+        // Ray or admin can also tag the cardroom on anyone's session alongside the payroll marks.
+        const markKeys = approver ? [...PAYROLL_KEYS, "casino"] : PAYROLL_KEYS;
+        const payrollOnly =
+          (touchesPayroll || (approver && "casino" in patch)) && Object.keys(patch).every((key) => markKeys.includes(key));
         if (PAID_KEYS.some((key) => key in patch) && !approver) {
           throw new AuthorizationError("Only Ray or an admin can mark a session paid");
         }
@@ -362,6 +365,7 @@ export function createAuthorizedRepositories(
           }
           // The sponsor tag doesn't change pay, so it can flip on paid sessions and anyone's session.
           if ("ray_sponsored" in patch) changes.ray_sponsored = Boolean(patch.ray_sponsored);
+          if ("casino" in patch) changes.casino = patch.casino?.trim() ? canonicalCasino(patch.casino) : "";
           if (settles) {
             Object.assign(
               changes,

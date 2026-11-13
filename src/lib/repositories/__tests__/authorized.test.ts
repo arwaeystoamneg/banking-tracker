@@ -621,6 +621,15 @@ describe("overtime requests", () => {
     );
     expect(fresh.ray_sponsored).toBeFalsy();
   });
+
+  it("Ray or admin can tag the cardroom on anyone's session, even a paid one", async () => {
+    const repos = fixtureRepos({ sessions: [played({ payroll_paid_at: "2026-10-25" })] });
+    const auth = createAuthorizedRepositories(repos, ray, roster);
+    const tagged = await auth.sessions.update("o1", { casino: "artichoke joes", ray_sponsored: true }, 1);
+    expect(tagged).toMatchObject({ casino: "Artichoke Joe's", ray_sponsored: true, payroll_paid_at: "2026-10-25" });
+    const cleared = await auth.sessions.update("o1", { casino: "" }, tagged._row_version);
+    expect(cleared.casino).toBe("");
+  });
 });
 
 describe("duplicate sessions", () => {

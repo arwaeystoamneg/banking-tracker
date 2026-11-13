@@ -64,7 +64,22 @@ const ALIASES: ReadonlyArray<readonly [string, string]> = [
   ["commerse", "Commerce"],
   ["hustler", "Hustler"],
   ["gardens", "Gardens"],
+  ["m8trix", "M8trix"],
+  ["matrix", "M8trix"],
+  ["m8", "M8trix"],
+  ["artichoke joe s", "Artichoke Joe's"],
+  ["artichoke joes", "Artichoke Joe's"],
+  ["artichoke", "Artichoke Joe's"],
+  ["aj s", "Artichoke Joe's"],
+  ["ajs", "Artichoke Joe's"],
+  ["oaks", "Oaks"],
+  ["bay 101", "Bay 101"],
+  ["bay101", "Bay 101"],
+  ["bay", "Bay 101"],
 ];
+
+/** The rooms Ray or admin can tag a session with in one tap. */
+export const TAG_CARDROOMS = ["M8trix", "Artichoke Joe's", "Oaks", "Bay 101"] as const;
 
 /** Canonical display names for the rooms we actually visit — used as datalist options, not a closed set. */
 export const KNOWN_CASINO_NAMES = Array.from(new Set(ALIASES.map(([, display]) => display)));

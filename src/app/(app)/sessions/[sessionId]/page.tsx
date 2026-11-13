@@ -8,11 +8,10 @@ import Link from "next/link";
 import { useSessions } from "@/hooks/useSessions";
 import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { Badge } from "@/components/ui/Badge";
-import { RaySponsoredBadge, RaySponsoredToggle } from "@/components/sessions/RaySponsored";
+import { SessionTagBadges, SessionTagEditor } from "@/components/sessions/SessionTags";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
 import { d, formatMoney } from "@/lib/decimal";
-import { canonicalCasino } from "@/lib/names";
 import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
 import { PayrollStatus } from "@/components/payroll/PayrollStatus";
 import { payrollPeople, sessionEmployee } from "@/lib/payroll";
@@ -54,10 +53,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="truncate text-xl font-semibold text-foreground">{sessionPlayerName(session) || "Unknown player"}</h1>
             {open ? <Badge tone="warning">Open</Badge> : <Badge tone="accent">Closed</Badge>}
-            <RaySponsoredBadge session={session} />
+            <SessionTagBadges session={session} />
           </div>
           <p className="text-sm text-muted">
-            {session.casino ? `${canonicalCasino(session.casino)} · ` : ""}
             {formatDateForDisplay(session.date)} · {formatTimeRange(session.time_in, session.time_out)}
             {open ? <RunningFor date={session.date} timeIn={session.time_in} /> : null}
           </p>
@@ -95,7 +93,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
         ) : null}
       </section>
 
-      <RaySponsoredToggle session={session} />
+      <SessionTagEditor session={session} />
 
       {sessionEmployee(session, payrollPeople(team, payrollMembers)) ? <PayrollStatus session={session} /> : null}
 
