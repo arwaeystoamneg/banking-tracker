@@ -9,6 +9,7 @@ import { useSessions } from "@/hooks/useSessions";
 import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { Badge } from "@/components/ui/Badge";
 import { SessionTagBadges, SessionTagEditor } from "@/components/sessions/SessionTags";
+import { sessionTrip } from "@/lib/trips";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
 import { d, formatMoney } from "@/lib/decimal";
@@ -60,6 +61,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
             {open ? <RunningFor date={session.date} timeIn={session.time_in} /> : null}
           </p>
           {loggedOnBehalf(session) ? <p className="text-xs text-muted">Logged by {session.logged_by}</p> : null}
+          {sessionTrip(session) ? <p className="text-xs text-muted">Trip: {sessionTrip(session)}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           {canEdit ? (

@@ -30,6 +30,7 @@ function session(overrides: Partial<Session> & { session_id: string; date: strin
     payroll_paid_by: "",
     overtime_status: "",
     ray_sponsored: false,
+    trip: "",
     logged_by: "Ray",
     logged_at: `${overrides.date}T20:00:00.000Z`,
     _row_version: 1,
@@ -38,34 +39,27 @@ function session(overrides: Partial<Session> & { session_id: string; date: strin
 }
 
 describe("groupSessionsIntoTrips", () => {
-  it("keeps consecutive days in one trip and splits on a multi-day gap", () => {
+  it("groups only by the trip name, never by dates, and leaves untripped sessions out", () => {
     const trips = groupSessionsIntoTrips([
-      session({ session_id: "a", date: "2026-08-01" }),
-      session({ session_id: "b", date: "2026-08-02" }),
-      session({ session_id: "c", date: "2026-08-10" }),
+      session({ session_id: "a", date: "2026-08-01", trip: "LA" }),
+      session({ session_id: "b", date: "2026-08-20", trip: "la " }),
+      session({ session_id: "c", date: "2026-08-02" }),
+      session({ session_id: "d", date: "2026-09-01", trip: "Vegas" }),
     ]);
-    expect(trips.length).toBe(2);
-    // Most-recent trip first.
-    expect(trips[0].startDate).toBe("2026-08-10");
-    expect(trips[1].sessionCount).toBe(2);
+    expect(trips.map((t) => [t.name, t.sessionCount])).toEqual([
+      ["Vegas", 1],
+      ["la", 2],
+    ]);
     expect(trips[1].startDate).toBe("2026-08-01");
-    expect(trips[1].endDate).toBe("2026-08-02");
-  });
-
-  it("groups multiple same-day sessions together", () => {
-    const trips = groupSessionsIntoTrips([
-      session({ session_id: "a", date: "2026-08-01" }),
-      session({ session_id: "b", date: "2026-08-01" }),
-    ]);
-    expect(trips.length).toBe(1);
-    expect(trips[0].sessionCount).toBe(2);
+    expect(trips[1].endDate).toBe("2026-08-20");
+    expect(trips[1].sessions.map((s) => s.session_id)).toEqual(["b", "a"]);
   });
 
   it("sums net cash over completed sessions and counts open ones", () => {
     const trips = groupSessionsIntoTrips([
-      session({ session_id: "a", date: "2026-08-01", buy_in: 8000, buy_out: 8500, time_out: "23:00" }),
-      session({ session_id: "b", date: "2026-08-02", buy_in: 8000, buy_out: 7800, time_out: "23:00" }),
-      session({ session_id: "c", date: "2026-08-02", buy_out: null }),
+      session({ session_id: "a", date: "2026-08-01", trip: "T", buy_in: 8000, buy_out: 8500, time_out: "23:00" }),
+      session({ session_id: "b", date: "2026-08-02", trip: "T", buy_in: 8000, buy_out: 7800, time_out: "23:00" }),
+      session({ session_id: "c", date: "2026-08-02", trip: "T", buy_out: null }),
     ]);
     expect(trips.length).toBe(1);
     expect(trips[0].netCash.toNumber()).toBe(300); // +500 -200
@@ -75,9 +69,9 @@ describe("groupSessionsIntoTrips", () => {
 
   it("collects distinct canonical casinos across the trip", () => {
     const trips = groupSessionsIntoTrips([
-      session({ session_id: "a", date: "2026-08-01", casino: "The Bicycle" }),
-      session({ session_id: "b", date: "2026-08-01", casino: "bicycle" }),
-      session({ session_id: "c", date: "2026-08-02", casino: "Commerce" }),
+      session({ session_id: "a", date: "2026-08-01", casino: "The Bicycle", trip: "T" }),
+      session({ session_id: "b", date: "2026-08-01", casino: "bicycle", trip: "T" }),
+      session({ session_id: "c", date: "2026-08-02", casino: "Commerce", trip: "T" }),
     ]);
     expect(trips[0].casinos).toEqual(["Bicycle", "Commerce"]);
   });

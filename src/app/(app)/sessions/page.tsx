@@ -6,19 +6,24 @@ import { useSessions } from "@/hooks/useSessions";
 import { Button } from "@/components/ui/Button";
 import { SessionListItem } from "@/components/sessions/SessionListItem";
 import { TripGroup } from "@/components/sessions/TripGroup";
-import { groupSessionsIntoTrips } from "@/lib/trips";
+import { BulkMarkPanel } from "@/components/sessions/BulkMarkPanel";
+import { groupSessionsIntoTrips, sessionTrip } from "@/lib/trips";
+import { canMarkPayrollPaid } from "@/lib/payroll";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 import { ownsSession } from "@/lib/auth/permissions";
 import { isConfiguredAccountRole } from "@/lib/auth/types";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
 
-type View = "trips" | "all";
+type View = "sessions" | "trips";
 type Scope = "everyone" | "mine";
 
 export default function SessionsPage() {
   const user = useCurrentUser();
   const { sessions, isLoading } = useSessions();
-  const [view, setView] = useState<View>("trips");
+  const [view, setView] = useState<View>("sessions");
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const canMark = canMarkPayrollPaid(user);
   const [scope, setScope] = useState<Scope>("everyone");
   const canFilterMine = isConfiguredAccountRole(user.role);
 
@@ -37,6 +42,21 @@ export default function SessionsPage() {
     [visible],
   );
   const trips = useMemo(() => groupSessionsIntoTrips(visible), [visible]);
+  // In the Trips view, sessions nobody put in a trip are listed on their own after the trips.
+  const untripped = useMemo(() => sortedAll.filter((s) => !sessionTrip(s)), [sortedAll]);
+  const allTripNames = useMemo(() => groupSessionsIntoTrips(sessions).map((trip) => trip.name), [sessions]);
+  const pickedSessions = useMemo(() => sessions.filter((s) => picked.has(s.session_id)), [sessions, picked]);
+
+  function toggle(sessionId: string) {
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  }
+  const selectProps = (s: { session_id: string }) =>
+    selecting ? { selected: picked.has(s.session_id), onToggle: () => toggle(s.session_id) } : {};
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
@@ -69,14 +89,33 @@ export default function SessionsPage() {
             </Toggle>
           ) : null}
           <Toggle>
-            <ToggleButton active={view === "trips"} onClick={() => setView("trips")}>
-              By trip
+            <ToggleButton active={view === "sessions"} onClick={() => setView("sessions")}>
+              Sessions
             </ToggleButton>
-            <ToggleButton active={view === "all"} onClick={() => setView("all")}>
-              All
+            <ToggleButton active={view === "trips"} onClick={() => setView("trips")}>
+              Trips
             </ToggleButton>
           </Toggle>
+          {canMark && !selecting ? (
+            <Toggle>
+              <ToggleButton active={false} onClick={() => setSelecting(true)}>
+                Select
+              </ToggleButton>
+            </Toggle>
+          ) : null}
         </div>
+      ) : null}
+
+      {selecting ? (
+        <BulkMarkPanel
+          selected={pickedSessions}
+          tripNames={allTripNames}
+          onClear={() => setPicked(new Set())}
+          onDone={() => {
+            setSelecting(false);
+            setPicked(new Set());
+          }}
+        />
       ) : null}
 
       {!isLoading && openNow.length > 0 ? (
@@ -84,7 +123,7 @@ export default function SessionsPage() {
           <h2 className="text-xs font-medium uppercase tracking-wide text-amber-400">Open now · {openNow.length}</h2>
           <div className="space-y-3">
             {openNow.map((s) => (
-              <SessionListItem key={s.session_id} session={s} />
+              <SessionListItem key={s.session_id} session={s} {...selectProps(s)} />
             ))}
           </div>
         </section>
@@ -101,14 +140,33 @@ export default function SessionsPage() {
           ) : null}
           {view === "trips" ? (
             <div className="space-y-3">
-              {trips.map((trip, i) => (
-                <TripGroup key={trip.id} trip={trip} defaultOpen={i === 0 && openNow.length === 0} />
+              {trips.length === 0 ? (
+                <p className="text-sm text-muted">
+                  No trips yet.{canMark ? " Open a session or use Select to put sessions in a trip." : ""}
+                </p>
+              ) : null}
+              {trips.map((trip) => (
+                <TripGroup
+                  key={`${trip.id}-${selecting}`}
+                  trip={trip}
+                  defaultOpen={selecting}
+                  selected={selecting ? picked : undefined}
+                  onToggle={selecting ? toggle : undefined}
+                />
               ))}
+              {untripped.length > 0 ? (
+                <>
+                  <h2 className="pt-2 text-xs font-medium uppercase tracking-wide text-muted">Not in a trip · {untripped.length}</h2>
+                  {untripped.map((s) => (
+                    <SessionListItem key={s.session_id} session={s} {...selectProps(s)} />
+                  ))}
+                </>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-3">
               {sortedAll.map((s) => (
-                <SessionListItem key={s.session_id} session={s} />
+                <SessionListItem key={s.session_id} session={s} {...selectProps(s)} />
               ))}
             </div>
           )}

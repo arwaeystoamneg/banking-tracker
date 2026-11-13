@@ -117,6 +117,7 @@ export const SESSIONS_TAB: TabConfig = {
     "payroll_paid_by",
     "overtime_status",
     "ray_sponsored",
+    "trip",
   ],
   numberFields: ["buy_in", "_row_version"],
   nullableNumberFields: [

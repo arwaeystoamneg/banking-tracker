@@ -51,7 +51,7 @@ import { correctFutureStartDate } from "@/lib/dates";
 
 /** The paid check-off (Ray/admin only) and the overtime request/approval. Neither is a normal edit. */
 const PAID_KEYS = ["payroll_paid_at", "payroll_paid_by"];
-const PAYROLL_KEYS = [...PAID_KEYS, "overtime_status", "ray_sponsored"];
+const PAYROLL_KEYS = [...PAID_KEYS, "overtime_status", "ray_sponsored", "trip"];
 
 function assertOwnsGame(user: AuthUser, game: Game): void {
   if (!ownsGame(user, game)) throw new AuthorizationError("Only the game owner or an admin can change this game");
@@ -332,6 +332,9 @@ export function createAuthorizedRepositories(
         if ("ray_sponsored" in patch && !approver) {
           throw new AuthorizationError("Only Ray or an admin can tag a session Ray sponsored");
         }
+        if ("trip" in patch && !approver) {
+          throw new AuthorizationError("Only Ray or an admin can put sessions in a trip");
+        }
         if ("overtime_status" in patch && !approver) {
           // The player (or whoever logged it) may ask for overtime or withdraw the ask — never decide it.
           if (patch.overtime_status === "approved" || patch.overtime_status === "declined") {
@@ -365,6 +368,7 @@ export function createAuthorizedRepositories(
           }
           // The sponsor tag doesn't change pay, so it can flip on paid sessions and anyone's session.
           if ("ray_sponsored" in patch) changes.ray_sponsored = Boolean(patch.ray_sponsored);
+          if ("trip" in patch) changes.trip = (patch.trip ?? "").trim();
           if ("casino" in patch) changes.casino = patch.casino?.trim() ? canonicalCasino(patch.casino) : "";
           if (settles) {
             Object.assign(

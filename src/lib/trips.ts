@@ -4,15 +4,12 @@ import type { Session } from "@/lib/validation/schemas";
 import { isSessionOpen } from "@/lib/sessionHelpers";
 
 /**
- * A "trip" is one visit out to play — a contiguous run of sessions with no gap larger than
- * TRIP_MAX_GAP_DAYS between adjacent dates. This is derived purely from the `date` field (no schema
- * column, no data entry): a weekend of sessions collapses into one trip, and a return a week later
- * starts a new one. Casinos are not used to split — a single trip can hit several rooms.
+ * A "trip" is a set of sessions Ray or admin put together under one name (the session's `trip` field).
+ * Nothing is inferred from dates: a session with no trip name stands alone.
  */
-export const TRIP_MAX_GAP_DAYS = 1;
-
 export interface Trip {
   id: string;
+  name: string;
   startDate: string;
   endDate: string;
   sessions: Session[];
@@ -26,12 +23,6 @@ export interface Trip {
   totalMinutes: number;
 }
 
-function daysBetween(earlier: string, later: string): number {
-  const a = new Date(`${earlier}T00:00:00`).getTime();
-  const b = new Date(`${later}T00:00:00`).getTime();
-  return Math.round((b - a) / 86_400_000);
-}
-
 function durationMinutes(timeIn: string, timeOut: string): number {
   const [inH, inM] = timeIn.split(":").map(Number);
   const [outH, outM] = timeOut.split(":").map(Number);
@@ -40,7 +31,7 @@ function durationMinutes(timeIn: string, timeOut: string): number {
   return elapsed < 0 ? elapsed + 24 * 60 : elapsed;
 }
 
-function summarize(sessions: Session[]): Trip {
+function summarize(name: string, sessions: Session[]): Trip {
   const casinos: string[] = [];
   const seenCasinos = new Set<string>();
   let netCash = d(0);
@@ -65,7 +56,8 @@ function summarize(sessions: Session[]): Trip {
 
   const dates = sessions.map((s) => s.date).sort();
   return {
-    id: `trip_${dates[0]}_${dates[dates.length - 1]}`,
+    id: `trip_${name}`,
+    name,
     startDate: dates[0],
     endDate: dates[dates.length - 1],
     sessions,
@@ -79,40 +71,37 @@ function summarize(sessions: Session[]): Trip {
   };
 }
 
+/** The trip name a session was put in, trimmed; "" when it isn't in one. */
+export function sessionTrip(session: Pick<Session, "trip">): string {
+  return (session.trip ?? "").trim();
+}
+
 /**
- * Groups sessions into trips by date proximity and returns them most-recent-first, with the sessions
- * inside each trip also most-recent-first. Sessions with the same date always share a trip.
+ * Groups sessions by their trip name, most recent trip first, with each trip's sessions newest-first.
+ * Sessions without a trip are left out; the list shows them on their own.
  */
-export function groupSessionsIntoTrips(sessions: Session[], maxGapDays: number = TRIP_MAX_GAP_DAYS): Trip[] {
-  if (sessions.length === 0) return [];
-
-  const byDateAsc = [...sessions].sort((a, b) =>
-    a.date === b.date ? a.logged_at.localeCompare(b.logged_at) : a.date.localeCompare(b.date),
-  );
-
-  const groups: Session[][] = [];
-  let current: Session[] = [];
-  for (const s of byDateAsc) {
-    if (current.length === 0) {
-      current = [s];
-      continue;
-    }
-    const prev = current[current.length - 1];
-    if (daysBetween(prev.date, s.date) <= maxGapDays) {
-      current.push(s);
-    } else {
-      groups.push(current);
-      current = [s];
-    }
+export function groupSessionsIntoTrips(sessions: Session[]): Trip[] {
+  const byName = new Map<string, Session[]>();
+  for (const s of sessions) {
+    const name = sessionTrip(s);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    byName.set(key, [...(byName.get(key) ?? []), s]);
   }
-  if (current.length > 0) groups.push(current);
-
-  return groups
+  const newestFirst = (a: Session, b: Session) =>
+    a.date === b.date ? b.logged_at.localeCompare(a.logged_at) : b.date.localeCompare(a.date);
+  return [...byName.values()]
     .map((group) => {
-      const trip = summarize(group);
-      // Present sessions newest-first within the trip.
-      trip.sessions = [...group].reverse();
+      const sorted = [...group].sort(newestFirst);
+      // Rooms listed in the order they were visited; the name as most recently typed wins.
+      const trip = summarize(sessionTrip(sorted[0]), [...sorted].reverse());
+      trip.sessions = sorted;
       return trip;
     })
-    .reverse();
+    .sort((a, b) => b.endDate.localeCompare(a.endDate) || a.name.localeCompare(b.name));
+}
+
+/** Trip names in use, most recent first, for picking one. */
+export function tripNames(sessions: Session[]): string[] {
+  return groupSessionsIntoTrips(sessions).map((trip) => trip.name);
 }

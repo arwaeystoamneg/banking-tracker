@@ -155,6 +155,9 @@ session, paid or not); it never affects pay. New sessions always start untagged.
 also tag the cardroom (`casino`) with one tap: the Bay Area rooms (M8trix, Artichoke Joe's, Oaks, Bay 101) or
 the LA rooms (Hollywood Park, Bicycle, Commerce, Hustler, Gardens), listed in `TAG_CARDROOM_AREAS` in `names.ts`, again on anyone's session; it shows as a tag beside the session.
 
+`trip` is a trip name Ray/admin set (session page, or Select on the Sessions list to mark many at once).
+Trips are only what's named there; nothing is inferred from dates. Sessions with no trip stand alone.
+
 `player` is who played; `logged_by` is who entered the row. They differ when a teammate logs a session on
 someone's behalf. `player_id` links the player to a configured account (blank for someone outside the team);
 legacy rows with a blank `player` fall back to `logged_by`. The logger, the linked player, and admin may

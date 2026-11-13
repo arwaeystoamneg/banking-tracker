@@ -630,6 +630,15 @@ describe("overtime requests", () => {
     const cleared = await auth.sessions.update("o1", { casino: "" }, tagged._row_version);
     expect(cleared.casino).toBe("");
   });
+
+  it("only Ray or admin puts sessions in a trip, on anyone's session", async () => {
+    const repos = fixtureRepos({ sessions: [played()] });
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { trip: "LA" }, 1)).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    const tripped = await createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { trip: "  LA Aug 2026 " }, 1);
+    expect(tripped.trip).toBe("LA Aug 2026");
+  });
 });
 
 describe("duplicate sessions", () => {

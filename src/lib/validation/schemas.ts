@@ -163,6 +163,8 @@ export const sessionSchema = z
       .catch(""),
     /** Ray or admin flags a session Ray alone sponsored; shown as a "Ray sponsored only" tag. */
     ray_sponsored: z.boolean().default(false),
+    /** The trip Ray or admin put this session in; blank means it stands alone. */
+    trip: z.string().default(""),
   })
   .merge(rowVersion);
 export type Session = z.infer<typeof sessionSchema>;
@@ -194,6 +196,7 @@ export const sessionCreateSchema = sessionSchema
     payroll_paid_by: true,
     overtime_status: true,
     ray_sponsored: true,
+    trip: true,
   })
   .extend({
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.
