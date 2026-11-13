@@ -1,4 +1,4 @@
-import { computeResultStats, type ResultStats } from "@/lib/stats/resultStats";
+import { computeResultStats, teamSdPerHour, type ResultStats } from "@/lib/stats/resultStats";
 import { gamesByCasino, type GameSearchResult } from "@/lib/search";
 import { normalizeCasinoKey, sessionCardrooms } from "@/lib/names";
 import type { Session } from "@/lib/validation/schemas";
@@ -27,8 +27,9 @@ export function casinoSummaries(sessions: Session[], games: GameSearchResult[]):
   for (const section of gamesByCasino(games)) {
     if (section.casino !== "Unlisted") entry(section.casino).games = section.games;
   }
+  const teamSd = teamSdPerHour(sessions);
   return [...byKey.values()]
-    .map((casino) => ({ ...casino, stats: computeResultStats(casino.sessions) }))
+    .map((casino) => ({ ...casino, stats: computeResultStats(casino.sessions, teamSd) }))
     .sort(
       (a, b) =>
         b.stats.minutes - a.stats.minutes ||

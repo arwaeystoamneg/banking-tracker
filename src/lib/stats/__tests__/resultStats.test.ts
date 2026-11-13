@@ -60,6 +60,35 @@ describe("computeResultStats", () => {
     expect(stats.hourlyRange?.[0]).toBeCloseTo(-187.5 - margin, 6);
   });
 
+  it("pulls a small group's σ toward the team-wide σ instead of trusting three similar results", () => {
+    // Oaks on the live sheet: -$161/hr, -$265/hr, -$96/hr → own σ ≈ $92/hr, which claimed a sure loss.
+    const oaks = [
+      session({ session_id: "a", date: "2026-10-03", time_in: "23:00", time_out: "02:00", buy_in: 10000, buy_out: 9516 }),
+      session({ session_id: "b", date: "2026-10-30", time_in: "01:00", time_out: "03:30", buy_in: 15000, buy_out: 14338 }),
+      session({ session_id: "c", date: "2026-11-04", time_in: "22:20", time_out: "23:20", buy_in: 10000, buy_out: 9904 }),
+    ];
+    const own = computeResultStats(oaks);
+    expect(own.sdPerHour).toBeLessThan(100);
+    const blended = computeResultStats(oaks, 2000);
+    const sd = Math.sqrt((3 * own.sdPerHour! ** 2 + 10 * 2000 ** 2) / 13);
+    expect(blended.sdPerHour).toBeCloseTo(sd, 6);
+    expect(blended.sdIsRough).toBe(true);
+    expect(blended.hourlyRange![0]).toBeLessThan(0);
+    expect(blended.hourlyRange![1]).toBeGreaterThan(0);
+  });
+
+  it("gives no range under three timed sessions", () => {
+    const stats = computeResultStats(
+      [
+        session({ session_id: "a", date: "2026-11-01", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 0 }),
+        session({ session_id: "b", date: "2026-11-02", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 9000 }),
+      ],
+      2000,
+    );
+    expect(stats.sdPerHour).not.toBeNull();
+    expect(stats.hourlyRange).toBeNull();
+  });
+
   it("leaves untimed sessions out of hourly but keeps them in net", () => {
     const stats = computeResultStats([
       session({ session_id: "a", date: "2026-11-01", time_in: "18:00", time_out: "20:00", buy_in: 0, buy_out: 400 }),

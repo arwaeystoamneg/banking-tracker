@@ -16,10 +16,16 @@ export interface ResultStats {
   hourly: Decimal | null;
   /**
    * Standard deviation per hour of play: each session's miss from the hourly rate, weighted by its length
-   * (σ² = Σ (result − hourly·hours)² / hours ÷ sessions). Null with fewer than two timed sessions.
+   * (σ² = Σ (result − hourly·hours)² / hours ÷ sessions). With a team-wide σ, a group with few sessions leans on it
+   * (see blendSd); without one it's the group's own figure, null under two timed sessions.
    */
   sdPerHour: number | null;
-  /** 95% range for the true hourly given the hours played (hourly ± 1.96·σ/√hours); null without σ. */
+  /** True when sdPerHour is mostly borrowed from the team-wide σ because this group has few sessions. */
+  sdIsRough: boolean;
+  /**
+   * 95% range for the true hourly given the hours played (hourly ± 1.96·σ/√hours). Null without σ or under
+   * MIN_RANGE_SESSIONS timed sessions, where one big night decides the whole range.
+   */
   hourlyRange: [number, number] | null;
   best: Session | null;
   worst: Session | null;
@@ -37,7 +43,26 @@ function result(session: Session): Decimal {
   return d(session.buy_out ?? 0).minus(session.buy_in);
 }
 
-export function computeResultStats(sessions: Session[]): ResultStats {
+/**
+ * How many sessions' worth of weight the team-wide σ gets. A handful of sessions that happen to land close together
+ * says little about the swing (three similar losses gave Oaks σ ≈ $92/hr against ~$1,500/hr everywhere else), so a
+ * small group's σ is pulled toward the team's until it has enough sessions to speak for itself.
+ */
+const PRIOR_SESSIONS = 10;
+const MIN_RANGE_SESSIONS = 3;
+
+function blendSd(own: number | null, count: number, team: number | null | undefined): number | null {
+  if (team === null || team === undefined) return count >= 2 ? own : null;
+  const n = count >= 2 && own !== null ? count : 0;
+  return Math.sqrt((n * (own ?? 0) ** 2 + PRIOR_SESSIONS * team ** 2) / (n + PRIOR_SESSIONS));
+}
+
+/** σ per hour across every session, for groups too small to estimate their own (pass to computeResultStats). */
+export function teamSdPerHour(sessions: Session[]): number | null {
+  return computeResultStats(sessions).sdPerHour;
+}
+
+export function computeResultStats(sessions: Session[], teamSd?: number | null): ResultStats {
   const finished = sessions.filter((s) => !isSessionOpen(s) && s.buy_out !== null).sort(byPlayTimeNewestFirst).reverse();
   let net = d(0);
   let timedNet = d(0);
@@ -67,9 +92,10 @@ export function computeResultStats(sessions: Session[]): ResultStats {
 
   const hours = minutes / 60;
   const rate = hours > 0 ? timedNet.toNumber() / hours : 0;
-  const sdPerHour =
+  const ownSd =
     timed.length >= 2 ? Math.sqrt(timed.reduce((sum, t) => sum + (t.result - rate * t.hours) ** 2 / t.hours, 0) / timed.length) : null;
-  const margin = sdPerHour === null ? null : (1.96 * sdPerHour) / Math.sqrt(hours);
+  const sdPerHour = blendSd(ownSd, timed.length, teamSd);
+  const margin = sdPerHour === null || hours <= 0 || timed.length < MIN_RANGE_SESSIONS ? null : (1.96 * sdPerHour) / Math.sqrt(hours);
 
   const dates = sessions.map((s) => s.date).sort();
   return {
@@ -80,6 +106,7 @@ export function computeResultStats(sessions: Session[]): ResultStats {
     minutes,
     hourly: minutes > 0 ? timedNet.dividedBy(minutes).times(60) : null,
     sdPerHour,
+    sdIsRough: teamSd !== null && teamSd !== undefined && timed.length < PRIOR_SESSIONS,
     hourlyRange: margin === null ? null : [rate - margin, rate + margin],
     best,
     worst,
@@ -90,7 +117,7 @@ export function computeResultStats(sessions: Session[]): ResultStats {
 }
 
 /** The same figures split by cardroom, busiest room first. A night across rooms counts toward "Several rooms". */
-export function statsByRoom(sessions: Session[]): RoomStats[] {
+export function statsByRoom(sessions: Session[], teamSd?: number | null): RoomStats[] {
   const groups = new Map<string, Session[]>();
   for (const session of sessions) {
     const rooms = sessionCardrooms(session.casino);
@@ -98,7 +125,7 @@ export function statsByRoom(sessions: Session[]): RoomStats[] {
     groups.set(room, [...(groups.get(room) ?? []), session]);
   }
   return [...groups.entries()]
-    .map(([room, group]) => ({ room, ...computeResultStats(group) }))
+    .map(([room, group]) => ({ room, ...computeResultStats(group, teamSd) }))
     .sort((a, b) => b.minutes - a.minutes || b.completedCount - a.completedCount);
 }
 

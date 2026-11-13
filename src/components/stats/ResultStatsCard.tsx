@@ -1,11 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { formatDateForDisplay, formatDuration } from "@/lib/dates";
 import { d, formatMoney, type Decimal } from "@/lib/decimal";
 import { roomDotStyle } from "@/lib/cardroomColors";
 import { useRoomColors } from "@/hooks/useRoomColors";
-import { computeResultStats, statsByRoom, type ResultStats } from "@/lib/stats/resultStats";
+import { useSessions } from "@/hooks/useSessions";
+import { computeResultStats, statsByRoom, teamSdPerHour, type ResultStats } from "@/lib/stats/resultStats";
 import { sessionPlayerName } from "@/lib/sessionHelpers";
 import type { Session } from "@/lib/validation/schemas";
 
@@ -39,8 +41,10 @@ export function ResultStatsCard({
   breakdowns?: { heading: string; rows: { label: string; sessions: Session[] }[] }[];
 }) {
   const { colorOf } = useRoomColors();
-  const stats = computeResultStats(sessions);
-  const rooms = statsByRoom(sessions);
+  const { sessions: everySession } = useSessions();
+  const teamSd = useMemo(() => teamSdPerHour(everySession), [everySession]);
+  const stats = computeResultStats(sessions, teamSd);
+  const rooms = statsByRoom(sessions, teamSd);
   const open = stats.sessionCount - stats.completedCount;
   const done = stats.completedCount > 0;
   const winRate = done ? Math.round((stats.winningCount / stats.completedCount) * 100) : null;
@@ -77,8 +81,18 @@ export function ResultStatsCard({
           label="Hourly"
           value={hourlyText(stats)}
           className={stats.hourly ? tone(stats.hourly) : undefined}
-          note={stats.hourlyRange ? `likely ${wholeDollars(stats.hourlyRange[0])} to ${wholeDollars(stats.hourlyRange[1])}` : undefined}
-          hint="95% range for the true hourly, given the hours played"
+          note={
+            stats.hourlyRange
+              ? `likely ${wholeDollars(stats.hourlyRange[0])} to ${wholeDollars(stats.hourlyRange[1])}`
+              : stats.hourly !== null && stats.completedCount < 3
+                ? "too few sessions for a range"
+                : undefined
+          }
+          hint={
+            stats.sdIsRough
+              ? "95% range for the true hourly. Few sessions here, so the swing is mostly the team-wide figure"
+              : "95% range for the true hourly, given the hours played"
+          }
         />
         <Stat label="Hours played" value={stats.minutes > 0 ? formatDuration(stats.minutes) : "—"} />
         <Stat label="Win rate" value={winRate === null ? "—" : `${winRate}% (${stats.winningCount}/${stats.completedCount})`} />
@@ -93,7 +107,8 @@ export function ResultStatsCard({
         />
         <Stat
           label="Std dev / hr"
-          value={stats.sdPerHour === null ? "—" : `${wholeDollars(stats.sdPerHour)}/hr`}
+          value={stats.sdPerHour === null ? "—" : `${stats.sdIsRough ? "~" : ""}${wholeDollars(stats.sdPerHour)}/hr`}
+          note={stats.sdIsRough ? "few sessions · leans on team-wide" : undefined}
           hint="How much an hour's result typically swings around the hourly"
         />
       </div>
@@ -116,7 +131,7 @@ export function ResultStatsCard({
           <Breakdown
             key={heading}
             heading={heading}
-            rows={rows.map((row) => ({ key: row.label, label: row.label, dot: null, stats: computeResultStats(row.sessions) }))}
+            rows={rows.map((row) => ({ key: row.label, label: row.label, dot: null, stats: computeResultStats(row.sessions, teamSd) }))}
           />
         ))}
     </section>
@@ -150,7 +165,7 @@ function Breakdown({
               </span>
               <span className="block text-xs text-muted">
                 {hourlyText(stats)}
-                {showSd && stats.sdPerHour !== null ? ` · SD ${wholeDollars(stats.sdPerHour)}/hr` : ""}
+                {showSd && stats.sdPerHour !== null ? ` · SD ${stats.sdIsRough ? "~" : ""}${wholeDollars(stats.sdPerHour)}/hr` : ""}
               </span>
             </span>
           </div>

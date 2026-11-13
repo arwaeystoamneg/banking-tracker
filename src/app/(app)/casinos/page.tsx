@@ -56,7 +56,7 @@ export default function CasinosPage() {
                     {stats.hourly ? `${wholeDollars(stats.hourly.toString())}/hr` : ""}
                     {stats.minutes > 0 ? ` · ${formatDuration(stats.minutes)}` : ""}
                   </p>
-                  {stats.sdPerHour !== null ? <p className="num text-xs text-muted">SD {wholeDollars(stats.sdPerHour)}/hr</p> : null}
+                  {stats.sdPerHour !== null ? <p className="num text-xs text-muted">SD {stats.sdIsRough ? "~" : ""}{wholeDollars(stats.sdPerHour)}/hr</p> : null}
                 </div>
               </div>
             </Link>
