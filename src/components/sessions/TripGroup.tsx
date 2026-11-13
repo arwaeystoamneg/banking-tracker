@@ -5,6 +5,7 @@ import { SessionListItem } from "@/components/sessions/SessionListItem";
 import { formatDateRange, formatDuration } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
 import type { Trip } from "@/lib/trips";
+import { cardroomColor } from "@/lib/cardroomColors";
 
 /** A collapsible trip: summary row you tap to reveal the individual sessions inside it. */
 export function TripGroup({
@@ -34,7 +35,13 @@ export function TripGroup({
           <p className="truncate text-sm font-semibold text-foreground">{trip.name}</p>
           <p className="truncate text-xs text-muted">
             <span className="num">{dateLabel}</span> ·{" "}
-            {trip.casinos.length ? `${trip.casinos.join(" · ")} · ` : ""}
+            {trip.casinos.map((room) => (
+              <span key={room} className="mr-1.5 inline-flex items-center gap-1">
+                <span aria-hidden className={`h-2 w-2 rounded-full ${cardroomColor(room).dot}`} />
+                {room}
+              </span>
+            ))}
+            {trip.casinos.length ? "· " : ""}
             <span className="num">{trip.sessionCount}</span> session{trip.sessionCount === 1 ? "" : "s"}
             {trip.openCount > 0 ? <span className="text-amber-400"> · {trip.openCount} open</span> : null}
           </p>

@@ -7,7 +7,8 @@ import { TripPicker } from "@/components/sessions/TripPicker";
 import { useSessions } from "@/hooks/useSessions";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
 import { canMarkPayrollPaid } from "@/lib/payroll";
-import { sessionCardroom, TAG_CARDROOM_AREAS, TAG_CARDROOMS } from "@/lib/names";
+import { sessionCardroom, sessionCardrooms, TAG_CARDROOM_AREAS, TAG_CARDROOMS } from "@/lib/names";
+import { cardroomColor } from "@/lib/cardroomColors";
 import { sessionTrip, tripNames } from "@/lib/trips";
 import type { Session } from "@/lib/validation/schemas";
 
@@ -15,10 +16,13 @@ type Marks = Partial<Pick<Session, "casino" | "ray_sponsored" | "trip">>;
 
 /** The session's cardroom and "Ray sponsored only", shown as tags next to it. */
 export function SessionTagBadges({ session }: { session: Pick<Session, "casino" | "ray_sponsored"> }) {
-  const room = sessionCardroom(session.casino);
   return (
     <>
-      {room ? <Badge tone="room">{room}</Badge> : null}
+      {sessionCardrooms(session.casino).map((room) => (
+        <Badge key={room} className={`font-semibold ${cardroomColor(room).badge}`}>
+          {room}
+        </Badge>
+      ))}
       {session.ray_sponsored ? <Badge tone="sponsor">Ray sponsored only</Badge> : null}
     </>
   );
@@ -36,7 +40,10 @@ export function CardroomPicker({ current, onPick, disabled = false }: { current:
               const active = room === current;
               return (
                 <Chip key={room} active={active} onClick={() => onPick(active ? "" : room)}>
-                  {room}
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${cardroomColor(room).dot}`} />
+                    {room}
+                  </span>
                 </Chip>
               );
             })}
