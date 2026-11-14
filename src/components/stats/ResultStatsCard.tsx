@@ -7,7 +7,7 @@ import { d, formatMoney, type Decimal } from "@/lib/decimal";
 import { roomDotStyle } from "@/lib/cardroomColors";
 import { useRoomColors } from "@/hooks/useRoomColors";
 import { useSessions } from "@/hooks/useSessions";
-import { computeResultStats, statsByRoom, teamSdPerHour, type ResultStats } from "@/lib/stats/resultStats";
+import { computeResultStats, statsByRoom, sdPrior, type ResultStats } from "@/lib/stats/resultStats";
 import { sessionPlayerName } from "@/lib/sessionHelpers";
 import type { Session } from "@/lib/validation/schemas";
 
@@ -42,9 +42,9 @@ export function ResultStatsCard({
 }) {
   const { colorOf } = useRoomColors();
   const { sessions: everySession } = useSessions();
-  const teamSd = useMemo(() => teamSdPerHour(everySession), [everySession]);
-  const stats = computeResultStats(sessions, teamSd);
-  const rooms = statsByRoom(sessions, teamSd);
+  const prior = useMemo(() => sdPrior(everySession), [everySession]);
+  const stats = computeResultStats(sessions, prior);
+  const rooms = statsByRoom(sessions, prior);
   const open = stats.sessionCount - stats.completedCount;
   const done = stats.completedCount > 0;
   const winRate = done ? Math.round((stats.winningCount / stats.completedCount) * 100) : null;
@@ -90,7 +90,7 @@ export function ResultStatsCard({
           }
           hint={
             stats.sdIsRough
-              ? "95% range for the true hourly. Few sessions here, so the swing is mostly the team-wide figure"
+              ? "95% range for the true hourly. Few sessions here, so the swing is mostly what similar-stakes sessions elsewhere swing"
               : "95% range for the true hourly, given the hours played"
           }
         />
@@ -108,7 +108,7 @@ export function ResultStatsCard({
         <Stat
           label="Std dev / hr"
           value={stats.sdPerHour === null ? "—" : `${stats.sdIsRough ? "~" : ""}${wholeDollars(stats.sdPerHour)}/hr`}
-          note={stats.sdIsRough ? "few sessions · leans on team-wide" : undefined}
+          note={stats.sdIsRough ? "few sessions · leans on similar stakes" : undefined}
           hint="How much an hour's result typically swings around the hourly"
         />
       </div>
@@ -131,7 +131,7 @@ export function ResultStatsCard({
           <Breakdown
             key={heading}
             heading={heading}
-            rows={rows.map((row) => ({ key: row.label, label: row.label, dot: null, stats: computeResultStats(row.sessions, teamSd) }))}
+            rows={rows.map((row) => ({ key: row.label, label: row.label, dot: null, stats: computeResultStats(row.sessions, prior) }))}
           />
         ))}
     </section>

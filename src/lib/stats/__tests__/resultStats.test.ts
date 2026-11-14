@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeResultStats, statsByRoom } from "@/lib/stats/resultStats";
+import { computeResultStats, sdPrior, statsByRoom, t95 } from "@/lib/stats/resultStats";
 import type { Session } from "@/lib/validation/schemas";
 
 function session(overrides: Partial<Session> & { session_id: string; date: string }): Session {
@@ -54,37 +54,61 @@ describe("computeResultStats", () => {
     expect(stats.worst?.session_id).toBe("b");
     // +1000 high, then down to -2000.
     expect(stats.maxDrawdown.toNumber()).toBe(3000);
-    // hourly -187.5: misses of 1375, -2250, 875 over 2h, 4h, 2h → σ² = (945312.5 + 1265625 + 382812.5) / 3.
-    expect(stats.sdPerHour).toBeCloseTo(Math.sqrt(2593750 / 3), 6);
-    const margin = (1.96 * Math.sqrt(2593750 / 3)) / Math.sqrt(8);
+    // hourly -187.5: misses of 1375, -2250, 875 over 2h, 4h, 2h → σ² = (945312.5 + 1265625 + 382812.5) / (3 − 1).
+    expect(stats.sdPerHour).toBeCloseTo(Math.sqrt(2593750 / 2), 6);
+    const margin = (4.303 * Math.sqrt(2593750 / 2)) / Math.sqrt(8);
     expect(stats.hourlyRange?.[0]).toBeCloseTo(-187.5 - margin, 6);
   });
 
-  it("pulls a small group's σ toward the team-wide σ instead of trusting three similar results", () => {
-    // Oaks on the live sheet: -$161/hr, -$265/hr, -$96/hr → own σ ≈ $92/hr, which claimed a sure loss.
+  // Elsewhere: ten $10k sessions swinging ±$1,000 over an hour, ten $20k sessions swinging ±$5,000.
+  const elsewhere = Array.from({ length: 20 }, (_, i) => {
+    const big = i >= 10;
+    const swing = (big ? 5000 : 1000) * (i % 2 ? 1 : -1);
+    const buyIn = big ? 20000 : 10000;
+    return session({ session_id: `e${i}`, date: "2026-09-01", time_in: "18:00", time_out: "19:00", buy_in: buyIn, buy_out: buyIn + swing });
+  });
+
+  it("pulls a small group's σ toward what sessions at its stakes swing elsewhere", () => {
+    // Oaks on the live sheet: -$161/hr, -$265/hr, -$96/hr → own σ ≈ $112/hr, which claimed a sure loss.
     const oaks = [
       session({ session_id: "a", date: "2026-10-03", time_in: "23:00", time_out: "02:00", buy_in: 10000, buy_out: 9516 }),
-      session({ session_id: "b", date: "2026-10-30", time_in: "01:00", time_out: "03:30", buy_in: 15000, buy_out: 14338 }),
+      session({ session_id: "b", date: "2026-10-30", time_in: "01:00", time_out: "03:30", buy_in: 10000, buy_out: 9338 }),
       session({ session_id: "c", date: "2026-11-04", time_in: "22:20", time_out: "23:20", buy_in: 10000, buy_out: 9904 }),
     ];
-    const own = computeResultStats(oaks);
-    expect(own.sdPerHour).toBeLessThan(100);
-    const blended = computeResultStats(oaks, 2000);
-    const sd = Math.sqrt((3 * own.sdPerHour! ** 2 + 10 * 2000 ** 2) / 13);
-    expect(blended.sdPerHour).toBeCloseTo(sd, 6);
+    const own = computeResultStats(oaks).sdPerHour!;
+    expect(own).toBeLessThan(150);
+    const prior = sdPrior([...oaks, ...elsewhere]);
+    const blended = computeResultStats(oaks, prior);
+    // The $10k tier elsewhere: σ² = 10 · 1000² / 9; Oaks's own sessions don't count toward it.
+    const tier = (10 * 1000 ** 2) / 9;
+    expect(blended.sdPerHour).toBeCloseTo(Math.sqrt((2 * own ** 2 + 10 * tier) / 12), 6);
     expect(blended.sdIsRough).toBe(true);
-    expect(blended.hourlyRange![0]).toBeLessThan(0);
+    expect(blended.hourlyRange![0]).toBeCloseTo(-191.08 - (t95(12) * blended.sdPerHour!) / Math.sqrt(6.5), 0);
     expect(blended.hourlyRange![1]).toBeGreaterThan(0);
   });
 
+  it("leans big-bankroll sessions on the big-bankroll swing", () => {
+    const big = [
+      session({ session_id: "x", date: "2026-11-08", time_in: "21:00", time_out: "22:00", buy_in: 19000, buy_out: 19000 }),
+      session({ session_id: "y", date: "2026-11-09", time_in: "21:00", time_out: "22:00", buy_in: 19000, buy_out: 19000 }),
+    ];
+    const prior = sdPrior([...big, ...elsewhere]);
+    expect(computeResultStats(big, prior).sdPerHour).toBeCloseTo(Math.sqrt((10 * (10 * 5000 ** 2) / 9) / 11), 6);
+  });
+
+  it("matches the t table", () => {
+    expect(t95(2)).toBeCloseTo(4.303, 3);
+    expect(t95(5)).toBeCloseTo(2.571, 2);
+    expect(t95(12)).toBeCloseTo(2.179, 2);
+    expect(t95(30)).toBeCloseTo(2.042, 2);
+  });
+
   it("gives no range under three timed sessions", () => {
-    const stats = computeResultStats(
-      [
-        session({ session_id: "a", date: "2026-11-01", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 0 }),
-        session({ session_id: "b", date: "2026-11-02", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 9000 }),
-      ],
-      2000,
-    );
+    const pair = [
+      session({ session_id: "a", date: "2026-11-01", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 0 }),
+      session({ session_id: "b", date: "2026-11-02", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 9000 }),
+    ];
+    const stats = computeResultStats(pair, sdPrior([...pair, ...elsewhere]));
     expect(stats.sdPerHour).not.toBeNull();
     expect(stats.hourlyRange).toBeNull();
   });
