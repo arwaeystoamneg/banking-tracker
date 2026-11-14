@@ -7,7 +7,7 @@ import { useSessions } from "@/hooks/useSessions";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
-import { EndSessionCard } from "@/components/sessions/SessionSummaryCard";
+import { EndSessionCard, optionalStack } from "@/components/sessions/SessionSummaryCard";
 import { serverReachable } from "@/lib/reachable";
 import { formatDateForDisplay, nowIso, startDateForTimeIn } from "@/lib/dates";
 import { useLiveTime } from "@/hooks/useLiveTime";
@@ -53,6 +53,8 @@ export function SessionForm({ session }: { session?: Session }) {
   const [timeIn, setTimeIn, timeInForSave] = useLiveTime(session?.time_in ?? "");
   const date = pickedDate || startDateForTimeIn(timeIn);
   const [timeOut, setTimeOut] = useState(() => session?.time_out ?? "");
+  const [lowStack, setLowStack] = useState(() => (session?.low_stack == null ? "" : String(session.low_stack)));
+  const [highStack, setHighStack] = useState(() => (session?.high_stack == null ? "" : String(session.high_stack)));
   const [loggedBy, setLoggedBy] = useState(() => session?.logged_by ?? (isAccount ? user.name : getRememberedLoggedBy()));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -97,7 +99,7 @@ export function SessionForm({ session }: { session?: Session }) {
         time_in: time,
         logged_by: isAccount ? (session?.logged_by ?? user.name) : loggedBy.trim(),
         ...(playerLocked ? {} : player),
-        ...(closed ? { buy_out: buyOutAmount, time_out: timeOut } : {}),
+        ...(closed ? { buy_out: buyOutAmount, time_out: timeOut, low_stack: optionalStack(lowStack), high_stack: optionalStack(highStack) } : {}),
       };
 
       if (session) {
@@ -201,6 +203,14 @@ export function SessionForm({ session }: { session?: Session }) {
           <label className="block space-y-1">
             <span className={LABEL}>Time out</span>
             <Input type="time" value={timeOut} onChange={(e) => setTimeOut(e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <span className={LABEL}>Lowest stack</span>
+            <Input value={lowStack} onChange={(e) => setLowStack(e.target.value)} inputMode="decimal" placeholder="Rough is fine" />
+          </label>
+          <label className="block space-y-1">
+            <span className={LABEL}>Highest stack</span>
+            <Input value={highStack} onChange={(e) => setHighStack(e.target.value)} inputMode="decimal" placeholder="Rough is fine" />
           </label>
         </div>
       ) : null}

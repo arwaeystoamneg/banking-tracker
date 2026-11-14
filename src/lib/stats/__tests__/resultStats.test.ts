@@ -31,6 +31,8 @@ function session(overrides: Partial<Session> & { session_id: string; date: strin
     overtime_status: "",
     ray_sponsored: false,
     trip: "",
+    low_stack: null,
+    high_stack: null,
     logged_by: "Ray",
     logged_at: `${overrides.date}T20:00:00.000Z`,
     _row_version: 1,
@@ -131,5 +133,27 @@ describe("statsByRoom", () => {
       session({ session_id: "c", date: "2026-11-03", time_out: "19:00", buy_out: 9000, casino: "HPC | Commerce" }),
     ]);
     expect(rooms.map((r) => r.room)).toEqual(["Artichoke Joe's", "Oaks", "Several rooms"]);
+  });
+});
+
+describe("in-session swing", () => {
+  it("estimates σ from lowest and highest stacks and finds the deepest dip", () => {
+    const stats = computeResultStats([
+      // Down to 4k and up to 12k before ending at 10.5k over 4h: range 8,000.
+      session({ session_id: "a", date: "2026-11-01", time_in: "18:00", time_out: "22:00", buy_in: 10000, buy_out: 10500, low_stack: 4000, high_stack: 12000 }),
+      // Only a low recorded: counts for the dip, not the swing.
+      session({ session_id: "b", date: "2026-11-02", time_in: "18:00", time_out: "20:00", buy_in: 10000, buy_out: 9000, low_stack: 7000 }),
+      session({ session_id: "c", date: "2026-11-03", time_in: "18:00", time_out: "20:00", buy_in: 10000, buy_out: 11000 }),
+    ]);
+    expect(stats.swingSessions).toBe(1);
+    expect(stats.inSessionSdPerHour).toBeCloseTo(Math.sqrt(8000 ** 2 / (4 * Math.LN2 * 4)), 6);
+    expect(stats.deepestDip).toBe(6000);
+  });
+
+  it("widens a low or high that was estimated inside the session's own ends", () => {
+    const stats = computeResultStats([
+      session({ session_id: "a", date: "2026-11-01", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 15000, low_stack: 9000, high_stack: 14000 }),
+    ]);
+    expect(stats.inSessionSdPerHour).toBeCloseTo(Math.sqrt(6000 ** 2 / (4 * Math.LN2)), 6);
   });
 });

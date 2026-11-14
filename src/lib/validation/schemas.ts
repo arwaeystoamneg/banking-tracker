@@ -165,6 +165,12 @@ export const sessionSchema = z
     ray_sponsored: z.boolean().default(false),
     /** The trip Ray or admin put this session in; blank means it stands alone. */
     trip: z.string().default(""),
+    /**
+     * Optional chip counts at the session's lowest and highest points. Ends alone hide how far a night swung before
+     * it settled; these let stats estimate the swing within sessions. Blank = not recorded.
+     */
+    low_stack: z.number().nonnegative().nullable().default(null),
+    high_stack: z.number().nonnegative().nullable().default(null),
   })
   .merge(rowVersion);
 export type Session = z.infer<typeof sessionSchema>;
@@ -197,6 +203,8 @@ export const sessionCreateSchema = sessionSchema
     overtime_status: true,
     ray_sponsored: true,
     trip: true,
+    low_stack: true,
+    high_stack: true,
   })
   .extend({
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.

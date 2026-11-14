@@ -118,6 +118,8 @@ export const SESSIONS_TAB: TabConfig = {
     "overtime_status",
     "ray_sponsored",
     "trip",
+    "low_stack",
+    "high_stack",
   ],
   numberFields: ["buy_in", "_row_version"],
   nullableNumberFields: [
@@ -131,6 +133,8 @@ export const SESSIONS_TAB: TabConfig = {
     "gross_wl",
     "net_pnl",
     "peak_drawdown",
+    "low_stack",
+    "high_stack",
   ],
   booleanFields: ["ray_sponsored"],
 };

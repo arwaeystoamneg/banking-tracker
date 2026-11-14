@@ -31,6 +31,8 @@ const FIELD_LABEL: Record<string, string> = {
   ray_sponsored: "Ray sponsored only",
   casino: "Cardroom",
   trip: "Trip",
+  low_stack: "Lowest stack",
+  high_stack: "Highest stack",
   amount: "Amount",
   hourly_rate: "Base rate",
   overtime_rate: "Overtime rate",

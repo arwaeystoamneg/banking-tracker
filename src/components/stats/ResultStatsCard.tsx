@@ -111,6 +111,22 @@ export function ResultStatsCard({
           note={stats.sdIsRough ? "few sessions · leans on similar stakes" : undefined}
           hint="How much an hour's result typically swings around the hourly"
         />
+        {stats.swingSessions > 0 ? (
+          <Stat
+            label="Swing in session"
+            value={`~${wholeDollars(stats.inSessionSdPerHour!)}/hr`}
+            note={`from ${stats.swingSessions} session${stats.swingSessions === 1 ? "" : "s"} with low/high`}
+            hint="Std dev per hour of the stack during play, from each session's lowest and highest stack"
+          />
+        ) : null}
+        {stats.deepestDip > 0 ? (
+          <Stat
+            label="Deepest dip"
+            value={formatMoney(-stats.deepestDip)}
+            className="text-red-400"
+            hint="Furthest a session's stack fell below its buy-in"
+          />
+        ) : null}
       </div>
 
       {!hideRooms && (rooms.length > 1 || (rooms.length === 1 && rooms[0].room !== "No room")) ? (

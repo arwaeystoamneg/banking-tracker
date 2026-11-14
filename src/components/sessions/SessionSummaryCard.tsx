@@ -21,12 +21,22 @@ export function roundTotals(rounds: Round[]) {
   return { actionOffered, actionBooked, bonusAction, collectionPaid, grossWl, netPnl, coveragePct };
 }
 
+/** An optional chip count: a number, or null when left blank or unreadable (never blocks ending a session). */
+export function optionalStack(text: string): number | null {
+  if (text.trim() === "") return null;
+  const amount = parseMoneyInput(text);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
 /** Ends an open session. Legacy sessions with logged rounds also get their round totals saved. */
 export function EndSessionCard({ session }: { session: Session }) {
   const { rounds } = useRounds(session.session_id);
   const { update } = useSessions();
   const [buyOut, setBuyOut] = useState(session.buy_out === null ? "" : String(session.buy_out));
   const [timeOut, setTimeOut, timeOutForSave] = useLiveTime(session.time_out);
+  const [showSwing, setShowSwing] = useState(false);
+  const [lowStack, setLowStack] = useState("");
+  const [highStack, setHighStack] = useState("");
   const [closing, setClosing] = useState(false);
   const [closeError, setCloseError] = useState("");
 
@@ -48,6 +58,8 @@ export function EndSessionCard({ session }: { session: Session }) {
         {
           buy_out: buyOutAmount,
           time_out: timeOutForSave(),
+          ...(optionalStack(lowStack) !== null ? { low_stack: optionalStack(lowStack) } : {}),
+          ...(optionalStack(highStack) !== null ? { high_stack: optionalStack(highStack) } : {}),
           ...(rounds.length > 0
             ? {
                 rounds_banked: rounds.length,
@@ -82,6 +94,22 @@ export function EndSessionCard({ session }: { session: Session }) {
           <Input type="time" value={timeOut} onChange={(event) => setTimeOut(event.target.value)} />
         </label>
       </div>
+      {showSwing ? (
+        <div className="grid grid-cols-2 gap-2">
+          <label className="space-y-1 text-xs text-muted">
+            Lowest stack
+            <Input value={lowStack} onChange={(event) => setLowStack(event.target.value)} inputMode="decimal" placeholder="Rough is fine" />
+          </label>
+          <label className="space-y-1 text-xs text-muted">
+            Highest stack
+            <Input value={highStack} onChange={(event) => setHighStack(event.target.value)} inputMode="decimal" placeholder="Rough is fine" />
+          </label>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setShowSwing(true)} className="text-xs text-muted underline underline-offset-4 active:text-foreground">
+          Add lowest / highest stack (optional, rough is fine)
+        </button>
+      )}
       {preview ? (
         <p className="text-sm text-muted">
           Result{" "}

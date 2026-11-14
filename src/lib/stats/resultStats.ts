@@ -27,6 +27,16 @@ export interface ResultStats {
    * MIN_RANGE_SESSIONS timed sessions, where one big night decides the whole range.
    */
   hourlyRange: [number, number] | null;
+  /**
+   * σ per hour of the bankroll *during* sessions, from each session's lowest and highest stack: for a random walk
+   * E[(high − low)²] = 4·ln 2·σ²·hours. Session ends alone understate it when nights are played back to even.
+   * Null until a session has both recorded; the stacks are usually estimates, which squaring forgives.
+   */
+  inSessionSdPerHour: number | null;
+  /** Sessions with both a lowest and a highest stack. */
+  swingSessions: number;
+  /** Furthest any session fell below its buy-in, from its lowest stack (0 if none recorded below buy-in). */
+  deepestDip: number;
   best: Session | null;
   worst: Session | null;
   /** Deepest fall from a running high, session by session in play order (0 if it never fell). */
@@ -159,8 +169,27 @@ export function computeResultStats(sessions: Session[], prior?: SdPrior): Result
   const sdPerHour = variance === null ? null : Math.sqrt(variance);
   const margin = sdPerHour === null || hours <= 0 || timed.length < MIN_RANGE_SESSIONS ? null : (t95(df) * sdPerHour) / Math.sqrt(hours);
 
+  let rangeSquares = 0;
+  let rangeHours = 0;
+  let swingSessions = 0;
+  let deepestDip = 0;
+  for (const session of finished) {
+    const ends = [session.buy_in, session.buy_out ?? session.buy_in];
+    if (session.low_stack !== null) deepestDip = Math.max(deepestDip, session.buy_in - Math.min(session.low_stack, ...ends));
+    const played = sessionMinutes(session);
+    if (session.low_stack === null || session.high_stack === null || played === null || played <= 0) continue;
+    const range = Math.max(session.high_stack, ...ends) - Math.min(session.low_stack, ...ends);
+    rangeSquares += range ** 2;
+    rangeHours += played / 60;
+    swingSessions += 1;
+  }
+  const inSessionSdPerHour = swingSessions > 0 ? Math.sqrt(rangeSquares / (4 * Math.LN2 * rangeHours)) : null;
+
   const dates = sessions.map((s) => s.date).sort();
   return {
+    inSessionSdPerHour,
+    swingSessions,
+    deepestDip,
     sessionCount: sessions.length,
     completedCount: finished.length,
     winningCount,
