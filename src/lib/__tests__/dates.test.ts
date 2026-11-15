@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { correctFutureStartDate, normalizeTime, sessionSpanMinutes, startDateForTimeIn } from "@/lib/dates";
+import { correctFutureStartDate, normalizeTime, sessionSpanMinutes, startDateForTimeIn, cardroomYesterday } from "@/lib/dates";
 
 const at = (iso: string) => new Date(iso);
 
@@ -70,3 +70,10 @@ describe("sheet times and real session length", () => {
   });
 });
 
+
+describe("cardroomYesterday", () => {
+  it("uses the cardrooms' date, not UTC, so a California evening isn't counted as tomorrow", () => {
+    // 9pm Nov 14 in California is already Nov 15 in UTC.
+    expect(cardroomYesterday(new Date("2026-11-15T05:00:00Z"))).toBe("2026-11-13");
+  });
+});

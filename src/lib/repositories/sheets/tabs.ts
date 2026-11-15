@@ -283,6 +283,15 @@ export const ROOM_COLORS_TAB: TabConfig = {
   booleanFields: [],
 };
 
+export const AUTO_TRIPS_TAB: TabConfig = {
+  tabName: "AutoTrips",
+  idField: "player_key",
+  headers: ["player_key", "player", "trip", "since", "updated_by", "_row_version"],
+  numberFields: ["_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
 export const ALL_TABS = [
   GAMES_TAB,
   SIDEBETS_TAB,
@@ -297,4 +306,5 @@ export const ALL_TABS = [
   PAYROLL_MEMBERS_TAB,
   LOANS_TAB,
   ROOM_COLORS_TAB,
+  AUTO_TRIPS_TAB,
 ];

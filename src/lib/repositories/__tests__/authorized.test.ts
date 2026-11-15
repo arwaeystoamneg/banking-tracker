@@ -14,6 +14,7 @@ import {
   type Game,
   type LoanEntry,
   type RoomColor,
+  type AutoTrip,
   type LossEvidence,
   type LossReport,
   type Paytable,
@@ -84,6 +85,7 @@ function fixtureRepos(seed: {
   payrollMembers?: PayrollMember[];
   loans?: LoanEntry[];
   roomColors?: RoomColor[];
+  autoTrips?: AutoTrip[];
 }): Repositories & {
   games: ReturnType<typeof memoryRepo<Game>>;
   sidebets: ReturnType<typeof memoryRepo<Sidebet>>;
@@ -95,6 +97,7 @@ function fixtureRepos(seed: {
   payrollMembers: ReturnType<typeof memoryRepo<PayrollMember>>;
   loans: ReturnType<typeof memoryRepo<LoanEntry>>;
   roomColors: ReturnType<typeof memoryRepo<RoomColor>>;
+  autoTrips: ReturnType<typeof memoryRepo<AutoTrip>>;
 } {
   return {
     games: memoryRepo(seed.games ?? [], "game_id"),
@@ -110,6 +113,7 @@ function fixtureRepos(seed: {
     payrollMembers: memoryRepo(seed.payrollMembers ?? [], "membership_id"),
     loans: memoryRepo(seed.loans ?? [], "loan_entry_id"),
     roomColors: memoryRepo(seed.roomColors ?? [], "room"),
+    autoTrips: memoryRepo(seed.autoTrips ?? [], "player_key"),
   };
 }
 
@@ -584,6 +588,40 @@ describe("overtime requests", () => {
       session_id: "o1", date: "2026-10-20", buy_in: 100, buy_out: 100, time_in: "18:00", time_out: "06:00",
       logged_by: "Damon", logged_at: "", owner_id: "damon", player: "Damon", player_id: "damon", _row_version: 1, ...extra,
     });
+
+  it("new sessions join the player's auto trip; only Ray or admin turns it on", async () => {
+    const repos = fixtureRepos({});
+    const TRIP = "Damon Pre-Thanksgiving Internship";
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).autoTrips.create({ player: "Damon", trip: TRIP, updated_by: "" })).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    await createAuthorizedRepositories(repos, ray, roster).autoTrips.create({ player: "damon", trip: TRIP, since: "2026-11-01", updated_by: "" });
+    const asDamon = createAuthorizedRepositories(repos, damonUser, roster);
+    const start = { casino: "", buy_in: 10000, time_in: "18:00", logged_by: "Damon", logged_at: "", player_id: "damon" };
+    const joined = await asDamon.sessions.create({ ...start, date: "2026-11-14" });
+    expect(joined.trip).toBe(TRIP);
+    // A phone uploading a session from before it was turned on leaves that one alone.
+    const older = await asDamon.sessions.create({ ...start, date: "2026-10-20", time_in: "19:00" });
+    expect(older.trip).toBeFalsy();
+    // Someone else's sessions aren't touched.
+    const sams = await createAuthorizedRepositories(repos, sam, roster).sessions.create({ ...start, date: "2026-11-14", player_id: "sam", logged_by: "Sam Park" });
+    expect(sams.trip).toBeFalsy();
+    // Turned off: back to no trip.
+    const row = (await repos.autoTrips.list())[0];
+    await createAuthorizedRepositories(repos, ray, roster).autoTrips.remove(row.player_key, row._row_version);
+    expect((await asDamon.sessions.create({ ...start, date: "2026-11-15" })).trip).toBeFalsy();
+  });
+
+  it("a broken auto-trip lookup never stops a session being logged", async () => {
+    const repos = fixtureRepos({});
+    repos.autoTrips.list = async () => {
+      throw new Error("sheet down");
+    };
+    const created = await createAuthorizedRepositories(repos, damonUser, roster).sessions.create({
+      date: "2026-11-14", casino: "", buy_in: 10000, time_in: "18:00", logged_by: "Damon", logged_at: "", player_id: "damon",
+    });
+    expect(created.trip).toBeFalsy();
+  });
 
   it("Damon requests overtime, Ray approves it", async () => {
     const repos = fixtureRepos({ sessions: [played()] });

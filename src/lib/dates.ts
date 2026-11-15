@@ -73,6 +73,14 @@ function previousDay(date: string): string {
 }
 
 /**
+ * The day before today in the cardrooms' timezone, as a server-safe date ("2026-11-13"). The day before so a
+ * session that started last night and is logged after midnight still counts as "from now on".
+ */
+export function cardroomYesterday(now = new Date()): string {
+  return previousDay(cardroomStamp(now).slice(0, 10));
+}
+
+/**
  * Server-side safety net for the after-midnight mistake: a session whose start (date + time in) is in the
  * future can't be right, and when the same time a day earlier is in the past, that's when it started —
  * e.g. stamped Oct 23 with time in 7:30pm, saved at 1am on Oct 23. Anything further off is left alone.

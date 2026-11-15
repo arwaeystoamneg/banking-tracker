@@ -1,6 +1,6 @@
 import "server-only";
 import { isConfiguredAccountRole, type AuthUser, type TeamMember } from "@/lib/auth/types";
-import { canonicalCasino } from "@/lib/names";
+import { canonicalCasino, canonicalPerson, normalizePersonKey } from "@/lib/names";
 import {
   canEditLoanEntry,
   canEditReimbursement,
@@ -30,6 +30,8 @@ import type {
   PayrollMemberPatch,
   RoomColorCreate,
   RoomColorPatch,
+  AutoTripCreate,
+  AutoTripPatch,
   ReimbursementCreate,
   ReimbursementPatch,
   RoundCreate,
@@ -49,7 +51,7 @@ import {
 } from "@/lib/validation/schemas";
 import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
 import { canMarkPayrollPaid, payrollPeople, sessionEmployee } from "@/lib/payroll";
-import { correctFutureStartDate } from "@/lib/dates";
+import { cardroomYesterday, correctFutureStartDate } from "@/lib/dates";
 
 /** The paid check-off (Ray/admin only) and the overtime request/approval. Neither is a normal edit. */
 const PAID_KEYS = ["payroll_paid_at", "payroll_paid_by"];
@@ -138,6 +140,27 @@ export function resolveSessionPlayer(
   }
   const byName = team.find((candidate) => candidate.name.trim().toLowerCase() === name.toLowerCase());
   return byName ? { player: byName.name, player_id: byName.id } : { player: name, player_id: "" };
+}
+
+/** The key an auto-trip is filed under: the player's name with nicknames and spacing folded together. */
+export function autoTripKey(player: string): string {
+  return normalizePersonKey(canonicalPerson(player));
+}
+
+/**
+ * The trip a new session joins on its own, if Ray or admin turned that on for its player. Never throws: a
+ * failed lookup only means the session is saved without a trip, never that logging fails.
+ */
+async function autoTripFor(repos: Repositories, player: string, date: string): Promise<string> {
+  try {
+    const key = autoTripKey(player);
+    if (!key) return "";
+    const row = (await repos.autoTrips.list()).find((entry) => entry.player_key === key);
+    if (!row?.trip || (row.since && date < row.since)) return "";
+    return row.trip;
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -318,7 +341,8 @@ export function createAuthorizedRepositories(
         if (!isSessionOpen(candidate) && candidate.rounds_banked !== null && candidate.coverage_pct === null) {
           throw new InputError("Round totals need coverage data");
         }
-        return repos.sessions.create(withPlayer, id);
+        const trip = await autoTripFor(repos, withPlayer.player || stamped.logged_by, withPlayer.date);
+        return repos.sessions.create(trip ? { ...withPlayer, trip } : withPlayer, id);
       },
       async update(id: string, patch: SessionPatch, expectedVersion: number) {
         const session = await requiredSession(repos, id);
@@ -679,6 +703,29 @@ export function createAuthorizedRepositories(
       async remove(id: string, expectedVersion: number) {
         if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can change room colors");
         return repos.roomColors.remove(id, expectedVersion);
+      },
+    },
+    // Everyone can see which trip a player's sessions are joining; only Ray or admin turns it on or off.
+    autoTrips: {
+      list: () => repos.autoTrips.list(),
+      get: (id) => repos.autoTrips.get(id),
+      async create(data: AutoTripCreate) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can put sessions in a trip");
+        const player = canonicalPerson(data.player);
+        const key = autoTripKey(player);
+        if (!key) throw new InputError("Pick a player");
+        const fields = { player, trip: data.trip.trim(), since: data.since ?? cardroomYesterday(), updated_by: user.name };
+        const existing = await repos.autoTrips.get(key);
+        if (existing) return repos.autoTrips.update(key, fields, existing._row_version);
+        return repos.autoTrips.create({ ...fields }, key);
+      },
+      async update(id: string, patch: AutoTripPatch, expectedVersion: number) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can put sessions in a trip");
+        return repos.autoTrips.update(id, { ...patch, updated_by: user.name }, expectedVersion);
+      },
+      async remove(id: string, expectedVersion: number) {
+        if (!canMarkPayrollPaid(user)) throw new AuthorizationError("Only Ray or an admin can put sessions in a trip");
+        return repos.autoTrips.remove(id, expectedVersion);
       },
     },
   };

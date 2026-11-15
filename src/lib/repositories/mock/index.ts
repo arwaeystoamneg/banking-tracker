@@ -12,6 +12,7 @@ import {
   payrollMemberSchema,
   reimbursementSchema,
   roomColorSchema,
+  autoTripSchema,
   roundSchema,
   sessionSchema,
   sidebetSchema,
@@ -89,6 +90,13 @@ export function createMockRepositories(): Repositories {
       idField: "room",
       makeId: () => makeId("roomColor"),
       rowSchema: roomColorSchema,
+    }),
+    autoTrips: createMockRepository({
+      tab: "AutoTrips",
+      table: "autoTrips",
+      idField: "player_key",
+      makeId: () => makeId("autoTrip"),
+      rowSchema: autoTripSchema,
     }),
     lossReports: toLossReportRepository(
       createMockRepository({

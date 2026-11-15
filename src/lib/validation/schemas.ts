@@ -311,6 +311,28 @@ export type RoomColor = z.infer<typeof roomColorSchema>;
 export const roomColorCreateSchema = z.object({ room: z.string().trim().min(1), color: hexColor, updated_by: z.string().default("") });
 export const roomColorPatchSchema = z.object({ color: hexColor, updated_by: z.string().optional() });
 
+/**
+ * A trip that new sessions for one player join automatically, set by Ray or admin. Keyed by the player's
+ * normalized name; `since` keeps a phone uploading an older session late from dropping it into the trip.
+ */
+export const autoTripSchema = z
+  .object({
+    player_key: z.string(),
+    player: z.string().default(""),
+    trip: z.string().trim().default(""),
+    since: z.string().default(""),
+    updated_by: z.string().default(""),
+  })
+  .merge(rowVersion);
+export type AutoTrip = z.infer<typeof autoTripSchema>;
+export const autoTripCreateSchema = z.object({
+  player: z.string().trim().min(1),
+  trip: z.string().trim().min(1),
+  since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  updated_by: z.string().default(""),
+});
+export const autoTripPatchSchema = z.object({ trip: z.string().trim().min(1).optional(), since: z.string().optional(), updated_by: z.string().optional() });
+
 export const payrollMemberPatchSchema = z.object({
   hourly_rate: payRate.optional(),
   overtime_rate: payRate.optional(),

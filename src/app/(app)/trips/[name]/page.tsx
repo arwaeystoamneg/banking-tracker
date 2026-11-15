@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useSessions } from "@/hooks/useSessions";
 import { ResultStatsCard } from "@/components/stats/ResultStatsCard";
 import { SessionListItem } from "@/components/sessions/SessionListItem";
+import { AutoTripControl } from "@/components/sessions/AutoTripControl";
 import { groupSessionsIntoTrips } from "@/lib/trips";
 import { sessionsByPlayer } from "@/lib/stats/resultStats";
 
@@ -46,6 +47,8 @@ export default function TripPage() {
       {players.length > 1
         ? players.map((player) => <ResultStatsCard key={player.label} title={player.label} sessions={player.sessions} />)
         : null}
+
+      <AutoTripControl trip={trip.name} players={players.map((player) => player.label)} />
 
       <section className="space-y-3">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Sessions · {trip.sessionCount}</h2>

@@ -1,4 +1,5 @@
 import type {
+  AutoTrip,
   AuditEntry,
   FeeSchedule,
   Game,
@@ -95,6 +96,8 @@ import type {
   ReimbursementPatch,
   RoomColorCreate,
   RoomColorPatch,
+  AutoTripCreate,
+  AutoTripPatch,
   RoundCreate,
   RoundPatch,
   SessionCreate,
@@ -114,6 +117,7 @@ export interface Repositories {
   payrollMembers: CrudRepository<PayrollMember, PayrollMemberCreate, PayrollMemberPatch>;
   loans: CrudRepository<LoanEntry, LoanEntryCreate, LoanEntryPatch>;
   roomColors: CrudRepository<RoomColor, RoomColorCreate, RoomColorPatch>;
+  autoTrips: CrudRepository<AutoTrip, AutoTripCreate, AutoTripPatch>;
   lossReports: LossReportRepository;
   lossEvidence: AppendOnlyRepository<LossEvidence, LossEvidenceCreate>;
   auditLog: AppendOnlyRepository<AuditEntry, AuditEntryCreate>;

@@ -158,6 +158,10 @@ the LA rooms (Hollywood Park, Bicycle, Commerce, Hustler, Gardens), listed in `T
 `trip` is a trip name Ray/admin set (session page, or Select on the Sessions list to mark many at once).
 Trips are only what's named there; nothing is inferred from dates. Sessions with no trip stand alone.
 Each trip has its own stats page at `/trips/<name>` (whole trip, then each person on it).
+Auto-add: on a trip's page Ray/admin can turn a trip on for a player (`AutoTrips` tab: player_key, player, trip,
+since, updated_by). The server then sets `trip` on that player's new sessions dated on/after `since`, inside
+`sessions.create` in `authorized.ts`; the lookup is wrapped so a failure only means "no trip", never a failed save.
+One trip per player at a time; nothing on the logging form changes.
 
 Room colors live in the `RoomColors` tab (room, color hex, updated_by). Everyone reads them via
 `/api/room-colors`; only Ray/admin set them (session page → Cardroom → "Room colors"). They're kept out of the

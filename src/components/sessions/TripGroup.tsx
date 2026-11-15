@@ -8,6 +8,7 @@ import Link from "next/link";
 import { tripHref, type Trip } from "@/lib/trips";
 import { roomDotStyle } from "@/lib/cardroomColors";
 import { useRoomColors } from "@/hooks/useRoomColors";
+import { useAutoTrips } from "@/hooks/useAutoTrips";
 
 /** A collapsible trip: summary row you tap to reveal the individual sessions inside it. */
 export function TripGroup({
@@ -24,6 +25,8 @@ export function TripGroup({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const { colorOf } = useRoomColors();
+  const { autoTrips } = useAutoTrips();
+  const autoFor = autoTrips.filter((row) => row.trip.toLowerCase() === trip.name.toLowerCase()).map((row) => row.player);
 
   const dateLabel = formatDateRange(trip.startDate, trip.endDate);
 
@@ -35,7 +38,10 @@ export function TripGroup({
         className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors active:bg-surface-raised"
       >
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{trip.name}</p>
+          <p className="truncate text-sm font-semibold text-foreground">
+            {trip.name}
+            {autoFor.length ? <span className="ml-1.5 text-xs font-normal text-emerald-400">auto · {autoFor.join(", ")}</span> : null}
+          </p>
           <p className="truncate text-xs text-muted">
             <span className="num">{dateLabel}</span> ·{" "}
             {trip.casinos.map((room) => (
