@@ -11,6 +11,8 @@ import {
   type TeamMember,
 } from "@/lib/auth/types";
 import { checkSecret, makeCredentialVersion } from "@/lib/auth/passphrase";
+import { verifyPassword } from "@/lib/auth/password";
+import { findRegisteredAccount, listRegisteredAccounts, type RegisteredAccount } from "@/lib/auth/registered";
 
 const accountSchema = z.object({
   id: z.string().trim().min(1).regex(/^[a-zA-Z0-9_-]+$/),
@@ -88,14 +90,100 @@ function configuredAccounts(): Account[] {
   return [];
 }
 
-/** Names and ids of every configured account — never passwords. Used to pick who played a session. */
-export function listTeamMembers(): TeamMember[] {
+/** Names and ids of every APP_USERS_JSON account — never passwords. */
+export function listConfiguredTeamMembers(): TeamMember[] {
   try {
     return configuredAccounts().map((account) => ({ id: account.id.toLowerCase(), name: account.name, role: account.role }));
   } catch (error) {
     if (error instanceof AuthConfigError) return [];
     throw error;
   }
+}
+
+/**
+ * Everyone who can be picked as a session's player: APP_USERS_JSON accounts plus approved sign-ups.
+ * A failed Accounts read only drops the sign-ups for that request; it never breaks a page or a save.
+ */
+export async function listTeamMembers(): Promise<TeamMember[]> {
+  const configured = listConfiguredTeamMembers();
+  let registered: RegisteredAccount[] = [];
+  try {
+    registered = await listRegisteredAccounts();
+  } catch (error) {
+    console.error("Could not read registered accounts", error);
+  }
+  const ids = new Set(configured.map((member) => member.id));
+  const approved = registered
+    .filter((account) => account.status === "approved" && !ids.has(account.account_id))
+    .map((account) => ({ id: account.account_id, name: account.name, role: account.role }));
+  return [...configured, ...approved];
+}
+
+/**
+ * Ids and names a new sign-up may not take: every configured account, admin, demo, and Ray. Lowercased.
+ * Names count because permissions match people by id or name.
+ */
+export function reservedIdentities(): Set<string> {
+  const reserved = new Set(["admin", "demo", "ray", "pending"]);
+  for (const account of configuredAccounts()) {
+    reserved.add(account.id.toLowerCase());
+    reserved.add(account.name.trim().toLowerCase());
+  }
+  return reserved;
+}
+
+/** A pending account browses the demo under its own offline database, separate from the one it gets once approved. */
+function registeredUser(account: RegisteredAccount, accountVersion: string): AuthUser {
+  if (account.status === "approved") {
+    return { role: account.role, userId: account.account_id, name: account.name, accountVersion, registered: true };
+  }
+  return {
+    role: "demo",
+    userId: `pending_${account.account_id}`,
+    name: account.name,
+    accountVersion,
+    registered: true,
+    pending: true,
+  };
+}
+
+export async function authenticateRegisteredAccount(
+  username: string,
+  password: string,
+): Promise<AuthUser | "declined" | null> {
+  const account = await findRegisteredAccount(username, true);
+  if (!account || !(await verifyPassword(password, account.password_hash))) return null;
+  if (account.status === "declined") return "declined";
+  return registeredUser(account, await makeCredentialVersion(account.password_hash));
+}
+
+/** The signed cookie of a registered account, for its token (not the user the app sees). */
+export function registeredTokenUser(user: AuthUser): AuthUser {
+  if (!user.pending) return user;
+  return { ...user, userId: user.userId.replace(/^pending_/, "") };
+}
+
+/**
+ * Re-reads a registered account's row on every request (from the shared few-seconds-old sheet read), so
+ * an approval shows up on the next page load and declining someone in the sheet signs them out.
+ * If the sheet can't be read, the cookie's own role stands rather than signing everyone out.
+ */
+export async function currentRegisteredUser(token: AuthUser): Promise<AuthUser | null> {
+  if (!token.registered || !token.accountVersion) return null;
+  let account: RegisteredAccount | null;
+  try {
+    account = await findRegisteredAccount(token.userId);
+  } catch (error) {
+    console.error("Could not read registered accounts; trusting the sign-in cookie", error);
+    return token.role === "demo"
+      ? { role: "demo", userId: `pending_${token.userId}`, name: token.name, registered: true, pending: true }
+      : { role: token.role, userId: token.userId, name: token.name, registered: true };
+  }
+  if (!account || account.status === "declined") return null;
+  if (!(await checkSecret(token.accountVersion, await makeCredentialVersion(account.password_hash)))) return null;
+  const { accountVersion: _omit, ...user } = registeredUser(account, token.accountVersion);
+  void _omit;
+  return user;
 }
 
 export async function authenticateAccount(username: string, password: string): Promise<AuthUser | null> {

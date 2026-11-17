@@ -121,3 +121,13 @@ export function canEditLoanEntry(
   if ([entry.from_id, entry.to_id].some((id) => id.trim() && sameIdentity(id, user))) return true;
   return entry.owner_id.trim() ? sameIdentity(entry.owner_id, user) : sameIdentity(entry.recorded_by, user);
 }
+
+/* ------------------------------------------------------------------------------------------------
+ * Sign-ups. People register themselves on the login page; only Ray and admin let them in. Ray here is
+ * the APP_USERS_JSON account — a sign-up can never take the id or name "ray".
+ * ---------------------------------------------------------------------------------------------- */
+
+export function canApproveAccounts(user: AuthUser): boolean {
+  if (user.role === "admin") return true;
+  return user.role === "individual" && !user.registered && sameIdentity("ray", user);
+}

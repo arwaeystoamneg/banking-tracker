@@ -12,7 +12,7 @@ import {
   ownsGame,
   ownsSession,
 } from "@/lib/auth/permissions";
-import { listTeamMembers } from "@/lib/auth/accounts";
+import { listConfiguredTeamMembers } from "@/lib/auth/accounts";
 import { AuthorizationError, InputError } from "@/lib/auth/session";
 import type { Repositories } from "@/lib/repositories/types";
 import { ConflictError, NotFoundError } from "@/lib/repositories/types";
@@ -170,7 +170,7 @@ async function autoTripFor(repos: Repositories, player: string, date: string): P
 export function createAuthorizedRepositories(
   repos: Repositories,
   user: AuthUser,
-  team: TeamMember[] = listTeamMembers(),
+  team: TeamMember[] = listConfiguredTeamMembers(),
   now: () => Date = () => new Date(),
 ): Repositories {
   if (user.role === "demo") throw new AuthorizationError("Demo data must use the isolated demo repository");

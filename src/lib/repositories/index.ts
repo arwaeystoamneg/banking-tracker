@@ -5,6 +5,7 @@ import { hasSheetsCredentials } from "@/lib/repositories/sheets/client";
 import type { AuthUser } from "@/lib/auth/types";
 import { getDemoRepositories } from "@/lib/repositories/demo";
 import { createAuthorizedRepositories } from "@/lib/repositories/authorized";
+import { listTeamMembers } from "@/lib/auth/accounts";
 
 export * from "@/lib/repositories/types";
 
@@ -39,5 +40,5 @@ export async function getRepositories(): Promise<Repositories> {
 
 export async function getRepositoriesForUser(user: AuthUser): Promise<Repositories> {
   if (user.role === "demo") return getDemoRepositories();
-  return createAuthorizedRepositories(await getRepositories(), user);
+  return createAuthorizedRepositories(await getRepositories(), user, await listTeamMembers());
 }

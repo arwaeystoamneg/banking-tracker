@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { isLoginErrorCode, LOGIN_ERROR_MESSAGES } from "@/lib/auth/loginErrors";
 
@@ -36,6 +37,52 @@ export function LoginForm() {
   const from = searchParams.get("from") ?? "/";
   const errorCode = searchParams.get("error");
   const error = isLoginErrorCode(errorCode) ? LOGIN_ERROR_MESSAGES[errorCode] : null;
+  const inputClass =
+    "h-14 w-full rounded-xl border border-neutral-800 bg-neutral-900 px-4 text-base text-neutral-100 outline-none focus:border-neutral-500";
+
+  if (searchParams.get("mode") === "register") {
+    return (
+      <div className="w-full max-w-sm space-y-6">
+        <div className="space-y-1 text-center">
+          <h1 className="text-lg font-semibold tracking-tight text-neutral-100">Create an account</h1>
+          <p className="text-sm text-neutral-400">
+            You can look around the demo right away. Ray or admin approves you for the shared tracker.
+          </p>
+        </div>
+        <form action="/api/register" method="POST" className="space-y-3">
+          <input type="text" name="name" required autoFocus autoComplete="name" placeholder="Your name" maxLength={60} className={inputClass} />
+          <input
+            type="text"
+            name="username"
+            required
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Username"
+            pattern="[A-Za-z0-9_\-]{3,32}"
+            title="3–32 letters, numbers, - or _"
+            className={inputClass}
+          />
+          <input type="password" name="passphrase" required minLength={8} autoComplete="new-password" placeholder="Password (8+ characters)" className={inputClass} />
+          <input type="password" name="confirm" required minLength={8} autoComplete="new-password" placeholder="Password again" className={inputClass} />
+          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          <SubmitButton
+            pendingLabel="Creating…"
+            className="h-14 w-full rounded-xl bg-emerald-600 text-base font-medium text-white transition active:bg-emerald-700 disabled:opacity-60"
+          >
+            Create account
+          </SubmitButton>
+        </form>
+        <p className="text-center text-sm text-neutral-400">
+          Already have one?{" "}
+          <Link href="/login" replace className="font-medium text-neutral-200 underline underline-offset-4">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-sm space-y-6">
@@ -75,6 +122,13 @@ export function LoginForm() {
         >
           View public demo
         </SubmitButton>
+        <Link
+          href="/login?mode=register"
+          replace
+          className="flex h-14 w-full items-center justify-center rounded-xl border border-neutral-700 bg-neutral-900 text-base font-medium text-neutral-200 transition active:bg-neutral-800"
+        >
+          Create an account
+        </Link>
       </form>
     </div>
   );

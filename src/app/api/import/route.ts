@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getActiveBackend } from "@/lib/repositories";
-import { replaceMockStore } from "@/lib/repositories/mock/store";
+import { getMockStore, replaceMockStore } from "@/lib/repositories/mock/store";
 import {
   auditEntrySchema,
   feeScheduleSchema,
@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const snapshot = snapshotSchema.parse(body);
-    replaceMockStore(snapshot);
+    // Snapshots never contain sign-ups (password hashes aren't exported), so keep the ones already here.
+    replaceMockStore({ ...snapshot, accounts: getMockStore().accounts });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return apiError(err);

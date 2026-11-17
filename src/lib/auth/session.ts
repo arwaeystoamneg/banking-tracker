@@ -3,7 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE_NAME, checkSecret, makeCredentialVersion, verifyAuthToken } from "@/lib/auth/passphrase";
 import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
-import { isCurrentAccountSession } from "@/lib/auth/accounts";
+import { currentRegisteredUser, isCurrentAccountSession } from "@/lib/auth/accounts";
 
 export class AuthenticationError extends Error {
   constructor() {
@@ -30,6 +30,9 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   const cookieStore = await cookies();
   const user = await verifyAuthToken(cookieStore.get(AUTH_COOKIE_NAME)?.value);
   if (!user) return null;
+
+  // Signed up in the app: its role comes from the Accounts tab now, not from when it signed in.
+  if (user.registered) return currentRegisteredUser(user);
 
   if (isConfiguredAccountRole(user.role) && !(await isCurrentAccountSession(user))) return null;
   if (user.role === "admin") {

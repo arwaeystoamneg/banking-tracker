@@ -8,7 +8,7 @@ export default async function AppGroupLayout({ children }: { children: ReactNode
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   // The demo never sees real account names.
-  const team = user.role === "demo" ? [] : listTeamMembers();
+  const team = user.role === "demo" ? [] : await listTeamMembers();
   return (
     <AppShell user={user} team={team}>
       {children}

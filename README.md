@@ -5,6 +5,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **Admin:** sign in as `admin` (or leave the username blank) with `APP_PASSPHRASE`. Admin can change all live data.
 - **Individuals:** configured through `APP_USERS_JSON`. They can read all live data, create games and sessions, and change only records they own.
 - **Demo:** enter `demo` as the username or use **View public demo**. Demo access is read-only and never opens the live spreadsheet.
+- **Sign-ups:** anyone can tap **Create an account** on the sign-in page and pick their own username and
+  password — nothing to add in Vercel. Until Ray or admin approves them (card at the top of the app) they
+  only see the public demo. Approve makes them an individual; "Approve as employee" puts them on payroll.
+  Accounts live in the sheet's `Accounts` tab with hashed passwords; set `status` to `declined` there to
+  remove someone.
 
 Example environment configuration:
 

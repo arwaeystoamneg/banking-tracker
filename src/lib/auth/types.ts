@@ -21,6 +21,10 @@ export interface AuthUser {
   name: string;
   /** Opaque HMAC used server-side to revoke sessions when a credential changes. */
   accountVersion?: string;
+  /** Signed up on the login page (Accounts tab) rather than configured in APP_USERS_JSON. */
+  registered?: boolean;
+  /** A registered account Ray or admin hasn't approved yet. It sees only the read-only demo. */
+  pending?: boolean;
 }
 
 /** A configured account as other people see it: enough to pick them as a session's player. */

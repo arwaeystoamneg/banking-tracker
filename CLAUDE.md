@@ -98,6 +98,15 @@ Decisions already made — do not relitigate without asking:
 - **Access control uses three roles.** Admin retains the shared `APP_PASSPHRASE` and can change all data.
   Environment-configured individual accounts can read all live data but mutate only their own games,
   sessions, and child rows. Demo is read-only and uses `DEMO_SHEET_ID`, never the live sheet.
+- **Sign-ups (added 2026-11 at Ray's request).** "Create an account" on /login (`/api/register`) adds a row
+  to the `Accounts` tab (`account_id · name · password_hash (scrypt) · status pending|approved|declined ·
+  role individual|employee · requested_at · decided_by · decided_at`). Pending accounts sign in but get the
+  demo role (read-only demo data, offline DB `pending_<id>`). Ray (the APP_USERS_JSON `ray`) or admin approves
+  from the card at the top of the app (`/api/accounts`), as individual or employee; it takes effect on the next
+  request without re-login (`currentRegisteredUser` re-reads the row via the shared 5s sheet read). Setting
+  `status` to `declined` in the sheet signs someone out. Sign-ups can't take the id or name of an env account,
+  admin, demo, or ray. Accounts is not one of the Repositories, so hashes are never listed or exported.
+  APP_USERS_JSON accounts work exactly as before and take precedence.
 
 ### Environment
 
@@ -284,7 +293,7 @@ connection is the worst failure mode this app has.
 ## Non-goals
 
 Real-money handling, payments, live odds feeds, anything that touches an actual wager. Native app builds.
-Self-service signups, account-management screens, password recovery, and multi-tenancy.
+Account-management screens beyond approving sign-ups, password recovery, and multi-tenancy.
 
 ## Open questions — ask Ray, don't guess
 

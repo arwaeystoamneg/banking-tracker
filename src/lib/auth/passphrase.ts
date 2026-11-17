@@ -132,6 +132,7 @@ export async function verifyAuthToken(token: string | undefined | null): Promise
       userId: value.userId,
       name: value.name,
       ...(value.accountVersion ? { accountVersion: value.accountVersion } : {}),
+      ...(value.registered === true ? { registered: true } : {}),
     };
   } catch {
     return null;

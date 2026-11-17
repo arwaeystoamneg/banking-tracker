@@ -292,6 +292,31 @@ export const AUTO_TRIPS_TAB: TabConfig = {
   booleanFields: [],
 };
 
+/**
+ * Accounts people registered for themselves on the login page. Server-only: it is not one of the
+ * Repositories, so it is never listed, exported, or written through the data API. Passwords are stored
+ * as scrypt hashes, never in the clear. `status` is pending until Ray or admin approves or declines it;
+ * setting it to "declined" by hand in the sheet removes someone's access.
+ */
+export const ACCOUNTS_TAB: TabConfig = {
+  tabName: "Accounts",
+  idField: "account_id",
+  headers: [
+    "account_id",
+    "name",
+    "password_hash",
+    "status",
+    "role",
+    "requested_at",
+    "decided_by",
+    "decided_at",
+    "_row_version",
+  ],
+  numberFields: ["_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
 export const ALL_TABS = [
   GAMES_TAB,
   SIDEBETS_TAB,
@@ -307,4 +332,5 @@ export const ALL_TABS = [
   LOANS_TAB,
   ROOM_COLORS_TAB,
   AUTO_TRIPS_TAB,
+  ACCOUNTS_TAB,
 ];
