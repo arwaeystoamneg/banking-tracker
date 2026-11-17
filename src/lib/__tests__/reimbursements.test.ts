@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareReimbursements, owedByPerson, totalOwed } from "@/lib/reimbursements";
+import { compareReimbursements, reimbursementsByPerson, totalOwed, totalPaid } from "@/lib/reimbursements";
 import { reimbursementSchema, type Reimbursement } from "@/lib/validation/schemas";
 
 function row(overrides: Partial<Reimbursement>): Reimbursement {
@@ -28,11 +28,27 @@ describe("reimbursement totals", () => {
     expect(totalOwed(items).toString()).toBe("50.3");
   });
 
-  it("groups by account id, then by name, largest first", () => {
-    const groups = owedByPerson(items);
-    expect(groups.map((g) => [g.name, g.total.toString(), g.count])).toEqual([
-      ["Lee", "50", 1],
-      ["Dana Reyes", "0.3", 2],
+  it("sums what has been paid", () => {
+    expect(totalPaid(items).toString()).toBe("999");
+  });
+
+  it("groups by account id, then by name, most owed first, with what each has been paid", () => {
+    const groups = reimbursementsByPerson(items);
+    expect(groups.map((g) => [g.name, g.owed.toString(), g.owedItems.length, g.paid.toString(), g.paidCount])).toEqual([
+      ["Lee", "50", 1, "0", 0],
+      ["Dana Reyes", "0.3", 2, "999", 1],
+    ]);
+  });
+
+  it("keeps someone who is all paid up, and lists what Pay all settles oldest first", () => {
+    const groups = reimbursementsByPerson([
+      row({ reimbursement_id: "late", date: "2026-10-22" }),
+      row({ reimbursement_id: "early", date: "2026-10-02" }),
+      row({ reimbursement_id: "done", payee: "Lee", payee_id: "lee", status: "paid", paid_at: "2026-10-21T00:00:00.000Z" }),
+    ]);
+    expect(groups.map((g) => [g.name, g.owedItems.map((i) => i.reimbursement_id)])).toEqual([
+      ["Dana Reyes", ["early", "late"]],
+      ["Lee", []],
     ]);
   });
 

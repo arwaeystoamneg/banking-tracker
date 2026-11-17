@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { PaySwitcher } from "@/components/payroll/PaySwitcher";
 import { ReimbursementListItem } from "@/components/reimbursements/ReimbursementListItem";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
-import { canRequestReimbursement, sameIdentity } from "@/lib/auth/permissions";
+import { canRequestReimbursement, canSettleReimbursements, sameIdentity } from "@/lib/auth/permissions";
 import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
-import { compareReimbursements, owedByPerson, totalOwed } from "@/lib/reimbursements";
+import { compareReimbursements, reimbursementsByPerson, totalOwed, totalPaid, type PersonReimbursements } from "@/lib/reimbursements";
 import { formatMoney } from "@/lib/decimal";
 import type { Reimbursement } from "@/lib/validation/schemas";
 
@@ -32,7 +32,8 @@ export default function ReimbursementsPage() {
     [scoped, filter],
   );
   const owed = useMemo(() => totalOwed(scoped), [scoped]);
-  const byPerson = useMemo(() => owedByPerson(scoped), [scoped]);
+  const paid = useMemo(() => totalPaid(scoped), [scoped]);
+  const byPerson = useMemo(() => reimbursementsByPerson(scoped), [scoped]);
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
@@ -41,7 +42,7 @@ export default function ReimbursementsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reimbursements</h1>
           <p className="text-sm text-muted">
-            {isLoading ? "Loading…" : owed.isZero() ? "Nothing owed" : `${formatMoney(owed)} owed`}
+            {isLoading ? "Loading…" : `${owed.isZero() ? "Nothing owed" : `${formatMoney(owed)} owed`} · ${formatMoney(paid)} paid`}
           </p>
         </div>
         {canRequestReimbursement(user) ? (
@@ -51,16 +52,11 @@ export default function ReimbursementsPage() {
         ) : null}
       </div>
 
-      {byPerson.length > 1 ? (
-        <section className="space-y-1 rounded-2xl border border-border bg-surface p-4 text-sm">
-          <h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">Owed to</h2>
+      {byPerson.length > 0 ? (
+        <section className="space-y-2 rounded-2xl border border-border bg-surface p-4 text-sm">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">By person</h2>
           {byPerson.map((group) => (
-            <div key={group.name} className="flex items-baseline justify-between gap-3">
-              <span className="truncate text-foreground">
-                {group.name} <span className="text-xs text-muted">· {group.count}</span>
-              </span>
-              <span className="num font-semibold text-amber-400">{formatMoney(group.total)}</span>
-            </div>
+            <PersonRow key={group.name} group={group} canSettle={canSettleReimbursements(user)} />
           ))}
         </section>
       ) : null}
@@ -101,6 +97,59 @@ export default function ReimbursementsPage() {
         </div>
       )}
     </main>
+  );
+}
+
+/** One person's owed and paid totals; whoever can settle gets "Pay all", which asks once before marking every owed item paid. */
+function PersonRow({ group, canSettle }: { group: PersonReimbursements; canSettle: boolean }) {
+  const { update } = useReimbursements();
+  const [confirming, setConfirming] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const owedCount = group.owedItems.length;
+
+  async function payAll() {
+    setPaying(true);
+    try {
+      const paidAt = new Date().toISOString();
+      for (const item of group.owedItems) {
+        await update(item.reimbursement_id, { status: "paid", paid_at: paidAt }, item._row_version);
+      }
+    } finally {
+      setPaying(false);
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="truncate text-foreground">{group.name}</p>
+        <p className="text-xs text-muted">
+          {owedCount ? (
+            <span className="num font-semibold text-amber-400">{formatMoney(group.owed)} owed</span>
+          ) : (
+            "All paid up"
+          )}
+          {owedCount ? ` · ${owedCount}` : ""} · <span className="num">{formatMoney(group.paid)}</span> paid
+        </p>
+      </div>
+      {canSettle && owedCount ? (
+        confirming ? (
+          <div className="flex shrink-0 gap-1.5">
+            <Button variant="secondary" className="h-9 px-3 text-xs" onClick={() => setConfirming(false)} disabled={paying}>
+              Cancel
+            </Button>
+            <Button className="h-9 px-3 text-xs" onClick={payAll} disabled={paying}>
+              {paying ? "…" : `Pay ${formatMoney(group.owed)}`}
+            </Button>
+          </div>
+        ) : (
+          <Button variant="secondary" className="h-9 shrink-0 px-3 text-xs" onClick={() => setConfirming(true)}>
+            Pay all
+          </Button>
+        )
+      ) : null}
+    </div>
   );
 }
 
