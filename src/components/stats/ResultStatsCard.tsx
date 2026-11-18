@@ -48,7 +48,7 @@ export function ResultStatsCard({
   const open = stats.sessionCount - stats.completedCount;
   const done = stats.completedCount > 0;
   const winRate = done ? Math.round((stats.winningCount / stats.completedCount) * 100) : null;
-  const avgLength = done && stats.minutes > 0 ? Math.round(stats.minutes / stats.completedCount) : 0;
+  const avgDay = stats.daysPlayed > 0 ? Math.round(stats.minutes / stats.daysPlayed) : 0;
 
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
@@ -96,7 +96,12 @@ export function ResultStatsCard({
         />
         <Stat label="Hours played" value={stats.minutes > 0 ? formatDuration(stats.minutes) : "—"} />
         <Stat label="Win rate" value={winRate === null ? "—" : `${winRate}% (${stats.winningCount}/${stats.completedCount})`} />
-        <Stat label="Avg session" value={avgLength ? formatDuration(avgLength) : "—"} />
+        <Stat
+          label="Avg day"
+          value={avgDay ? formatDuration(avgDay) : "—"}
+          note={stats.daysPlayed > 0 ? `${stats.daysPlayed} day${stats.daysPlayed === 1 ? "" : "s"} played` : undefined}
+          hint="Hours played per day played, all of a day's sessions together (per person on a shared card)"
+        />
         <SessionStat label="Best session" session={stats.best} />
         <SessionStat label="Worst session" session={stats.worst} />
         <Stat

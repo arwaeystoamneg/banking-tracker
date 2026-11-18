@@ -83,9 +83,11 @@ describe("computeResultStats", () => {
     const blended = computeResultStats(oaks, prior);
     // The $10k tier elsewhere: σ² = 10 · 1000² / 9; Oaks's own sessions don't count toward it.
     const tier = (10 * 1000 ** 2) / 9;
-    expect(blended.sdPerHour).toBeCloseTo(Math.sqrt((2 * own ** 2 + 10 * tier) / 12), 6);
+    // Three sessions are topped up to ten sessions' worth: 2 of their own df + 8 borrowed.
+    expect(blended.sdPerHour).toBeCloseTo(Math.sqrt((2 * own ** 2 + 8 * tier) / 10), 6);
     expect(blended.sdIsRough).toBe(true);
-    expect(blended.hourlyRange![0]).toBeCloseTo(-191.08 - (t95(12) * blended.sdPerHour!) / Math.sqrt(6.5), 0);
+    // The range uses t for the group's own 3 sessions (df 2), not the borrowed ones.
+    expect(blended.hourlyRange![0]).toBeCloseTo(-191.08 - (t95(2) * blended.sdPerHour!) / Math.sqrt(6.5), 0);
     expect(blended.hourlyRange![1]).toBeGreaterThan(0);
   });
 
@@ -95,7 +97,19 @@ describe("computeResultStats", () => {
       session({ session_id: "y", date: "2026-11-09", time_in: "21:00", time_out: "22:00", buy_in: 19000, buy_out: 19000 }),
     ];
     const prior = sdPrior([...big, ...elsewhere]);
-    expect(computeResultStats(big, prior).sdPerHour).toBeCloseTo(Math.sqrt((10 * (10 * 5000 ** 2) / 9) / 11), 6);
+    expect(computeResultStats(big, prior).sdPerHour).toBeCloseTo(Math.sqrt((9 * (10 * 5000 ** 2) / 9) / 10), 6);
+  });
+
+  it("stops borrowing once a group has eleven sessions of its own", () => {
+    const own = Array.from({ length: 11 }, (_, i) =>
+      session({ session_id: `o${i}`, date: "2026-10-01", time_in: "18:00", time_out: "22:00", buy_in: 10000, buy_out: 10000 + (i % 2 ? 4000 : -4000) }),
+    );
+    const prior = sdPrior([...own, ...elsewhere]);
+    const alone = computeResultStats(own);
+    const withPrior = computeResultStats(own, prior);
+    expect(withPrior.sdPerHour).toBeCloseTo(alone.sdPerHour!, 9);
+    expect(withPrior.sdIsRough).toBe(false);
+    expect(withPrior.hourlyRange).toEqual(alone.hourlyRange);
   });
 
   it("matches the t table", () => {
@@ -155,5 +169,19 @@ describe("in-session swing", () => {
       session({ session_id: "a", date: "2026-11-01", time_in: "18:00", time_out: "19:00", buy_in: 10000, buy_out: 15000, low_stack: 9000, high_stack: 14000 }),
     ]);
     expect(stats.inSessionSdPerHour).toBeCloseTo(Math.sqrt(6000 ** 2 / (4 * Math.LN2)), 6);
+  });
+
+  it("averages hours per day played, per person, counting a day's sessions together", () => {
+    const sessions = [
+      session({ session_id: "d1", date: "2026-11-14", time_in: "12:00", time_out: "15:00", buy_in: 1000, buy_out: 1000, player: "Damon" }),
+      session({ session_id: "d2", date: "2026-11-14", time_in: "16:00", time_out: "20:00", buy_in: 1000, buy_out: 1000, player: "Damon" }),
+      session({ session_id: "d3", date: "2026-11-15", time_in: "18:00", time_out: "23:00", buy_in: 1000, buy_out: 1000, player: "Damon" }),
+      session({ session_id: "r1", date: "2026-11-14", time_in: "18:00", time_out: "23:00", buy_in: 1000, buy_out: 1000, player: "Ray" }),
+      session({ session_id: "u1", date: "2026-11-16", time_in: "18:00", time_out: "", buy_in: 1000, buy_out: 1000, player: "Damon" }),
+    ];
+    const stats = computeResultStats(sessions);
+    // Damon 11/14 (7 h), Damon 11/15 (5 h), Ray 11/14 (5 h); the untimed 11/16 isn't a played day.
+    expect(stats.daysPlayed).toBe(3);
+    expect(stats.minutes / stats.daysPlayed).toBeCloseTo((17 * 60) / 3, 6);
   });
 });

@@ -39,6 +39,16 @@ variance σ²·hᵢ: swings grow with √time. Everything below follows from tha
    Kelly bank = σ²/EV. Subtract Damon's pay (~$75/h) from gross EV when Ray asks about his own bankroll.
 8. **State the method in the answer:** n, df, which distribution, and weighted vs unweighted.
 
+## What the app shows vs. a raw calculation
+
+The Stats/Casinos/Trips cards (`computeResultStats`) differ from the raw formulas above in one way. A group with
+**10 or fewer sessions** has its σ topped up to 10 sessions' worth with what similar-stakes sessions elsewhere
+swing: k = 10 − (n − 1) borrowed, σ² = ((n − 1)·s² + k·σ₀²)/(n − 1 + k). The value is shown with "~". With 11+
+sessions it's the group's own σ, so it matches a raw calculation. The hourly range still uses t with df = n − 1
+(the group's own sessions). When comparing with the app, say which one you're quoting.
+
+"Avg day" = timed hours ÷ distinct (person, session date) pairs.
+
 ## t table (two-sided 95%, `t_crit(df)`)
 
 | df | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 12 | 15 | 20 | 22 | 25 | 30 | 40 | 44 | 60 | 120 | ∞ |

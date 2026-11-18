@@ -1,4 +1,5 @@
 import { Decimal, d } from "@/lib/decimal";
+import { t95 } from "@/lib/math/core";
 import { sessionMinutes } from "@/lib/payroll";
 import { canonicalPerson, normalizePersonKey, sessionCardrooms } from "@/lib/names";
 import { byPlayTimeNewestFirst, isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
@@ -12,6 +13,11 @@ export interface ResultStats {
   net: Decimal;
   /** Played minutes across finished sessions with readable times. */
   minutes: number;
+  /**
+   * Days with timed play, one per person per session date (the day a session started). Two people playing the
+   * same day are two days, so a trip's hours per day is per person, not the group's combined total.
+   */
+  daysPlayed: number;
   /** Net per hour over the sessions that have times; null with no timed sessions. */
   hourly: Decimal | null;
   /**
@@ -20,10 +26,11 @@ export interface ResultStats {
    * what other sessions at its stakes swing (see priorVariance); without one it's the group's own figure.
    */
   sdPerHour: number | null;
-  /** True when sdPerHour leans mostly on other sessions' σ because this group has few of its own. */
+  /** True when sdPerHour borrows from other sessions' σ because this group has 10 or fewer of its own. */
   sdIsRough: boolean;
   /**
-   * 95% range for the true hourly given the hours played (hourly ± t·σ/√hours, t for σ's degrees of freedom). Null without σ or under
+   * 95% range for the true hourly given the hours played (hourly ± t·σ/√hours, t with the group's own sessions − 1
+   * degrees of freedom — borrowed swing doesn't make a small group's hourly any surer). Null without σ or under
    * MIN_RANGE_SESSIONS timed sessions, where one big night decides the whole range.
    */
   hourlyRange: [number, number] | null;
@@ -54,9 +61,10 @@ function result(session: Session): Decimal {
 }
 
 /**
- * How many sessions' worth of weight the pooled σ gets. A handful of sessions that happen to land close together
- * says little about the swing (three similar losses gave Oaks σ ≈ $92/hr), so a small group's σ is pulled toward
- * what similar sessions elsewhere swing until it has enough sessions to speak for itself.
+ * How many sessions a group needs before its σ is its own. A handful of sessions that happen to land close together
+ * says little about the swing (three similar losses gave Oaks σ ≈ $92/hr), so a smaller group is topped up to this
+ * many sessions' worth with what similar-stakes sessions elsewhere swing. The borrowed share shrinks with every
+ * session and is gone at 11, so a well-played room or a player's total shows its own swing.
  */
 const PRIOR_SESSIONS = 10;
 const MIN_RANGE_SESSIONS = 3;
@@ -121,13 +129,7 @@ function priorVariance(prior: SdPrior, group: Timed[]): number | null {
   return group.reduce((sum, t) => sum + byTier[t.tier] * t.hours, 0) / hours;
 }
 
-/** Two-sided 95% Student-t multiplier (Cornish–Fisher; within 0.3% of the table from 3 degrees of freedom up). */
-export function t95(df: number): number {
-  if (df <= 1) return 12.706;
-  if (df === 2) return 4.303;
-  const z = 1.959964;
-  return z + (z ** 3 + z) / (4 * df) + (5 * z ** 5 + 16 * z ** 3 + 3 * z) / (96 * df ** 2) + (3 * z ** 7 + 19 * z ** 5 + 17 * z ** 3 - 15 * z) / (384 * df ** 3);
-}
+export { t95 };
 
 export function computeResultStats(sessions: Session[], prior?: SdPrior): ResultStats {
   const finished = sessions.filter((s) => !isSessionOpen(s) && s.buy_out !== null).sort(byPlayTimeNewestFirst).reverse();
@@ -140,6 +142,7 @@ export function computeResultStats(sessions: Session[], prior?: SdPrior): Result
   let high = d(0);
   let maxDrawdown = d(0);
   const timed: { result: number; hours: number }[] = [];
+  const playDays = new Set<string>();
 
   for (const session of finished) {
     const r = result(session);
@@ -150,6 +153,7 @@ export function computeResultStats(sessions: Session[], prior?: SdPrior): Result
     const played = sessionMinutes(session);
     if (played !== null && played > 0) {
       minutes += played;
+      playDays.add(`${normalizePersonKey(sessionPlayerName(session))}|${session.date}`);
       timedNet = timedNet.plus(r);
       timed.push({ result: r.toNumber(), hours: played / 60 });
     }
@@ -162,12 +166,16 @@ export function computeResultStats(sessions: Session[], prior?: SdPrior): Result
   const group = timedSessions(finished);
   const own = hourVariance(group);
   const pooled = prior ? priorVariance(prior, group) : null;
-  // Pooling as if the prior were PRIOR_SESSIONS more sessions: σ² = ((n − 1)·s² + k·σ₀²) / (n − 1 + k).
+  // The prior only tops a small group up to PRIOR_SESSIONS sessions' worth: k = max(0, 10 − (n − 1)), and
+  // σ² = ((n − 1)·s² + k·σ₀²) / (n − 1 + k). Eleven or more sessions stand on their own swing alone.
   const ownDf = own === null ? 0 : group.length - 1;
-  const df = ownDf + (pooled === null ? 0 : PRIOR_SESSIONS);
-  const variance = df === 0 ? null : ((own ?? 0) * ownDf + (pooled ?? 0) * (pooled === null ? 0 : PRIOR_SESSIONS)) / df;
+  const priorWeight = pooled === null ? 0 : Math.max(0, PRIOR_SESSIONS - ownDf);
+  const weight = ownDf + priorWeight;
+  const variance = weight === 0 ? null : ((own ?? 0) * ownDf + (pooled ?? 0) * priorWeight) / weight;
   const sdPerHour = variance === null ? null : Math.sqrt(variance);
-  const margin = sdPerHour === null || hours <= 0 || timed.length < MIN_RANGE_SESSIONS ? null : (t95(df) * sdPerHour) / Math.sqrt(hours);
+  // t on the group's own sessions (n − 1), not the borrowed ones: the hourly range is about these sessions.
+  const margin =
+    sdPerHour === null || hours <= 0 || timed.length < MIN_RANGE_SESSIONS || ownDf < 1 ? null : (t95(ownDf) * sdPerHour) / Math.sqrt(hours);
 
   let rangeSquares = 0;
   let rangeHours = 0;
@@ -195,9 +203,10 @@ export function computeResultStats(sessions: Session[], prior?: SdPrior): Result
     winningCount,
     net,
     minutes,
+    daysPlayed: playDays.size,
     hourly: minutes > 0 ? timedNet.dividedBy(minutes).times(60) : null,
     sdPerHour,
-    sdIsRough: pooled !== null && timed.length < PRIOR_SESSIONS,
+    sdIsRough: priorWeight > 0,
     hourlyRange: margin === null ? null : [rate - margin, rate + margin],
     best,
     worst,

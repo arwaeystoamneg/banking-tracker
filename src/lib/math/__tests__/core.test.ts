@@ -63,6 +63,13 @@ describe("n0RoundsForSignificance / tStatistic", () => {
     const t = tStatistic(15_000, 500, 100); // t = 15000 / (500*sqrt(100)) = 3
     expect(isStatisticallyMeaningful(t)).toBe(true);
   });
+
+  it("uses Student t's bar for the sample size when given one", () => {
+    expect(isStatisticallyMeaningful(3, 2)).toBe(false); // 3 rounds: needs 4.30
+    expect(isStatisticallyMeaningful(4.4, 2)).toBe(true);
+    expect(isStatisticallyMeaningful(2.1, 9)).toBe(false); // 10 rounds: needs 2.26
+    expect(isStatisticallyMeaningful(2.1, 200)).toBe(true);
+  });
 });
 
 describe("riskOfRuin", () => {

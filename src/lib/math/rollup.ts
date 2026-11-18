@@ -50,7 +50,7 @@ export function computeRollup(rounds: Round[]): RollupResult {
   }
 
   const tStat = tStatistic(netPnl, sdPerRound, n);
-  const isMeaningful = n > 1 && isStatisticallyMeaningful(tStat);
+  const isMeaningful = n > 1 && isStatisticallyMeaningful(tStat, n - 1);
 
   return {
     roundCount: n,

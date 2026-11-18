@@ -19,7 +19,7 @@ export function EdgeSummaryTable({ rollup }: { rollup: RollupResult }) {
       {!rollup.isMeaningful ? (
         <p className="text-xs text-amber-400">
           Small samples here are overwhelmingly noise — treat the numbers above as directional, not a verdict, until
-          |t| crosses ~2.
+          |t| clears the 95% bar for this many rounds (4.3 at 3 rounds, 2.26 at 10, about 2 from 60 on).
         </p>
       ) : null}
     </div>

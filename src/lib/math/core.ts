@@ -62,6 +62,19 @@ export function tStatistic(actualResult: Decimal.Value, sdPerRound: Decimal.Valu
 
 export const SIGNIFICANCE_T_THRESHOLD = d(2);
 
-export function isStatisticallyMeaningful(t: Decimal.Value): boolean {
-  return d(t).abs().greaterThanOrEqualTo(SIGNIFICANCE_T_THRESHOLD);
+/** Two-sided 95% Student-t multiplier (Cornish–Fisher; within 0.3% of the table from 3 degrees of freedom up). */
+export function t95(df: number): number {
+  if (df <= 1) return 12.706;
+  if (df === 2) return 4.303;
+  const z = 1.959964;
+  return z + (z ** 3 + z) / (4 * df) + (5 * z ** 5 + 16 * z ** 3 + 3 * z) / (96 * df ** 2) + (3 * z ** 7 + 19 * z ** 5 + 17 * z ** 3 - 15 * z) / (384 * df ** 3);
+}
+
+/**
+ * |t| clears the two-sided 95% bar. With `df` (sample size − 1) the bar is Student t's — 4.30 for 3 rounds,
+ * 2.26 for 10, → 1.96 for many — because the SD came from the same small sample. Without it, the rough |t| ≥ 2.
+ */
+export function isStatisticallyMeaningful(t: Decimal.Value, df?: number): boolean {
+  const bar = df === undefined ? SIGNIFICANCE_T_THRESHOLD : d(t95(df));
+  return d(t).abs().greaterThanOrEqualTo(bar);
 }
