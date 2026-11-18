@@ -9,6 +9,7 @@ import { computeRollup } from "@/lib/math/rollup";
 import { groupSessionsIntoTrips, sessionTrip, tripHref } from "@/lib/trips";
 import { sessionsByPlayer } from "@/lib/stats/resultStats";
 import type { Session } from "@/lib/validation/schemas";
+import { DateWindowBar, distinctDates, useDateWindow } from "@/components/ui/DateWindowBar";
 
 type View = "players" | "trips";
 
@@ -20,9 +21,21 @@ function byTrip(sessions: Session[]): { label: string; sessions: Session[] }[] {
 }
 
 export default function RollupsPage() {
-  const { sessions, isLoading: sessionsLoading } = useSessions();
-  const { rounds, isLoading: roundsLoading } = useRounds();
+  const { sessions: allSessions, isLoading: sessionsLoading } = useSessions();
+  const { rounds: allRounds, isLoading: roundsLoading } = useRounds();
   const [view, setView] = useState<View>("players");
+  const dates = useMemo(() => distinctDates(allSessions.map((session) => session.date)), [allSessions]);
+  const dateWindow = useDateWindow(dates);
+  const { from, to } = dateWindow;
+  const sessions = useMemo(
+    () => (from === null ? allSessions : allSessions.filter((session) => session.date >= from && session.date <= to!)),
+    [allSessions, from, to],
+  );
+  const rounds = useMemo(() => {
+    if (from === null) return allRounds;
+    const ids = new Set(sessions.map((session) => session.session_id));
+    return allRounds.filter((round) => ids.has(round.session_id));
+  }, [allRounds, sessions, from]);
   const players = useMemo(() => sessionsByPlayer(sessions), [sessions]);
   const trips = useMemo(() => groupSessionsIntoTrips(sessions), [sessions]);
   const roundStats = useMemo(() => computeRollup(rounds), [rounds]);
@@ -32,7 +45,13 @@ export default function RollupsPage() {
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Stats</h1>
-        <p className="text-sm text-muted">{view === "players" ? "All-time results for each player." : "Results for each trip."}</p>
+        <p className="text-sm text-muted">{view === "players"
+            ? dateWindow.isAll
+              ? "All-time results for each player."
+              : "Results for each player in the dates below."
+            : dateWindow.isAll
+              ? "Results for each trip."
+              : "Each trip's sessions in the dates below."}</p>
       </div>
 
       <div className="inline-flex rounded-xl border border-border bg-surface p-0.5 text-sm">
@@ -48,6 +67,8 @@ export default function RollupsPage() {
           </button>
         ))}
       </div>
+
+      {!isLoading ? <DateWindowBar dates={dates} window={dateWindow.window} onChange={dateWindow.setWindow} label="Stats dates" /> : null}
 
       {isLoading ? <p className="text-sm text-muted">Loading…</p> : null}
       {!isLoading && view === "players" ? (

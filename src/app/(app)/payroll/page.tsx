@@ -6,13 +6,14 @@ import { usePayrollMembers } from "@/hooks/usePayrollMembers";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { formatMoney, parseMoneyInput } from "@/lib/decimal";
+import { d, formatMoney, parseMoneyInput } from "@/lib/decimal";
 import { ratesFor, sessionPay, totalPay, type PayRates } from "@/lib/overtime";
 import type { PayrollMember } from "@/lib/validation/schemas";
 import { PaySwitcher } from "@/components/payroll/PaySwitcher";
 import { PayrollSessionRow } from "@/components/payroll/PayrollSessionRow";
 import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
 import { formatDateForDisplay } from "@/lib/dates";
+import { DateWindowBar, distinctDates, useDateWindow } from "@/components/ui/DateWindowBar";
 import {
   PAYROLL_START_DATE,
   canMarkPayrollPaid,
@@ -20,6 +21,7 @@ import {
   payrollPeople,
   formatHours,
   payrollByEmployee,
+  sessionHours,
   type EmployeePayroll,
 } from "@/lib/payroll";
 
@@ -35,6 +37,26 @@ export default function PayrollPage() {
     return canSeeAllPayroll(user) ? all : all.filter((employee) => employee.id === user.userId);
   }, [team, user, payrollMembers]);
   const summaries = useMemo(() => payrollByEmployee(sessions, employees), [sessions, employees]);
+  const paidDates = useMemo(() => distinctDates(summaries.flatMap((summary) => summary.paid.map((session) => session.date))), [summaries]);
+  const paidWindow = useDateWindow(paidDates);
+  const totals = useMemo(() => {
+    let money = d(0);
+    let hours = d(0);
+    let count = 0;
+    let unrated = 0;
+    for (const summary of summaries) {
+      const rates = ratesFor(summary.employee.id, payrollMembers);
+      for (const session of summary.paid) {
+        if (!paidWindow.contains(session.date)) continue;
+        count += 1;
+        hours = hours.plus(sessionHours(session) ?? 0);
+        const pay = sessionPay(session, rates);
+        if (pay) money = money.plus(pay);
+        else unrated += 1;
+      }
+    }
+    return { money, hours, count, unrated };
+  }, [summaries, payrollMembers, paidWindow]);
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
@@ -45,6 +67,22 @@ export default function PayrollPage() {
           Sessions since {formatDateForDisplay(PAYROLL_START_DATE)}. {canMark ? "Check each one off once paid." : "Ray or an admin checks sessions off once paid."}
         </p>
       </div>
+
+      {!isLoading && paidDates.length > 0 ? (
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted">Total paid{paidWindow.isAll ? "" : " in window"}</p>
+              <p className="num text-2xl font-semibold text-emerald-400">{formatMoney(totals.money)}</p>
+            </div>
+            <p className="num text-right text-xs text-muted">
+              {formatHours(totals.hours)} · {totals.count} session{totals.count === 1 ? "" : "s"}
+              {totals.unrated > 0 ? <span className="block text-amber-400">{totals.unrated} with no rate or times, not in $</span> : null}
+            </p>
+          </div>
+          <DateWindowBar dates={paidDates} window={paidWindow.window} onChange={paidWindow.setWindow} label="Paid sessions" />
+        </section>
+      ) : null}
 
       {isLoading ? (
         <p className="text-sm text-muted">Loading…</p>
@@ -64,6 +102,7 @@ export default function PayrollPage() {
             canMark={canMark}
             rates={ratesFor(summary.employee.id, payrollMembers)}
             member={payrollMembers.find((row) => row.member_id === summary.employee.id)}
+            inPaidWindow={paidWindow.contains}
           />
         ))
       )}
@@ -180,11 +219,14 @@ function EmployeeCard({
   canMark,
   rates,
   member,
+  inPaidWindow,
 }: {
   summary: EmployeePayroll;
   canMark: boolean;
   rates: PayRates | null;
   member?: PayrollMember;
+  /** The page's date window; only paid figures follow it, since unpaid pay is owed whatever the dates. */
+  inPaidWindow: (date: string) => boolean;
 }) {
   const { update } = useSessions();
   const [editingRates, setEditingRates] = useState(false);
@@ -194,6 +236,9 @@ function EmployeeCard({
   const [showPaid, setShowPaid] = useState(false);
   const [payingAll, setPayingAll] = useState(false);
   const owed = summary.unpaid.length;
+  const paid = summary.paid.filter((session) => inPaidWindow(session.date));
+  const paidPay = totalPay(paid, rates);
+  const paidHours = paid.reduce((sum, session) => sum.plus(sessionHours(session) ?? 0), d(0));
 
   const [confirmAll, setConfirmAll] = useState(false);
   async function markAllPaid() {
@@ -282,12 +327,18 @@ function EmployeeCard({
 
       {summary.paid.length > 0 ? (
         <div className="border-t border-border pt-2">
-          <button onClick={() => setShowPaid((v) => !v)} className="min-h-9 text-sm font-medium text-muted active:text-foreground">
-            {showPaid ? "Hide" : "Show"} paid ({summary.paid.length})
-          </button>
+          <div className="flex items-center justify-between gap-3">
+            <button onClick={() => setShowPaid((v) => !v)} className="min-h-9 text-sm font-medium text-muted active:text-foreground">
+              {showPaid ? "Hide" : "Show"} paid ({paid.length})
+            </button>
+            <p className="num text-right text-sm">
+              <span className="font-semibold text-emerald-400">{paidPay ? formatMoney(paidPay) : formatHours(paidHours)}</span>
+              <span className="text-muted"> paid{paidPay ? ` · ${formatHours(paidHours)}` : ""}</span>
+            </p>
+          </div>
           {showPaid ? (
             <div>
-              {summary.paid.map((session) => (
+              {paid.map((session) => (
                 <PayrollSessionRow key={session.session_id} session={session} canMark={canMark} pay={sessionPay(session, rates)} />
               ))}
             </div>
