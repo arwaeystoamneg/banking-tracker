@@ -25,6 +25,24 @@ export interface AuthUser {
   registered?: boolean;
   /** A registered account Ray or admin hasn't approved yet. It sees only the read-only demo. */
   pending?: boolean;
+  /**
+   * Admin status on a real person's account (Ray always; others Ray promoted). Their role stays
+   * individual/employee so they keep their own sessions, payroll and identity; permission checks use isAdmin().
+   */
+  admin?: boolean;
+}
+
+/** The account that owns the app: always admin, and the only one who can grant or remove admin status. */
+export const OWNER_ACCOUNT_ID = "ray";
+
+/** Full admin powers: the shared admin login, or a person with admin status. */
+export function isAdmin(user: AuthUser): boolean {
+  return user.role === "admin" || (user.admin === true && isConfiguredAccountRole(user.role) && !user.pending);
+}
+
+/** Ray's APP_USERS_JSON account. A sign-up can never take the id "ray", and the shared admin login isn't Ray. */
+export function isOwner(user: AuthUser): boolean {
+  return user.role === "individual" && !user.registered && user.userId.toLowerCase() === OWNER_ACCOUNT_ID;
 }
 
 /** A configured account as other people see it: enough to pick them as a session's player. */

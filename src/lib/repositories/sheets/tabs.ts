@@ -317,6 +317,19 @@ export const ACCOUNTS_TAB: TabConfig = {
   booleanFields: [],
 };
 
+/**
+ * Who has admin status besides Ray (who always does). Server-only like Accounts. Only Ray adds or removes
+ * rows through the app; deleting a row in the sheet also removes someone's admin status.
+ */
+export const ADMINS_TAB: TabConfig = {
+  tabName: "Admins",
+  idField: "admin_id",
+  headers: ["admin_id", "name", "granted_by", "granted_at", "_row_version"],
+  numberFields: ["_row_version"],
+  nullableNumberFields: [],
+  booleanFields: [],
+};
+
 export const ALL_TABS = [
   GAMES_TAB,
   SIDEBETS_TAB,
@@ -333,4 +346,5 @@ export const ALL_TABS = [
   ROOM_COLORS_TAB,
   AUTO_TRIPS_TAB,
   ACCOUNTS_TAB,
+  ADMINS_TAB,
 ];

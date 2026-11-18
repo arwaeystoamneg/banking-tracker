@@ -1,5 +1,5 @@
 import "server-only";
-import { isConfiguredAccountRole, type AuthUser, type TeamMember } from "@/lib/auth/types";
+import { isAdmin, isConfiguredAccountRole, type AuthUser, type TeamMember } from "@/lib/auth/types";
 import { canonicalCasino, canonicalPerson, normalizePersonKey } from "@/lib/names";
 import {
   canEditLoanEntry,
@@ -239,12 +239,12 @@ export function createAuthorizedRepositories(
         assertOwnsGame(user, await requiredGame(repos, sidebet.game_id));
         assertVersion("Sidebets", id, sidebet, expectedVersion);
         if (patch.game_id && patch.game_id !== sidebet.game_id) {
-          if (user.role !== "admin") throw new AuthorizationError("A side bet cannot be moved");
+          if (!isAdmin(user)) throw new AuthorizationError("A side bet cannot be moved");
           assertOwnsGame(user, await requiredGame(repos, patch.game_id));
         }
         return repos.sidebets.update(
           id,
-          user.role === "admin" ? patch : withoutKeys(patch, ["game_id"]),
+          isAdmin(user) ? patch : withoutKeys(patch, ["game_id"]),
           expectedVersion,
         );
       },
@@ -412,7 +412,7 @@ export function createAuthorizedRepositories(
           "logged_at",
           "player",
           "player_id",
-          ...(user.role === "admin" ? [] : ["logged_by"]),
+          ...(isAdmin(user) ? [] : ["logged_by"]),
         ]);
         if ("player" in patch || "player_id" in patch) {
           const next = resolveSessionPlayer(
@@ -530,7 +530,7 @@ export function createAuthorizedRepositories(
           "status",
           "paid_at",
           "paid_by",
-          ...(user.role === "admin" ? [] : ["requested_by"]),
+          ...(isAdmin(user) ? [] : ["requested_by"]),
         ]);
 
         const settling = patch.status !== undefined && patch.status !== item.status;
@@ -618,7 +618,7 @@ export function createAuthorizedRepositories(
           "from_id",
           "to_name",
           "to_id",
-          ...(user.role === "admin" ? [] : ["recorded_by"]),
+          ...(isAdmin(user) ? [] : ["recorded_by"]),
         ]);
         const side = (nameKey: "from_name" | "to_name", idKey: "from_id" | "to_id") =>
           nameKey in patch || idKey in patch

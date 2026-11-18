@@ -24,6 +24,8 @@ export interface MockTables {
   autoTrips: Record<string, unknown>[];
   /** Self-registered accounts (server-only, see src/lib/auth/registered.ts). */
   accounts: Record<string, unknown>[];
+  /** Admin status grants (server-only, see src/lib/auth/admins.ts). */
+  admins: Record<string, unknown>[];
 }
 
 const TABLE_NAMES: (keyof MockTables)[] = [
@@ -42,6 +44,7 @@ const TABLE_NAMES: (keyof MockTables)[] = [
   "roomColors",
   "autoTrips",
   "accounts",
+  "admins",
 ];
 
 const STORE_PATH = path.join(process.cwd(), ".data", "mock-store.json");

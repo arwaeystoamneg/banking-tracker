@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { AUTH_COOKIE_NAME, checkSecret, makeCredentialVersion, verifyAuthToken } from "@/lib/auth/passphrase";
 import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
 import { currentRegisteredUser, isCurrentAccountSession } from "@/lib/auth/accounts";
+import { withAdminStatus } from "@/lib/auth/admins";
 
 export class AuthenticationError extends Error {
   constructor() {
@@ -32,7 +33,10 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   if (!user) return null;
 
   // Signed up in the app: its role comes from the Accounts tab now, not from when it signed in.
-  if (user.registered) return currentRegisteredUser(user);
+  if (user.registered) {
+    const registered = await currentRegisteredUser(user);
+    return registered ? withAdminStatus(registered) : null;
+  }
 
   if (isConfiguredAccountRole(user.role) && !(await isCurrentAccountSession(user))) return null;
   if (user.role === "admin") {
@@ -46,7 +50,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     }
   }
 
-  return { role: user.role, userId: user.userId, name: user.name };
+  // Admin status is looked up on every request (not kept in the cookie), so removing it takes effect right away.
+  return withAdminStatus({ role: user.role, userId: user.userId, name: user.name });
 }
 
 export async function requireCurrentUser(): Promise<AuthUser> {

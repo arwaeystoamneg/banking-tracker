@@ -1,4 +1,4 @@
-import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
+import { isAdmin, isConfiguredAccountRole, isOwner, type AuthUser } from "@/lib/auth/types";
 import type { Game, LoanEntry, LossReport, Reimbursement, Session } from "@/lib/validation/schemas";
 
 export function sameIdentity(value: string, user: AuthUser): boolean {
@@ -18,7 +18,7 @@ function isSessionRecordOwner(user: AuthUser, session: Pick<Session, "owner_id" 
 }
 
 export function ownsGame(user: AuthUser, game: Game): boolean {
-  if (user.role === "admin") return true;
+  if (isAdmin(user)) return true;
   if (!isConfiguredAccountRole(user.role)) return false;
   return isGameRecordOwner(user, game);
 }
@@ -28,7 +28,7 @@ export function ownsGame(user: AuthUser, game: Game): boolean {
  * admin. A teammate logging on someone's behalf must not lock the player out of their own session.
  */
 export function ownsSession(user: AuthUser, session: Session): boolean {
-  if (user.role === "admin") return true;
+  if (isAdmin(user)) return true;
   if (!isConfiguredAccountRole(user.role)) return false;
   if (session.player_id.trim() && sameIdentity(session.player_id, user)) return true;
   return isSessionRecordOwner(user, session);
@@ -36,7 +36,7 @@ export function ownsSession(user: AuthUser, session: Session): boolean {
 
 /** Reassigning who played is reserved for whoever logged it (or an admin), not the player. */
 export function canReassignSessionPlayer(user: AuthUser, session: Session): boolean {
-  if (user.role === "admin") return true;
+  if (isAdmin(user)) return true;
   if (!isConfiguredAccountRole(user.role)) return false;
   return isSessionRecordOwner(user, session);
 }
@@ -48,17 +48,17 @@ export function canReassignSessionPlayer(user: AuthUser, session: Session): bool
 
 /** Anyone with a real account files their own losses. The demo never writes. */
 export function canSubmitLossReport(user: AuthUser): boolean {
-  return user.role === "admin" || user.role === "individual" || user.role === "employee";
+  return isAdmin(user) || user.role === "individual" || user.role === "employee";
 }
 
 /** Deciding a report is an admin act — an employee cannot verify their own or anyone else's loss. */
 export function canReviewLossReport(user: AuthUser): boolean {
-  return user.role === "admin";
+  return isAdmin(user);
 }
 
 /** Anyone with a real account sees the whole queue. The demo never does. Review is still admin-only. */
 export function canSeeAllLossReports(user: AuthUser): boolean {
-  return user.role === "admin" || isConfiguredAccountRole(user.role);
+  return isAdmin(user) || isConfiguredAccountRole(user.role);
 }
 
 export function ownsLossReport(user: AuthUser, report: Pick<LossReport, "owner_id" | "submitted_by">): boolean {
@@ -80,17 +80,17 @@ function isReimbursementRecordOwner(
 }
 
 export function canRequestReimbursement(user: AuthUser): boolean {
-  return user.role === "admin" || isConfiguredAccountRole(user.role);
+  return isAdmin(user) || isConfiguredAccountRole(user.role);
 }
 
 /** Marking paid moves money, so employees can file but not settle — not even their own. */
 export function canSettleReimbursements(user: AuthUser): boolean {
-  return user.role === "admin" || user.role === "individual";
+  return isAdmin(user) || user.role === "individual";
 }
 
 /** May edit or delete: whoever filed it, the person owed, or admin — and only admin once it's paid. */
 export function canEditReimbursement(user: AuthUser, item: Reimbursement): boolean {
-  if (user.role === "admin") return true;
+  if (isAdmin(user)) return true;
   if (!isConfiguredAccountRole(user.role) || item.status === "paid") return false;
   if (item.payee_id.trim() && sameIdentity(item.payee_id, user)) return true;
   return isReimbursementRecordOwner(user, item);
@@ -98,7 +98,7 @@ export function canEditReimbursement(user: AuthUser, item: Reimbursement): boole
 
 /** Changing who is owed is reserved for whoever filed it (or admin), not the payee. */
 export function canReassignReimbursementPayee(user: AuthUser, item: Reimbursement): boolean {
-  if (user.role === "admin") return true;
+  if (isAdmin(user)) return true;
   if (!isConfiguredAccountRole(user.role) || item.status === "paid") return false;
   return isReimbursementRecordOwner(user, item);
 }
@@ -109,14 +109,14 @@ export function canReassignReimbursementPayee(user: AuthUser, item: Reimbursemen
  * ---------------------------------------------------------------------------------------------- */
 
 export function canRecordLoans(user: AuthUser): boolean {
-  return user.role === "admin" || isConfiguredAccountRole(user.role);
+  return isAdmin(user) || isConfiguredAccountRole(user.role);
 }
 
 export function canEditLoanEntry(
   user: AuthUser,
   entry: Pick<LoanEntry, "owner_id" | "recorded_by" | "from_id" | "to_id">,
 ): boolean {
-  if (user.role === "admin") return true;
+  if (isAdmin(user)) return true;
   if (!isConfiguredAccountRole(user.role)) return false;
   if ([entry.from_id, entry.to_id].some((id) => id.trim() && sameIdentity(id, user))) return true;
   return entry.owner_id.trim() ? sameIdentity(entry.owner_id, user) : sameIdentity(entry.recorded_by, user);
@@ -128,6 +128,10 @@ export function canEditLoanEntry(
  * ---------------------------------------------------------------------------------------------- */
 
 export function canApproveAccounts(user: AuthUser): boolean {
-  if (user.role === "admin") return true;
-  return user.role === "individual" && !user.registered && sameIdentity("ray", user);
+  return isAdmin(user) || isOwner(user);
+}
+
+/** Granting or removing admin status is Ray's alone — not other admins, not the shared admin login. */
+export function canManageAdmins(user: AuthUser): boolean {
+  return isOwner(user);
 }

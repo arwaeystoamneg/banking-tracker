@@ -47,6 +47,9 @@ Working bank is **$8,000**.
 
 ## Math — use these exactly, do not re-derive
 
+**Analyzing session results (win rate, SD, CIs, percentiles, bankroll)? Read `docs/STATS-METHODS.md` first
+and use `scripts/stats_helpers.py`.** Student t with df = sessions − 1 whenever σ is estimated from the data.
+
 ```
 action_booked   A  = min(TTA_offered, B / m)
 EV per round       = e·A − C                    // C does not scale with coverage
@@ -107,6 +110,14 @@ Decisions already made — do not relitigate without asking:
   `status` to `declined` in the sheet signs someone out. Sign-ups can't take the id or name of an env account,
   admin, demo, or ray. Accounts is not one of the Repositories, so hashes are never listed or exported.
   APP_USERS_JSON accounts work exactly as before and take precedence.
+- **Admin status (added 2026-11-18).** Besides the shared `APP_PASSPHRASE` login (role `admin`), a person can have
+  admin status: `AuthUser.admin`, from the `Admins` tab (`admin_id · name · granted_by · granted_at`), looked up on
+  every request in `withAdminStatus` (never stored in the cookie). Their role stays individual/employee so their
+  sessions, ownership and payroll are unchanged. **Every admin permission check uses `isAdmin(user)`, never
+  `role === "admin"`** (the remaining raw checks are cookie validation and legacy offline-queue migration, about the
+  shared login only). Ray (`OWNER_ACCOUNT_ID`, the APP_USERS_JSON `ray`) is always admin and is the only one who can
+  grant or remove it (`canManageAdmins`), from the Admins link in the top bar (`/admins`, `/api/admins`). If the
+  Admins tab can't be read, nobody but Ray is admin for that request.
 
 ### Environment
 

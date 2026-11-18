@@ -6,6 +6,7 @@ import { useLossReports } from "@/hooks/useLossReports";
 import { useLossEvidence } from "@/hooks/useLossEvidence";
 import { useCurrentUser } from "@/components/providers/AuthProvider";
 import { canReviewLossReport, ownsLossReport } from "@/lib/auth/permissions";
+import { isAdmin } from "@/lib/auth/types";
 import { Badge } from "@/components/ui/Badge";
 import { formatMoney } from "@/lib/decimal";
 import { canonicalCasino } from "@/lib/names";
@@ -35,7 +36,7 @@ export default function LossDetailPage({ params }: { params: Promise<{ id: strin
   if (!report) return <p className="px-4 pt-4 text-sm text-muted">Report not found.</p>;
 
   const delay = reportingDelayMs(report);
-  const canAttach = report.status === "submitted" && (ownsLossReport(user, report) || user.role === "admin");
+  const canAttach = report.status === "submitted" && (ownsLossReport(user, report) || isAdmin(user));
 
   return (
     <main className="mx-auto max-w-lg space-y-5 px-4 pt-4 pb-8">

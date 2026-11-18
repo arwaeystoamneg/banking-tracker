@@ -10,6 +10,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
   only see the public demo. Approve makes them an individual; "Approve as employee" puts them on payroll.
   Accounts live in the sheet's `Accounts` tab with hashed passwords; set `status` to `declined` there to
   remove someone.
+- **Admin status:** Ray is always an admin. From **Admins** in the top bar, Ray can make anyone with an account an
+  admin or take it away; only Ray can. Admins get every admin power (approve sign-ups, mark pay, edit anyone's
+  records) but keep their own role, sessions and payroll. Grants live in the sheet's `Admins` tab. The shared
+  `APP_PASSPHRASE` admin login still works as before, but it can't change who is admin.
 
 Example environment configuration:
 

@@ -1,5 +1,5 @@
 import { sameIdentity } from "@/lib/auth/permissions";
-import type { AuthUser, TeamMember } from "@/lib/auth/types";
+import { isAdmin, type AuthUser, type TeamMember } from "@/lib/auth/types";
 import { d, type Decimal } from "@/lib/decimal";
 import { normalizeTime, sessionSpanMinutes } from "@/lib/dates";
 import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
@@ -15,14 +15,14 @@ export const PAYROLL_START_DATE = "2026-10-01";
 const PAYROLL_APPROVERS = ["ray"];
 
 export function canMarkPayrollPaid(user: AuthUser): boolean {
-  if (user.role === "admin") return true;
+  if (isAdmin(user)) return true;
   if (user.role !== "individual") return false;
   return PAYROLL_APPROVERS.some((approver) => sameIdentity(approver, user));
 }
 
 /** Partners and admin see everyone's payroll; employees see only their own. */
 export function canSeeAllPayroll(user: AuthUser): boolean {
-  return user.role === "admin" || user.role === "individual";
+  return isAdmin(user) || user.role === "individual";
 }
 
 /**

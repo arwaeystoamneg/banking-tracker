@@ -20,6 +20,7 @@ import {
 } from "@/lib/validation/schemas";
 import { apiError } from "@/lib/api/respond";
 import { AuthorizationError, requireCurrentUser } from "@/lib/auth/session";
+import { isAdmin } from "@/lib/auth/types";
 
 const snapshotSchema = z.object({
   games: z.array(gameSchema),
@@ -47,7 +48,7 @@ const snapshotSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const user = await requireCurrentUser();
-    if (user.role !== "admin") throw new AuthorizationError("Only an admin can restore a snapshot");
+    if (!isAdmin(user)) throw new AuthorizationError("Only an admin can restore a snapshot");
 
     if (getActiveBackend() !== "mock") {
       return NextResponse.json(
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const snapshot = snapshotSchema.parse(body);
     // Snapshots never contain sign-ups (password hashes aren't exported), so keep the ones already here.
-    replaceMockStore({ ...snapshot, accounts: getMockStore().accounts });
+    replaceMockStore({ ...snapshot, accounts: getMockStore().accounts, admins: getMockStore().admins });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return apiError(err);

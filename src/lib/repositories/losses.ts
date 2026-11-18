@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AuthUser } from "@/lib/auth/types";
+import { isAdmin, type AuthUser } from "@/lib/auth/types";
 import {
   canReviewLossReport,
   canSeeAllLossReports,
@@ -127,7 +127,7 @@ export function createLossRepositories(repos: Repositories, user: AuthUser): Los
       async create(data: LossEvidenceCreate, id?: string) {
         if (!canSubmitLossReport(user)) throw new AuthorizationError("This account cannot file loss reports");
         const report = await requiredLossReport(repos, data.loss_id);
-        if (!ownsLossReport(user, report) && user.role !== "admin") {
+        if (!ownsLossReport(user, report) && !isAdmin(user)) {
           throw new AuthorizationError("Evidence can only be attached to a report you filed");
         }
         if (report.status !== "submitted") {
