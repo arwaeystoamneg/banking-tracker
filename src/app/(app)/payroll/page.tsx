@@ -80,7 +80,7 @@ export default function PayrollPage() {
               {totals.unrated > 0 ? <span className="block text-amber-400">{totals.unrated} with no rate or times, not in $</span> : null}
             </p>
           </div>
-          <DateWindowBar dates={paidDates} window={paidWindow.window} onChange={paidWindow.setWindow} label="Paid sessions" />
+          <DateWindowBar days={paidWindow.days} playDates={paidDates} window={paidWindow.window} onChange={paidWindow.setWindow} label="Paid sessions" />
         </section>
       ) : null}
 

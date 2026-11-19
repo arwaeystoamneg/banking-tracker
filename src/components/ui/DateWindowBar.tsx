@@ -1,28 +1,49 @@
 "use client";
 
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { format } from "date-fns";
 import { formatDateForDisplay } from "@/lib/dates";
 
-/** Indices into the sorted list of dates; both ends included. Null = every date. */
+/** Indices into the run of calendar days; both ends included. Null = every day. */
 export type DateWindow = [number, number] | null;
 
 /** Distinct YYYY-MM-DD dates, oldest first. */
 export function distinctDates(dates: string[]): string[] {
-  return [...new Set(dates.filter(Boolean))].sort();
+  return [...new Set(dates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort();
+}
+
+/** Every calendar day from `from` to `to`, both included (UTC arithmetic, so no daylight-saving skips). */
+export function calendarDays(from: string, to: string): string[] {
+  const days: string[] = [];
+  const end = Date.parse(`${to}T00:00:00Z`);
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= end && days.length < 20000; t += 86_400_000) {
+    days.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return days;
 }
 
 /**
- * State for a DateWindowBar over these dates: the window clamps itself when the dates change, and
- * `contains` says whether a date falls inside it (every date does while the window is "all").
+ * State for a DateWindowBar over the days from the first played date to today (or the last played date, if
+ * later): every calendar day is a step, so a window can start or end on a day nobody played. `contains` says
+ * whether a date falls inside the window (every date does while it's "all").
  */
-export function useDateWindow(dates: string[]) {
+export function useDateWindow(playDates: string[]) {
   const [window, setWindow] = useState<DateWindow>(null);
-  const last = dates.length - 1;
+  const today = format(new Date(), "yyyy-MM-dd");
+  const first = playDates[0];
+  const lastPlayed = playDates[playDates.length - 1];
+  const days = useMemo(
+    () => (first ? calendarDays(first, lastPlayed > today ? lastPlayed : today) : []),
+    [first, lastPlayed, today],
+  );
+  const last = days.length - 1;
   const clamped: DateWindow = window === null || last < 1 ? null : [Math.min(window[0], last), Math.min(window[1], last)];
   const full = clamped === null || (clamped[0] === 0 && clamped[1] === last);
-  const from = full ? null : dates[clamped![0]];
-  const to = full ? null : dates[clamped![1]];
+  const from = full ? null : days[clamped![0]];
+  const to = full ? null : days[clamped![1]];
   return {
+    days,
+    playDates,
     window: full ? null : clamped,
     setWindow,
     isAll: full,
@@ -36,15 +57,19 @@ type Drag = { kind: "lo" | "hi" } | { kind: "band"; grabbedAt: number; start: [n
 
 /**
  * A draggable window over a run of dates. Drag either end to resize it, or drag the shaded band to slide
- * the whole window along. Each step is one date that has data, so empty days are skipped.
+ * the whole window along. Each step is one calendar day; ticks on the track mark the days with play.
  */
 export function DateWindowBar({
-  dates,
+  days: dates,
+  playDates,
   window,
   onChange,
   label = "Dates",
 }: {
-  dates: string[];
+  /** Every calendar day the bar covers, oldest first (useDateWindow's `days`). */
+  days: string[];
+  /** Days with sessions, marked on the track and counted in the summary. */
+  playDates: string[];
   window: DateWindow;
   onChange: (window: DateWindow) => void;
   label?: string;
@@ -111,9 +136,14 @@ export function DateWindowBar({
 
   const summary = useMemo(() => {
     if (last < 0) return "";
-    const days = hi - lo + 1;
-    return `${days} of ${dates.length} day${dates.length === 1 ? "" : "s"} played`;
-  }, [dates.length, hi, lo, last]);
+    const span = hi - lo + 1;
+    const played = playDates.filter((date) => date >= dates[lo] && date <= dates[hi]).length;
+    return `${span} day${span === 1 ? "" : "s"} · ${played} played`;
+  }, [dates, playDates, hi, lo, last]);
+  const marks = useMemo(() => {
+    const index = new Map(dates.map((date, i) => [date, i]));
+    return playDates.map((date) => index.get(date)).filter((i): i is number => i !== undefined);
+  }, [dates, playDates]);
 
   if (last < 1) return null;
 
@@ -155,6 +185,15 @@ export function DateWindowBar({
         className="relative h-11 touch-none select-none"
       >
         <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-surface-inset" />
+        {marks.map((index) => (
+          <div
+            key={index}
+            className={`absolute top-1/2 h-3 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${
+              index >= lo && index <= hi ? "bg-foreground/70" : "bg-muted/40"
+            }`}
+            style={{ left: `${pct(index)}%` }}
+          />
+        ))}
         <div
           className="absolute top-1/2 h-1.5 -translate-y-1/2 cursor-grab rounded-full bg-accent/70"
           style={{ left: `${pct(lo)}%`, width: `${pct(hi) - pct(lo)}%` }}

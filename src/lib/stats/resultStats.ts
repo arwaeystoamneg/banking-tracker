@@ -242,3 +242,29 @@ export function sessionsByPlayer(sessions: Session[]): { label: string; sessions
   }
   return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
+
+export interface PnlPoint {
+  date: string;
+  /** Net of the finished sessions that started that day. */
+  day: number;
+  /** Running net through the end of that day. */
+  total: number;
+  sessions: number;
+}
+
+/** Running net, one point per session date, oldest first. Open sessions have no result yet and are left out. */
+export function cumulativePnl(sessions: Session[]): PnlPoint[] {
+  const byDate = new Map<string, { day: Decimal; sessions: number }>();
+  for (const session of sessions) {
+    if (isSessionOpen(session) || !session.date) continue;
+    const row = byDate.get(session.date) ?? { day: d(0), sessions: 0 };
+    byDate.set(session.date, { day: row.day.plus(result(session)), sessions: row.sessions + 1 });
+  }
+  let total = d(0);
+  return [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, row]) => {
+      total = total.plus(row.day);
+      return { date, day: row.day.toNumber(), total: total.toNumber(), sessions: row.sessions };
+    });
+}

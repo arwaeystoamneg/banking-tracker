@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeResultStats, sdPrior, statsByRoom, t95 } from "@/lib/stats/resultStats";
+import { computeResultStats, cumulativePnl, sdPrior, statsByRoom, t95 } from "@/lib/stats/resultStats";
 import type { Session } from "@/lib/validation/schemas";
 
 function session(overrides: Partial<Session> & { session_id: string; date: string }): Session {
@@ -183,5 +183,20 @@ describe("in-session swing", () => {
     // Damon 11/14 (7 h), Damon 11/15 (5 h), Ray 11/14 (5 h); the untimed 11/16 isn't a played day.
     expect(stats.daysPlayed).toBe(3);
     expect(stats.minutes / stats.daysPlayed).toBeCloseTo((17 * 60) / 3, 6);
+  });
+});
+
+describe("cumulativePnl", () => {
+  it("sums each day's finished sessions into a running total, oldest first, skipping open ones", () => {
+    const points = cumulativePnl([
+      session({ session_id: "c", date: "2026-11-03", buy_out: 7000, time_out: "22:00" }),
+      session({ session_id: "a", date: "2026-11-01", buy_out: 9000, time_out: "22:00" }),
+      session({ session_id: "b", date: "2026-11-01", buy_out: 8500, time_out: "22:00" }),
+      session({ session_id: "open", date: "2026-11-04" }),
+    ]);
+    expect(points).toEqual([
+      { date: "2026-11-01", day: 1500, total: 1500, sessions: 2 },
+      { date: "2026-11-03", day: -1000, total: 500, sessions: 1 },
+    ]);
   });
 });

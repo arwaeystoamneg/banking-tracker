@@ -5,6 +5,7 @@ import { useSessions } from "@/hooks/useSessions";
 import { useRounds } from "@/hooks/useRounds";
 import { EdgeSummaryTable } from "@/components/rollups/EdgeSummaryTable";
 import { ResultStatsCard } from "@/components/stats/ResultStatsCard";
+import { PnlChart } from "@/components/stats/PnlChart";
 import { computeRollup } from "@/lib/math/rollup";
 import { groupSessionsIntoTrips, sessionTrip, tripHref } from "@/lib/trips";
 import { sessionsByPlayer } from "@/lib/stats/resultStats";
@@ -68,7 +69,8 @@ export default function RollupsPage() {
         ))}
       </div>
 
-      {!isLoading ? <DateWindowBar dates={dates} window={dateWindow.window} onChange={dateWindow.setWindow} label="Stats dates" /> : null}
+      {!isLoading ? <DateWindowBar days={dateWindow.days} playDates={dates} window={dateWindow.window} onChange={dateWindow.setWindow} label="Stats dates" /> : null}
+      {!isLoading && sessions.length > 0 ? <PnlChart sessions={sessions} /> : null}
 
       {isLoading ? <p className="text-sm text-muted">Loading…</p> : null}
       {!isLoading && view === "players" ? (
