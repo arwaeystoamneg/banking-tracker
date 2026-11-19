@@ -2,15 +2,17 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { authenticateLogin, registerAndLogin } from "@/lib/auth/authenticate";
 import { currentRegisteredUser, listTeamMembers } from "@/lib/auth/accounts";
 import { verifyAuthToken } from "@/lib/auth/passphrase";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { hashPassword, hashPasswordWithCost, needsRehash, verifyPassword } from "@/lib/auth/password";
 import { canApproveAccounts } from "@/lib/auth/permissions";
 import {
   decideRegisteredAccount,
   findRegisteredAccount,
   setAccountsStoreForTests,
+  upgradePasswordHash,
   type RegisteredAccount,
 } from "@/lib/auth/registered";
 import { LOGIN_ERROR } from "@/lib/auth/loginErrors";
+import { MAX_FAILURES_PER_ADDRESS, recordLoginFailure } from "@/lib/auth/rateLimit";
 import { ConflictError, type CrudRepository } from "@/lib/repositories/types";
 
 type Store = CrudRepository<RegisteredAccount, Omit<RegisteredAccount, "account_id" | "_row_version">, Partial<RegisteredAccount>>;
@@ -150,13 +152,47 @@ describe("self-registration", () => {
 
   it("rate-limits sign-ups from one address", async () => {
     const attemptKey = "same-address:register";
-    for (let index = 0; index < 8; index += 1) {
+    for (let index = 0; index < 3; index += 1) {
       await registerAndLogin({ username: `user${index}`, name: `User ${index}`, password: "long-password", confirm: "long-password", attemptKey });
     }
     expect(
       await registerAndLogin({ username: "user9", name: "User 9", password: "long-password", confirm: "long-password", attemptKey }),
     ).toEqual({ error: LOGIN_ERROR.rateLimit });
   });
+});
+
+describe("login hardening", () => {
+  it("upgrades an old, cheaper hash at the next sign-in and still accepts the password", async () => {
+    const old = await hashPasswordWithCost("long-password", 16384);
+    expect(needsRehash(old)).toBe(true);
+    await register("oldhash", "Old Hash");
+    const row = await findRegisteredAccount("oldhash", true);
+    await upgradePasswordHash(row!, old);
+    const login = await authenticateLogin({ mode: "account", username: "oldhash", passphrase: "long-password", attemptKey: key() });
+    expect("user" in login).toBe(true);
+    const after = await findRegisteredAccount("oldhash", true);
+    expect(needsRehash(after!.password_hash)).toBe(false);
+    expect(await verifyPassword("long-password", after!.password_hash)).toBe(true);
+  });
+
+  it("limits one address across many usernames", async () => {
+    // 30 failures from one address, each against a different username (so no per-username limit is hit).
+    for (let index = 0; index < MAX_FAILURES_PER_ADDRESS; index += 1) recordLoginFailure("addr:any");
+    const login = await authenticateLogin({ mode: "account", username: "fresh-name", passphrase: "x", attemptKey: "addr:fresh-name", addressKey: "addr" });
+    expect(login).toEqual({ error: LOGIN_ERROR.rateLimit });
+  });
+
+  it("refuses passwords longer than 256 characters without hashing them", async () => {
+    const long = "a".repeat(257);
+    expect(await registerAndLogin({ username: "longpw", name: "Long Pw", password: long, confirm: long, attemptKey: key() })).toEqual({
+      error: LOGIN_ERROR.invalidSignup,
+    });
+  });
+
+  it("caps sign-ups waiting for approval", async () => {
+    for (let index = 0; index < 25; index += 1) await register(`wait${index}`, `Wait ${index}`);
+    expect(await register("onemore", "One More")).toEqual({ error: LOGIN_ERROR.signupsFull });
+  }, 60_000);
 });
 
 describe("canApproveAccounts", () => {

@@ -13,7 +13,14 @@ import {
 } from "@/lib/auth/accounts";
 import { createRegisteredAccount, RegistrationError } from "@/lib/auth/registered";
 import { AuthConfigError, type AuthUser } from "@/lib/auth/types";
-import { canAttemptLogin, clearLoginFailures, recordLoginFailure } from "@/lib/auth/rateLimit";
+import {
+  MAX_FAILURES_PER_ADDRESS,
+  MAX_SIGNUPS_PER_ADDRESS,
+  canAttemptLogin,
+  clearLoginFailures,
+  recordLoginFailure,
+} from "@/lib/auth/rateLimit";
+import { MAX_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { LOGIN_ERROR, type LoginErrorCode } from "@/lib/auth/loginErrors";
 
 export { LOGIN_ERROR, LOGIN_ERROR_MESSAGES, isLoginErrorCode, safeLoginDestination } from "@/lib/auth/loginErrors";
@@ -33,16 +40,28 @@ export async function authenticateLogin(input: {
   username: string;
   passphrase: string;
   attemptKey: string;
+  /** The caller's address alone, limited across every username it tries. */
+  addressKey?: string;
 }): Promise<{ user: AuthUser; token: string } | { error: LoginErrorCode }> {
   const username = input.username.trim();
   const isDemo = input.mode === "demo" || username.toLowerCase() === "demo";
+  const addressKey = input.addressKey ? `${input.addressKey}:any` : null;
 
-  if (!isDemo && !canAttemptLogin(input.attemptKey)) {
+  if (
+    !isDemo &&
+    (!canAttemptLogin(input.attemptKey) || (addressKey && !canAttemptLogin(addressKey, MAX_FAILURES_PER_ADDRESS)))
+  ) {
     return { error: LOGIN_ERROR.rateLimit };
   }
   // Count the attempt before the (slow) password check, so a burst of parallel guesses can't all slip in
-  // ahead of the first failure being recorded. A successful login clears it.
-  if (!isDemo) recordLoginFailure(input.attemptKey);
+  // ahead of the first failure being recorded. A successful login clears the per-username count.
+  if (!isDemo) {
+    recordLoginFailure(input.attemptKey);
+    if (addressKey) recordLoginFailure(addressKey);
+  }
+  if (username.length > 64 || input.passphrase.length > MAX_PASSWORD_LENGTH) {
+    return { error: LOGIN_ERROR.credentials };
+  }
 
   try {
     let user: AuthUser | null = null;
@@ -95,10 +114,11 @@ export async function registerAndLogin(input: {
   confirm: string;
   attemptKey: string;
 }): Promise<{ user: AuthUser; token: string } | { error: LoginErrorCode }> {
-  if (!canAttemptLogin(input.attemptKey)) return { error: LOGIN_ERROR.rateLimit };
+  if (!canAttemptLogin(input.attemptKey, MAX_SIGNUPS_PER_ADDRESS)) return { error: LOGIN_ERROR.rateLimit };
   // Every sign-up counts, successful or not: there's no reason one address makes many accounts.
   recordLoginFailure(input.attemptKey);
   if (input.password !== input.confirm) return { error: LOGIN_ERROR.mismatch };
+  if (input.password.length > MAX_PASSWORD_LENGTH) return { error: LOGIN_ERROR.invalidSignup };
 
   try {
     const account = await createRegisteredAccount(
@@ -116,7 +136,9 @@ export async function registerAndLogin(input: {
     return { user, token: await makeAuthToken(registeredTokenUser(user)) };
   } catch (error) {
     if (error instanceof RegistrationError) {
-      return { error: error.code === "taken" ? LOGIN_ERROR.taken : LOGIN_ERROR.invalidSignup };
+      return {
+        error: error.code === "taken" ? LOGIN_ERROR.taken : error.code === "full" ? LOGIN_ERROR.signupsFull : LOGIN_ERROR.invalidSignup,
+      };
     }
     if (error instanceof AuthConfigError) return { error: LOGIN_ERROR.config };
     if (error instanceof Error && /AUTH_COOKIE_SECRET|APP_PASSPHRASE is not set/.test(error.message)) {

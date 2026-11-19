@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     username,
     passphrase: String(formData.get("passphrase") ?? ""),
     attemptKey: `${address}:${username.toLowerCase() || "admin"}`,
+    addressKey: address,
   });
 
   if ("error" in result) {

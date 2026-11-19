@@ -11,6 +11,13 @@ import { groupSessionsIntoTrips, sessionTrip, tripHref } from "@/lib/trips";
 import { sessionsByPlayer } from "@/lib/stats/resultStats";
 import type { Session } from "@/lib/validation/schemas";
 import { DateWindowBar, distinctDates, useDateWindow } from "@/components/ui/DateWindowBar";
+import { usePayrollMembers } from "@/hooks/usePayrollMembers";
+import { useCurrentUser, useTeam } from "@/components/providers/AuthProvider";
+import { canSeeAllPayroll, payrollPeople } from "@/lib/payroll";
+import { sessionsAfterPay } from "@/lib/overtime";
+import { sdPrior } from "@/lib/stats/resultStats";
+import { discordStatsTable } from "@/lib/stats/discord";
+import { formatDateForDisplay } from "@/lib/dates";
 
 type View = "players" | "trips";
 
@@ -25,13 +32,37 @@ export default function RollupsPage() {
   const { sessions: allSessions, isLoading: sessionsLoading } = useSessions();
   const { rounds: allRounds, isLoading: roundsLoading } = useRounds();
   const [view, setView] = useState<View>("players");
+  const user = useCurrentUser();
+  const team = useTeam();
+  const { payrollMembers } = usePayrollMembers();
+  // Only people who can see everyone's pay get the after-pay view; it would reveal other people's rates.
+  const canShowPay = canSeeAllPayroll(user) && user.role !== "demo";
+  const [afterPay, setAfterPay] = useState(false);
+  const showAfterPay = canShowPay && afterPay;
+  const payPeople = useMemo(() => payrollPeople(team, payrollMembers), [team, payrollMembers]);
   const dates = useMemo(() => distinctDates(allSessions.map((session) => session.date)), [allSessions]);
   const dateWindow = useDateWindow(dates);
   const { from, to } = dateWindow;
-  const sessions = useMemo(
-    () => (from === null ? allSessions : allSessions.filter((session) => session.date >= from && session.date <= to!)),
-    [allSessions, from, to],
-  );
+  const sessions = useMemo(() => {
+    const inWindow = from === null ? allSessions : allSessions.filter((session) => session.date >= from && session.date <= to!);
+    return showAfterPay ? sessionsAfterPay(inWindow, payPeople, payrollMembers) : inWindow;
+  }, [allSessions, from, to, showAfterPay, payPeople, payrollMembers]);
+  const [copied, setCopied] = useState<"" | "done" | "failed">("");
+  async function copyForDiscord() {
+    const span = from === null ? "all time" : `${formatDateForDisplay(from)} – ${formatDateForDisplay(to!)}`;
+    const text = discordStatsTable({
+      heading: `Stats · ${span} · ${showAfterPay ? "after pay" : "before pay"}`,
+      players: sessionsByPlayer(sessions),
+      prior: sdPrior(allSessions),
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied("done");
+    } catch {
+      setCopied("failed");
+    }
+    setTimeout(() => setCopied(""), 2500);
+  }
   const rounds = useMemo(() => {
     if (from === null) return allRounds;
     const ids = new Set(sessions.map((session) => session.session_id));
@@ -68,6 +99,37 @@ export default function RollupsPage() {
           </button>
         ))}
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {canShowPay ? (
+          <div className="inline-flex rounded-xl border border-border bg-surface p-0.5 text-sm">
+            {([false, true] as const).map((option) => (
+              <button
+                key={String(option)}
+                onClick={() => setAfterPay(option)}
+                aria-pressed={afterPay === option}
+                className={`min-h-9 rounded-lg px-3 py-1.5 font-medium transition-colors ${
+                  afterPay === option ? "bg-surface-raised text-foreground" : "text-muted active:text-foreground"
+                }`}
+              >
+                {option ? "After pay" : "Before pay"}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {!isLoading && sessions.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => void copyForDiscord()}
+            className="min-h-10 rounded-xl border border-border bg-surface px-3 text-sm font-medium text-foreground active:bg-surface-raised"
+          >
+            {copied === "done" ? "Copied ✓" : copied === "failed" ? "Couldn't copy" : "Copy for Discord"}
+          </button>
+        ) : null}
+      </div>
+      {showAfterPay ? (
+        <p className="-mt-2 text-xs text-muted">Each payroll person&apos;s pay at their current rates is taken off their sessions, older ones included.</p>
+      ) : null}
 
       {!isLoading ? <DateWindowBar days={dateWindow.days} playDates={dates} window={dateWindow.window} onChange={dateWindow.setWindow} label="Stats dates" /> : null}
       {!isLoading && sessions.length > 0 ? <PnlChart sessions={sessions} /> : null}

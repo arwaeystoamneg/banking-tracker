@@ -110,6 +110,11 @@ Decisions already made — do not relitigate without asking:
   `status` to `declined` in the sheet signs someone out. Sign-ups can't take the id or name of an env account,
   admin, demo, or ray. Accounts is not one of the Repositories, so hashes are never listed or exported.
   APP_USERS_JSON accounts work exactly as before and take precedence.
+  Login hardening (2026-11-19): scrypt N=2^17 (older hashes upgrade at the next sign-in, `needsRehash`); limits per
+  address+username (8/15 min), per address across usernames (30/15 min) and sign-ups per address (3/15 min), all
+  in-memory per instance; unknown usernames are checked against the shared cached read (no live Google read) and
+  burn a dummy scrypt so timing doesn't reveal them; passwords over 256 chars are refused; at most 25 pending
+  sign-ups; `next.config.ts` sends X-Frame-Options DENY / frame-ancestors 'none'.
 - **Admin status (added 2026-11-18).** Besides the shared `APP_PASSPHRASE` login (role `admin`), a person can have
   admin status: `AuthUser.admin`, from the `Admins` tab (`admin_id · name · granted_by · granted_at`), looked up on
   every request in `withAdminStatus` (never stored in the cookie). Their role stays individual/employee so their

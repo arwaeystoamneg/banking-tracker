@@ -11,8 +11,8 @@ import {
   type TeamMember,
 } from "@/lib/auth/types";
 import { checkSecret, makeCredentialVersion } from "@/lib/auth/passphrase";
-import { verifyPassword } from "@/lib/auth/password";
-import { findRegisteredAccount, listRegisteredAccounts, type RegisteredAccount } from "@/lib/auth/registered";
+import { burnPasswordCheck, hashPassword, needsRehash, verifyPassword } from "@/lib/auth/password";
+import { findRegisteredAccount, listRegisteredAccounts, upgradePasswordHash, type RegisteredAccount } from "@/lib/auth/registered";
 
 const accountSchema = z.object({
   id: z.string().trim().min(1).regex(/^[a-zA-Z0-9_-]+$/),
@@ -151,10 +151,25 @@ export async function authenticateRegisteredAccount(
   username: string,
   password: string,
 ): Promise<AuthUser | "declined" | null> {
-  const account = await findRegisteredAccount(username, true);
-  if (!account || !(await verifyPassword(password, account.password_hash))) return null;
+  // The shared few-seconds-old read answers "does this username exist" without a Google read, so guessing random
+  // usernames can't burn the sheet quota. Only a real account gets the live read.
+  const known = await findRegisteredAccount(username);
+  const account = known ? await findRegisteredAccount(username, true) : null;
+  if (!account) {
+    await burnPasswordCheck(password);
+    return null;
+  }
+  if (!(await verifyPassword(password, account.password_hash))) return null;
   if (account.status === "declined") return "declined";
-  return registeredUser(account, await makeCredentialVersion(account.password_hash));
+  let current = account;
+  if (needsRehash(account.password_hash)) {
+    try {
+      current = await upgradePasswordHash(account, await hashPassword(password));
+    } catch {
+      // A failed upgrade only means the old hash stays until next time.
+    }
+  }
+  return registeredUser(current, await makeCredentialVersion(current.password_hash));
 }
 
 /** The signed cookie of a registered account, for its token (not the user the app sees). */

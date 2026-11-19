@@ -51,6 +51,8 @@ export interface AccountRequest {
 
 export const USERNAME_PATTERN = /^[a-z0-9_-]{3,32}$/;
 export const MIN_PASSWORD_LENGTH = 8;
+/** Sign-ups waiting for approval at once; more are refused until Ray approves or declines some. */
+export const MAX_PENDING_SIGNUPS = 25;
 
 const globalForAccounts = globalThis as unknown as { __accountsStore?: AccountsStore; __accountsTest?: AccountsStore };
 
@@ -115,7 +117,7 @@ export function toAccountRequest(account: RegisteredAccount): AccountRequest {
 }
 
 export class RegistrationError extends Error {
-  constructor(readonly code: "taken" | "invalid") {
+  constructor(readonly code: "taken" | "invalid" | "full") {
     super(code);
     this.name = "RegistrationError";
   }
@@ -144,6 +146,10 @@ export async function createRegisteredAccount(
     if (account.status !== "declined") taken.add(normalize(account.name));
   }
   if (taken.has(id) || taken.has(normalize(name))) throw new RegistrationError("taken");
+  // A flood of sign-ups would bury real ones in the approval card and grow the sheet; cap what's waiting.
+  if (existing.filter((account) => account.status === "pending").length >= MAX_PENDING_SIGNUPS) {
+    throw new RegistrationError("full");
+  }
 
   const passwordHash = await hashPassword(input.password);
   const created = await repo.create(
@@ -161,6 +167,12 @@ export async function createRegisteredAccount(
   // create() returns the existing row on an id collision (a race with another sign-up) — never take it over.
   if (created.password_hash !== passwordHash) throw new RegistrationError("taken");
   return created;
+}
+
+/** Replaces a stored hash with a stronger one of the same password (see needsRehash). */
+export async function upgradePasswordHash(account: RegisteredAccount, passwordHash: string): Promise<RegisteredAccount> {
+  const repo = await store();
+  return repo.update(account.account_id, { password_hash: passwordHash }, account._row_version);
 }
 
 export async function decideRegisteredAccount(

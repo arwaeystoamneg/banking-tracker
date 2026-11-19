@@ -6,6 +6,7 @@ export const LOGIN_ERROR = {
   taken: "taken",
   invalidSignup: "invalid_signup",
   mismatch: "mismatch",
+  signupsFull: "signups_full",
 } as const;
 
 export type LoginErrorCode = (typeof LOGIN_ERROR)[keyof typeof LOGIN_ERROR];
@@ -16,8 +17,9 @@ export const LOGIN_ERROR_MESSAGES: Record<LoginErrorCode, string> = {
   config: "Sign-in isn't configured on this server.",
   declined: "This account wasn't approved. Ask Ray if you think that's a mistake.",
   taken: "That username or name is already taken.",
-  invalid_signup: "Use a 3–32 character username (letters, numbers, - or _), your name, and a password of at least 8 characters.",
+  invalid_signup: "Use a 3–32 character username (letters, numbers, - or _), your name, and a password of 8–256 characters.",
   mismatch: "The two passwords don't match.",
+  signups_full: "Too many sign-ups are waiting for approval. Ask Ray to clear them, then try again.",
 };
 
 export function isLoginErrorCode(value: string | null): value is LoginErrorCode {

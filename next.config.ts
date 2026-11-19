@@ -16,6 +16,21 @@ const withSerwist = withSerwistInit({
 const nextConfig: NextConfig = {
   // googleapis uses Node crypto/TLS; bundling it for serverless often breaks JWT auth on Vercel.
   serverExternalPackages: ["googleapis", "google-auth-library"],
+  // No other site may show the app in a frame (clickjacking a "Mark all paid" or approval tap), browsers
+  // mustn't guess file types, and links out don't carry the page address.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default withSerwist(nextConfig);

@@ -73,3 +73,22 @@ export function formatMinutes(minutes: number): string {
   const rest = minutes % 60;
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
+
+/**
+ * The same sessions with each payroll person's pay taken off the result (buy-out lowered by what the session
+ * pays at their current rates), so stats show what the bank keeps. Sessions of people with no rate, open
+ * sessions, and sessions without usable times are unchanged. Applies to every date: pay before
+ * PAYROLL_START_DATE was settled outside the app but was still a cost, estimated here at today's rates.
+ */
+export function sessionsAfterPay(
+  sessions: Session[],
+  people: TeamMember[],
+  members: Pick<PayrollMember, "member_id" | "hourly_rate" | "overtime_rate">[],
+): Session[] {
+  return sessions.map((session) => {
+    if (session.buy_out === null || session.buy_out === undefined || isSessionOpen(session)) return session;
+    const person = sessionEmployee(session, people);
+    const pay = person ? sessionPay(session, ratesFor(person.id, members)) : null;
+    return pay ? { ...session, buy_out: d(session.buy_out).minus(pay).toNumber() } : session;
+  });
+}

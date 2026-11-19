@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { overtimeByPerson, ratesFor, sessionPay, totalPay } from "@/lib/overtime";
+import { overtimeByPerson, ratesFor, sessionPay, sessionsAfterPay, totalPay } from "@/lib/overtime";
 import { sessionSchema, type Session } from "@/lib/validation/schemas";
 import { d } from "@/lib/decimal";
 import type { TeamMember } from "@/lib/auth/types";
@@ -53,3 +53,16 @@ describe("pay across daylight saving", () => {
   });
 });
 
+
+describe("sessionsAfterPay", () => {
+  it("takes each payroll person's pay off their finished sessions and leaves everyone else alone", () => {
+    const ray = session("r", "2026-09-01", "18:00", "22:00", { player: "Ray Tang", player_id: "ray", buy_out: 500 });
+    const mine = session("d", "2026-09-01", "18:00", "22:00", { buy_out: 1000 }); // 4h at $60 = $240, before tracking too
+    const open = session("o", "2026-10-02", "18:00", "");
+    const [afterRay, afterDamon, afterOpen] = sessionsAfterPay([ray, mine, open], [damon], [member]);
+    expect(afterRay).toBe(ray);
+    expect(afterDamon.buy_out).toBe(760);
+    expect(afterOpen).toBe(open);
+    expect(sessionsAfterPay([mine], [damon], [])[0]).toBe(mine); // no rate set: unchanged
+  });
+});
