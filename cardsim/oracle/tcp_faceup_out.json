@@ -1,0 +1,187 @@
+{
+ "score_encoding": "((cat*13+k1)*13+k2)*13+k3; cat 0 high,1 pair,2 flush,3 straight,4 trips,5 SF; rank 0=deuce..12=ace",
+ "queen_high": 1690,
+ "q64": 1744,
+ "standard": {
+  "5/4/1": {
+   "optimal_q64": {
+    "house_edge_per_ante": 0.0337298094360494,
+    "house_edge_per_total_bet": 0.02014672401450518,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.6871495919589528,
+    "sd_per_ante": 1.6392527541410302
+   },
+   "mimic": {
+    "house_edge_per_ante": 0.03449121055951023,
+    "house_edge_per_total_bet": 0.020337666845388905,
+    "raise_rate": 0.6959276018099547,
+    "variance_per_ante": 2.7318553321585863,
+    "sd_per_ante": 1.6528325178791063
+   },
+   "raise_all": {
+    "house_edge_per_ante": 0.07653794087192978,
+    "house_edge_per_total_bet": 0.03826897043596489,
+    "raise_rate": 1.0,
+    "variance_per_ante": 3.3773784460640415,
+    "sd_per_ante": 1.8377645241064051
+   },
+   "true_optimal": {
+    "house_edge_per_ante": 0.0337298094360494,
+    "house_edge_per_total_bet": 0.02014672401450518,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.6871495919589528,
+    "sd_per_ante": 1.6392527541410302
+   }
+  },
+  "4/3/1": {
+   "optimal_q64": {
+    "house_edge_per_ante": 0.03825469631387745,
+    "house_edge_per_total_bet": 0.022849426717207882,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.6355186279856535,
+    "sd_per_ante": 1.6234280482933803
+   },
+   "mimic": {
+    "house_edge_per_ante": 0.03901609743733828,
+    "house_edge_per_total_bet": 0.02300575649320107,
+    "raise_rate": 0.6959276018099547,
+    "variance_per_ante": 2.6802174776773824,
+    "sd_per_ante": 1.6371369758445329
+   },
+   "raise_all": {
+    "house_edge_per_ante": 0.08106282774975784,
+    "house_edge_per_total_bet": 0.04053141387487892,
+    "raise_rate": 1.0,
+    "variance_per_ante": 3.3253600781863457,
+    "sd_per_ante": 1.8235569851765931
+   },
+   "true_optimal": {
+    "house_edge_per_ante": 0.03825469631387745,
+    "house_edge_per_total_bet": 0.022849426717207882,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.6355186279856535,
+    "sd_per_ante": 1.6234280482933803
+   }
+  },
+  "3/2/1": {
+   "optimal_q64": {
+    "house_edge_per_ante": 0.0427795831917055,
+    "house_edge_per_total_bet": 0.025552129419910582,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.592896488565496,
+    "sd_per_ante": 1.6102473376986208
+   },
+   "mimic": {
+    "house_edge_per_ante": 0.04354098431516636,
+    "house_edge_per_total_bet": 0.02567384614101325,
+    "raise_rate": 0.6959276018099547,
+    "variance_per_ante": 2.6375884477493208,
+    "sd_per_ante": 1.624065407472655
+   },
+   "raise_all": {
+    "house_edge_per_ante": 0.0855877146275859,
+    "house_edge_per_total_bet": 0.04279385731379295,
+    "raise_rate": 1.0,
+    "variance_per_ante": 3.282350534861791,
+    "sd_per_ante": 1.8117258442882
+   },
+   "true_optimal": {
+    "house_edge_per_ante": 0.0427795831917055,
+    "house_edge_per_total_bet": 0.025552129419910582,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.592896488565496,
+    "sd_per_ante": 1.6102473376986208
+   }
+  },
+  "none": {
+   "optimal_q64": {
+    "house_edge_per_ante": 0.08658048816908107,
+    "house_edge_per_total_bet": 0.05171429158207274,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.382588294757206,
+    "sd_per_ante": 1.5435635052556813
+   },
+   "mimic": {
+    "house_edge_per_ante": 0.08734188929254191,
+    "house_edge_per_total_bet": 0.051500953931835014,
+    "raise_rate": 0.6959276018099547,
+    "variance_per_ante": 2.427213553824514,
+    "sd_per_ante": 1.5579517174240394
+   },
+   "raise_all": {
+    "house_edge_per_ante": 0.12938861960496145,
+    "house_edge_per_total_bet": 0.06469430980248073,
+    "raise_rate": 1.0,
+    "variance_per_ante": 3.068292271258937,
+    "sd_per_ante": 1.7516541528677791
+   },
+   "true_optimal": {
+    "house_edge_per_ante": 0.08658048816908107,
+    "house_edge_per_total_bet": 0.05171429158207274,
+    "raise_rate": 0.6742081447963801,
+    "variance_per_ante": 2.382588294757206,
+    "sd_per_ante": 1.5435635052556813
+   }
+  }
+ },
+ "faceup": {
+  "true_optimal": {
+   "house_edge_per_ante": 0.04597596485402671,
+   "house_edge_per_total_bet": 0.02691354794336209,
+   "raise_rate": 0.7082833133253301,
+   "variance_per_ante": 2.408194946261276,
+   "sd_per_ante": 1.5518359920627167
+  },
+  "optimal_threshold": {
+   "house_edge_per_ante": 0.04599640838332058,
+   "house_edge_per_total_bet": 0.026901084823932997,
+   "raise_rate": 0.709834703112014,
+   "variance_per_ante": 2.411176082468538,
+   "sd_per_ante": 1.5527962140823688
+  },
+  "mimic": {
+   "house_edge_per_ante": 0.08734188929254189,
+   "house_edge_per_total_bet": 0.051500953931835,
+   "raise_rate": 0.6959276018099547,
+   "variance_per_ante": 2.4272135538245143,
+   "sd_per_ante": 1.5579517174240396
+  },
+  "raise_all": {
+   "house_edge_per_ante": 0.2167305088975033,
+   "house_edge_per_total_bet": 0.10836525444875166,
+   "raise_rate": 1.0,
+   "variance_per_ante": 3.0376423673299056,
+   "sd_per_ante": 1.7428833487442312
+  },
+  "thresholds_by_up_rank_2_to_A": [
+   1534,
+   1534,
+   1547,
+   1560,
+   1573,
+   1586,
+   1599,
+   1612,
+   1447,
+   1615,
+   1781,
+   1950,
+   2119
+  ],
+  "thresholds_described": {
+   "2": "J-3-2",
+   "3": "J-3-2",
+   "4": "J-4-2",
+   "5": "J-5-2",
+   "6": "J-6-2",
+   "7": "J-7-2",
+   "8": "J-8-2",
+   "9": "J-9-2",
+   "T": "T-9-6",
+   "J": "J-9-5",
+   "Q": "Q-9-2",
+   "K": "K-9-2",
+   "A": "A-9-2"
+  }
+ }
+}

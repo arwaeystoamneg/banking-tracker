@@ -40,7 +40,6 @@ import {
   realizedHpcFrogEdge,
 } from "@/lib/math/baccaratHpc";
 import {
-  CA_FACE_UP_ANTE,
   PAIR_PLUS_PAYOUTS_CA,
   SIX_CARD_PAYOUTS_TCP6B4,
   matchThreeCardSidebet,
@@ -77,6 +76,15 @@ import {
   type TripsHand,
 } from "@/lib/math/uthTrips";
 import { formatMoney } from "@/lib/decimal";
+import {
+  ANTE_BONUS,
+  antePlayExact,
+  antePlayExposure,
+  simulateThreeCardSessions,
+  type AnteBonusTable,
+  type PlayerStyle,
+  type ThreeCardRules,
+} from "@/lib/math/threeCardSim";
 import { calculatorOptions, detectGameFamily, isHighValueSidebet } from "@/lib/gameFamily";
 
 const SIM_SESSIONS = 4000;
@@ -114,6 +122,12 @@ export default function EvCalculatorPage() {
   const [roundsPerSession, setRoundsPerSession] = useState("50");
   const [sim, setSim] = useState<{ key: string; result: SimResult } | null>(null);
   const [showAssumptions, setShowAssumptions] = useState(false);
+  // 3CP: which rules are on the felt and how the players play. Face-up matches the Games tab's gm_3cp.
+  const [tcpRules, setTcpRules] = useState<ThreeCardRules>("faceUp");
+  const [tcpBonus, setTcpBonus] = useState<AnteBonusTable>("5/4/1");
+  const [tcpStyle, setTcpStyle] = useState<PlayerStyle>("optimal");
+  const tcpExact = antePlayExact(tcpRules, tcpBonus, tcpStyle);
+  const tcpExposure = antePlayExposure(tcpRules, tcpBonus);
 
   const calcOptions = useMemo(() => calculatorOptions(games, sidebets), [games, sidebets]);
   const selectedCalc = calcOptions.find((option) => option.id === calcId) ?? null;
@@ -368,8 +382,8 @@ export default function EvCalculatorPage() {
   const pairPlusAction = pairPlusSidebet ? sideActionOf(pairPlusSidebet.sidebet_id) : 0;
   const sixCardAction = sixCardSidebet ? sideActionOf(sixCardSidebet.sidebet_id) : 0;
   const anteAction = isThreeCard ? n * mainBetAmount : 0;
-  const anteBooked = isThreeCard ? Math.min(anteAction, bankAmount / CA_FACE_UP_ANTE.exposureMult) : 0;
-  const remainingAfterAnte = Math.max(0, bankAmount - anteBooked * CA_FACE_UP_ANTE.exposureMult);
+  const anteBooked = isThreeCard ? Math.min(anteAction, bankAmount / tcpExposure) : 0;
+  const remainingAfterAnte = Math.max(0, bankAmount - anteBooked * tcpExposure);
   const pairPlusHitCap = pairPlusSize > 0 ? pairPlusCap(remainingAfterAnte, pairPlusSize) : Infinity;
   const pairPlusTop = Math.max(
     pairPlusPayouts.miniRoyal,
@@ -513,13 +527,13 @@ export default function EvCalculatorPage() {
   const feeBasisTta = isBaccarat
     ? baseAction + baccaratBets.tie + hpcFrogRows.reduce((sum, row) => sum + row.action, 0)
     : isThreeCard
-      ? n * mainBetAmount * (1 + CA_FACE_UP_ANTE.raiseRate)
+      ? n * mainBetAmount * (1 + tcpExact.raiseRate)
       : baseAction;
   const collection = Math.max(0, num(collectionFee));
 
   const threeCardMoments =
     isThreeCard && anteAction > 0
-      ? { ev: CA_FACE_UP_ANTE.edge * anteAction, variance: CA_FACE_UP_ANTE.variance * anteAction * anteAction }
+      ? { ev: tcpExact.edge * anteAction, variance: tcpExact.variance * anteAction * anteAction }
       : undefined;
 
   const result = game
@@ -532,9 +546,9 @@ export default function EvCalculatorPage() {
             : isThreeCard
               ? anteAction
               : baseAction,
-          edge: isThreeCard ? CA_FACE_UP_ANTE.edge : isTwoWay ? TWO_WAY_WINNER.edge : game.edge_pct,
-          exposureMult: isThreeCard ? CA_FACE_UP_ANTE.exposureMult : game.exposure_mult || 1,
-          sigma: isThreeCard ? Math.sqrt(CA_FACE_UP_ANTE.variance) : mainSigmaValue,
+          edge: isThreeCard ? tcpExact.edge : isTwoWay ? TWO_WAY_WINNER.edge : game.edge_pct,
+          exposureMult: isThreeCard ? tcpExposure : game.exposure_mult || 1,
+          sigma: isThreeCard ? Math.sqrt(tcpExact.variance) : mainSigmaValue,
           exactMoments: baccaratMomentsSettled
             ? { ev: baccaratMomentsSettled.ev, variance: baccaratMomentsSettled.variance, ignoreCoverage: true }
             : threeCardMoments,
@@ -549,7 +563,7 @@ export default function EvCalculatorPage() {
 
   // A finished simulation is only valid for the inputs it ran on. Key it to those inputs and only show
   // it while the key still matches, so the panel never displays ruin/drawdown that predates an edit.
-  const simKey = `${calcId}|${gameId}|${bank}|${mainSize}|${twoWayPlay}|${baccaratPlayerAction}|${baccaratBankerAction}|${baccaratTieAction}|${JSON.stringify(sideSizes)}|${collectionFee}|${mainSigma}|${sideSigma}|${rho}|${roundsPerSession}`;
+  const simKey = `${calcId}|${gameId}|${bank}|${mainSize}|${twoWayPlay}|${baccaratPlayerAction}|${baccaratBankerAction}|${baccaratTieAction}|${JSON.stringify(sideSizes)}|${collectionFee}|${mainSigma}|${sideSigma}|${rho}|${roundsPerSession}|${tcpRules}|${tcpBonus}|${tcpStyle}`;
   const simResult = sim && sim.key === simKey ? sim.result : null;
 
   function runSim() {
@@ -569,11 +583,36 @@ export default function EvCalculatorPage() {
       });
       return;
     }
+    if (isThreeCard) {
+      // Every round is dealt: the player's real Play/Fold, Pair Plus and 6 Card on the same cards, paid from the
+      // running bank in settlement order (Ante/Play, Pair Plus, 6 Card).
+      setSim({
+        key: simKey,
+        result: simulateThreeCardSessions({
+          bank: bankAmount,
+          collection,
+          table: {
+            rules: tcpRules,
+            bonus: tcpBonus,
+            style: tcpStyle,
+            ante: n * mainBetAmount,
+            pairPlus: pairPlusSize,
+            sixCard: sixCardSize,
+            pairPlusPayouts,
+            sixCardPayouts,
+          },
+          sessions: SIM_SESSIONS,
+          roundsPerSession: Math.max(1, Math.round(num(roundsPerSession, 50))),
+          seed: 0x9e3779b1,
+        }),
+      });
+      return;
+    }
     const layers = [
       {
         booked: result.base.booked.toNumber(),
-        edge: isThreeCard ? CA_FACE_UP_ANTE.edge : isTwoWay ? TWO_WAY_WINNER.edge : game!.edge_pct,
-        sigma: isThreeCard ? Math.sqrt(CA_FACE_UP_ANTE.variance) : mainSigmaValue,
+        edge: isThreeCard ? tcpExact.edge : isTwoWay ? TWO_WAY_WINNER.edge : game!.edge_pct,
+        sigma: isThreeCard ? Math.sqrt(tcpExact.variance) : mainSigmaValue,
       },
       ...result.sides.map((s, i) => ({ booked: s.booked.toNumber(), edge: sideLayers[i].edge, sigma: sideLayers[i].sigma })),
     ];
@@ -653,7 +692,7 @@ export default function EvCalculatorPage() {
                 : isBaccarat
                 ? `8-deck deal · settle each hand · exposure ×${game.exposure_mult}`
                 : isThreeCard
-                  ? `CA Face-Up · ${(CA_FACE_UP_ANTE.edge * 100).toFixed(2)}% of Ante · exposure ×${CA_FACE_UP_ANTE.exposureMult}`
+                  ? `${tcpRules === "faceUp" ? "CA Face-Up" : `Standard · Ante Bonus ${tcpBonus}`} · ${(tcpExact.edge * 100).toFixed(2)}% of Ante (${((tcpExact.edge / (1 + tcpExact.raiseRate)) * 100).toFixed(2)}% per $ bet) · exposure ×${tcpExposure}`
                   : isTwoWay
                     ? `~${(TWO_WAY_WINNER.edge * 100).toFixed(0)}% skill-leak estimate · two Antes + Play`
                     : isUth
@@ -718,12 +757,44 @@ export default function EvCalculatorPage() {
             ) : isThreeCard ? (
               <>
                 <BetRow label="Ante ($)" value={mainSize} onChange={setMainSize} />
+                <Choice
+                  label="Rules"
+                  value={tcpRules}
+                  onChange={(v) => setTcpRules(v as ThreeCardRules)}
+                  options={[
+                    ["faceUp", "Face-Up (1 dealer card up)"],
+                    ["standard", "Standard (dealer all down)"],
+                  ]}
+                />
+                {tcpRules === "standard" ? (
+                  <Choice
+                    label="Ante Bonus (SF / trips / straight)"
+                    value={tcpBonus}
+                    onChange={(v) => setTcpBonus(v as AnteBonusTable)}
+                    options={(Object.keys(ANTE_BONUS) as AnteBonusTable[]).map((key) => [key, key === "none" ? "None" : key])}
+                  />
+                ) : null}
+                <Choice
+                  label="How the players play"
+                  value={tcpStyle}
+                  onChange={(v) => setTcpStyle(v as PlayerStyle)}
+                  options={[
+                    ["optimal", "Optimal"],
+                    ["mimic", "Copy the dealer (Q-high+)"],
+                    ["raiseAll", "Always play"],
+                  ]}
+                />
                 <p className="text-xs text-muted">
                   Ante action = <span className="num text-muted-strong">{formatMoney(anteAction)}</span>. Expected TTA ≈{" "}
                   <span className="num text-muted-strong">
-                    {formatMoney(n * mainBetAmount * (1 + CA_FACE_UP_ANTE.raiseRate))}
+                    {formatMoney(n * mainBetAmount * (1 + tcpExact.raiseRate))}
                   </span>{" "}
-                  at a 49.5% raise rate. Edge is of the Ante, not of TTA. One dealer card is up; no Ante Bonus.
+                  at a {(tcpExact.raiseRate * 100).toFixed(1)}% play rate. Edge {(tcpExact.edge * 100).toFixed(2)}% of Ante ={" "}
+                  {((tcpExact.edge / (1 + tcpExact.raiseRate)) * 100).toFixed(2)}% per dollar bet (Ante + Play), exact from
+                  every deal.{" "}
+                  {tcpRules === "faceUp"
+                    ? "One dealer card is up; a non-qualifying dealer pushes the Play and the player must still beat it to win the Ante; no Ante Bonus."
+                    : "Dealer cards all down; a non-qualifying dealer pays the Ante; Ante Bonus paid on any played straight or better."}
                 </p>
               </>
             ) : isTwoWay ? (
@@ -1246,6 +1317,8 @@ export default function EvCalculatorPage() {
                 <p className="text-xs text-muted">
                   {isBaccarat
                     ? "Each round is a dealt hand settled from the running bank (Player, Banker, Tie, Panda/Koi, Dragon), minus collection. Ruin is the bank touching zero; coverage gets worse as the stack shrinks."
+                    : isThreeCard
+                    ? "Each round is dealt from a single deck: the player plays or folds by the chosen style, and Pair Plus and the 6 Card Bonus are judged on the same cards, so long-shot wins and their overlap with the Ante are real, not a normal curve. Paid from the running bank (Ante/Play, then Pair Plus, then 6 Card), minus collection; the sim EV can sit a little above the analytic one when the bank is too short to pay a big hit."
                     : "The simulated EV should match the analytic EV above (a consistency check); the value the sim adds is the distribution — ruin, drawdown, and the P5–P95 spread over a finite session. Normal-approximation caveat applies to side-bet tails."}
                 </p>
               </div>
@@ -1256,6 +1329,35 @@ export default function EvCalculatorPage() {
         </>
       )}
     </main>
+  );
+}
+
+function Choice({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-xs text-muted">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-11 w-full rounded-xl border border-border bg-surface-inset px-3 text-sm text-foreground outline-none focus:border-emerald-500/70"
+      >
+        {options.map(([key, text]) => (
+          <option key={key} value={key}>
+            {text}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

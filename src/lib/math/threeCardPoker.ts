@@ -1,10 +1,9 @@
 /**
  * Three Card Poker — California Face-Up Ante/Play plus Pair Plus and 6 Card Bonus.
  *
- * Base game (LA cardrooms): one dealer card up, no Ante Bonus, player must still beat a
- * non-qualifying dealer to win the Ante. Wizard of Odds "Face Up Three Card Poker" analysis
- * (1,221,511,200 equally likely deals, optimal strategy) — house edge 4.30% of Ante, raise
- * rate 49.5%. That figure is of the Ante, not of TTA. Not a transcribed BGC filing.
+ * Ante/Play lives in threeCardSim.ts: exact figures for CA Face-Up and standard rules from enumerating every
+ * deal (cardsim/oracle/tcp_faceup.py), plus a dealt-card Monte Carlo. The 4.30% / 49.5% raise figure this file
+ * used to carry didn't reproduce under the Games tab's face-up rules (exact: 4.60% of Ante, 71.0% play rate).
  *
  * Pair Plus: exact 3-card combinatorics, C(52,3) = 22,100 (Wizard appendix 1). CA filings
  * commonly post Mini Royal 200:1 / SF 40 / trips 30 / straight 6 / flush 3 / pair 1.
@@ -81,21 +80,6 @@ export const SIX_CARD_PAYOUTS_TCP6B4: Record<SixCardHand, number> = {
   straight: 10,
   trips: 7,
 };
-
-/**
- * California Face-Up Ante/Play, per $1 of Ante, bank's outcome under optimal strategy
- * (Wizard of Odds analysis table). Edge is of the Ante, not of TTA.
- */
-export const CA_FACE_UP_ANTE = {
-  /** Banker edge per $1 Ante. */
-  edge: 0.042964,
-  /** Var(bank result) per $1 Ante. */
-  variance: 2.475215,
-  /** Average (Ante + Play) / Ante. */
-  raiseRate: 0.49516,
-  /** Max payout on Ante+Play is 1:1 each — $2 per $1 Ante. No Ante Bonus in CA Face-Up. */
-  exposureMult: 2,
-} as const;
 
 export function pairPlusOutcomes(
   payouts: Record<PairPlusHand, number>,

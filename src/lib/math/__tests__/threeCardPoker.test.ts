@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  CA_FACE_UP_ANTE,
   PAIR_PLUS_BASE_EDGE,
   PAIR_PLUS_COMBOS,
   PAIR_PLUS_COMBOS_NO_MINI,
@@ -79,11 +78,6 @@ describe("6 Card Bonus TCP-6B4", () => {
 });
 
 describe("CA Face-Up Ante", () => {
-  it("is 4.30% of Ante with a 49.5% raise rate (Wizard)", () => {
-    expect(CA_FACE_UP_ANTE.edge).toBeCloseTo(0.042964, 5);
-    expect(CA_FACE_UP_ANTE.raiseRate).toBeCloseTo(0.49516, 5);
-    expect(CA_FACE_UP_ANTE.exposureMult).toBe(2);
-  });
 });
 
 describe("matchThreeCardSidebet", () => {
