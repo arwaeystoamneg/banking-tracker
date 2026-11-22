@@ -393,9 +393,10 @@ export default function EvCalculatorPage() {
     pairPlusPayouts.flush,
     pairPlusPayouts.pair,
   );
-  const remainingAfterPairPlus =
-    remainingAfterAnte - (pairPlusSize > 0 ? pairPlusSize * Math.min(pairPlusTop, Number.isFinite(pairPlusHitCap) ? pairPlusHitCap : pairPlusTop) : 0);
-  const sixCardHitCap = sixCardSize > 0 ? pairPlusCap(remainingAfterPairPlus, sixCardSize) : Infinity;
+  // Each side bet can pay up to what's left after the Ante's worst case. Reserving Pair Plus's worst case first
+  // left the 6 Card Bonus nothing to pay with, which showed it as a ~92% edge on an $8k bank. A big Pair Plus
+  // hit and a big 6 Card hit on the same hand are rare; the dealt-card Monte Carlo settles that overlap exactly.
+  const sixCardHitCap = sixCardSize > 0 ? pairPlusCap(remainingAfterAnte, sixCardSize) : Infinity;
   const pairPlusEdge = pairPlusAction > 0 ? realizedPairPlusEdge(pairPlusPayouts, pairPlusHitCap) : null;
   const pairPlusBaseEdge = realizedPairPlusEdge(pairPlusPayouts);
   const sixCardEdge = sixCardAction > 0 ? realizedSixCardEdge(sixCardPayouts, sixCardHitCap) : null;
