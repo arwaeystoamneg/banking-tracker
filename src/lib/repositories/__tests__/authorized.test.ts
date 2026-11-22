@@ -673,6 +673,17 @@ describe("overtime requests", () => {
     expect(cleared.casino).toBe("");
   });
 
+  it("Ray or admin tags the game on any session, even a paid one; the player only on their own unpaid one", async () => {
+    const repos = fixtureRepos({ sessions: [played({ payroll_paid_at: "2026-10-25" }), played({ session_id: "o2" })] });
+    const tagged = await createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { game_id: "gm_3cp" }, 1);
+    expect(tagged).toMatchObject({ game_id: "gm_3cp", payroll_paid_at: "2026-10-25" });
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { game_id: "gm_baccarat" }, 2)).rejects.toThrow(
+      "has been paid",
+    );
+    const own = await createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o2", { game_id: "gm_baccarat" }, 1);
+    expect(own.game_id).toBe("gm_baccarat");
+  });
+
   it("only Ray or admin sets room colors, and setting one twice updates it", async () => {
     const repos = fixtureRepos({});
     await expect(createAuthorizedRepositories(repos, damonUser, roster).roomColors.create({ room: "Oaks", color: "#8b5a2b", updated_by: "" })).rejects.toThrow(

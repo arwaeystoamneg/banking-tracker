@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { CardroomPicker } from "@/components/sessions/SessionTags";
+import { CardroomPicker, GamePicker } from "@/components/sessions/SessionTags";
 import { TripPicker } from "@/components/sessions/TripPicker";
 import { useSessions } from "@/hooks/useSessions";
 import type { Session } from "@/lib/validation/schemas";
 
-type Action = "trip" | "cardroom" | null;
+type Action = "trip" | "cardroom" | "game" | null;
 
 /** Puts every selected session in a trip, or tags them all with a cardroom, in one go. */
 export function BulkMarkPanel({
@@ -26,7 +26,7 @@ export function BulkMarkPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function apply(patch: Partial<Pick<Session, "casino" | "trip">>, label: string) {
+  async function apply(patch: Partial<Pick<Session, "casino" | "trip" | "game_id">>, label: string) {
     setSaving(true);
     setMessage("");
     let failed = 0;
@@ -80,6 +80,14 @@ export function BulkMarkPanel({
           >
             Set cardroom
           </Button>
+          <Button
+            variant={action === "game" ? "primary" : "secondary"}
+            className="h-10 flex-1 text-xs"
+            onClick={() => setAction(action === "game" ? null : "game")}
+            disabled={saving}
+          >
+            Set game
+          </Button>
         </div>
       ) : null}
       {count > 0 && action === "trip" ? (
@@ -92,6 +100,19 @@ export function BulkMarkPanel({
             className="text-xs text-muted underline active:text-foreground"
           >
             Take out of any trip
+          </button>
+        </div>
+      ) : null}
+      {count > 0 && action === "game" ? (
+        <div className="space-y-2">
+          <GamePicker current="" onPick={(gameId) => gameId && apply({ game_id: gameId }, "Game set")} disabled={saving} />
+          <button
+            type="button"
+            onClick={() => apply({ game_id: "" }, "Game cleared")}
+            disabled={saving}
+            className="text-xs text-muted underline active:text-foreground"
+          >
+            Clear game
           </button>
         </div>
       ) : null}

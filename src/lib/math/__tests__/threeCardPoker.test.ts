@@ -77,9 +77,6 @@ describe("6 Card Bonus TCP-6B4", () => {
   });
 });
 
-describe("CA Face-Up Ante", () => {
-});
-
 describe("matchThreeCardSidebet", () => {
   it("maps filed names onto the three wagers", () => {
     expect(matchThreeCardSidebet("Pair Plus")).toBe("pairPlus");

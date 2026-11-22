@@ -348,10 +348,12 @@ export function createAuthorizedRepositories(
         const session = await requiredSession(repos, id);
         const touchesPayroll = PAYROLL_KEYS.some((key) => key in patch);
         const approver = canMarkPayrollPaid(user);
-        // Ray or admin can also tag the cardroom on anyone's session alongside the payroll marks.
-        const markKeys = approver ? [...PAYROLL_KEYS, "casino"] : PAYROLL_KEYS;
+        // Ray or admin can also tag the cardroom and the game on anyone's session alongside the payroll marks.
+        const tagKeys = ["casino", "game_id"];
+        const markKeys = approver ? [...PAYROLL_KEYS, ...tagKeys] : PAYROLL_KEYS;
         const payrollOnly =
-          (touchesPayroll || (approver && "casino" in patch)) && Object.keys(patch).every((key) => markKeys.includes(key));
+          (touchesPayroll || (approver && tagKeys.some((key) => key in patch))) &&
+          Object.keys(patch).every((key) => markKeys.includes(key));
         if (PAID_KEYS.some((key) => key in patch) && !approver) {
           throw new AuthorizationError("Only Ray or an admin can mark a session paid");
         }
@@ -396,6 +398,7 @@ export function createAuthorizedRepositories(
           if ("ray_sponsored" in patch) changes.ray_sponsored = Boolean(patch.ray_sponsored);
           if ("trip" in patch) changes.trip = (patch.trip ?? "").trim();
           if ("casino" in patch) changes.casino = patch.casino?.trim() ? canonicalCasino(patch.casino) : "";
+          if ("game_id" in patch) changes.game_id = (patch.game_id ?? "").trim();
           if (settles) {
             Object.assign(
               changes,

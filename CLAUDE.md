@@ -180,6 +180,10 @@ session, paid or not); it never affects pay. New sessions always start untagged.
 also tag the cardroom (`casino`) with one tap: the Bay Area rooms (M8trix, Artichoke Joe's, Oaks, Bay 101) or
 the LA rooms (Hollywood Park, Bicycle, Commerce, Hustler, Gardens), listed in `TAG_CARDROOM_AREAS` in `names.ts`, again on anyone's session; it shows as a tag beside the session.
 
+`game_id` (the game banked) is set on the session page ("Game" chips, one per Games-tab name) or with Select → Set game on
+the Sessions list: Ray/admin on any session, the player or logger on their own until it's paid. It's never on the logging
+form. Stats → Games splits results by game name (`src/lib/sessionGames.ts`).
+
 `trip` is a trip name Ray/admin set (session page, or Select on the Sessions list to mark many at once).
 Trips are only what's named there; nothing is inferred from dates. Sessions with no trip stand alone.
 Each trip has its own stats page at `/trips/<name>` (whole trip, then each person on it).

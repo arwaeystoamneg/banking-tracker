@@ -22,8 +22,11 @@ import { formatMoney } from "@/lib/decimal";
 import { useReimbursements } from "@/hooks/useReimbursements";
 import { applyExpenses, pnlByTrip } from "@/lib/stats/tripPnl";
 import { TripPnlTable } from "@/components/stats/TripPnlTable";
+import { useGames } from "@/hooks/useGames";
+import { NO_GAME, sessionsByGame } from "@/lib/sessionGames";
 
-type View = "players" | "trips";
+type View = "players" | "trips" | "games";
+const VIEW_LABELS: Record<View, string> = { players: "Players", trips: "Trips", games: "Games" };
 /** Gross results; after payroll pay; after pay and expenses (reimbursements). */
 type Money = "gross" | "pay" | "net";
 const MONEY_LABELS: Record<Money, string> = { gross: "Gross", pay: "After pay", net: "Net" };
@@ -39,6 +42,7 @@ export default function RollupsPage() {
   const { sessions: allSessions, isLoading: sessionsLoading } = useSessions();
   const { rounds: allRounds, isLoading: roundsLoading } = useRounds();
   const [view, setView] = useState<View>("players");
+  const { games } = useGames();
   const user = useCurrentUser();
   const team = useTeam();
   const { payrollMembers } = usePayrollMembers();
@@ -96,6 +100,7 @@ export default function RollupsPage() {
   }, [allRounds, sessions, from]);
   const players = useMemo(() => sessionsByPlayer(sessions), [sessions]);
   const trips = useMemo(() => groupSessionsIntoTrips(sessions), [sessions]);
+  const gameGroups = useMemo(() => sessionsByGame(sessions, games), [sessions, games]);
   const roundStats = useMemo(() => computeRollup(rounds), [rounds]);
   const isLoading = sessionsLoading || roundsLoading;
 
@@ -103,17 +108,21 @@ export default function RollupsPage() {
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Stats</h1>
-        <p className="text-sm text-muted">{view === "players"
+        <p className="text-sm text-muted">
+          {view === "players"
             ? dateWindow.isAll
               ? "All-time results for each player."
               : "Results for each player in the dates below."
-            : dateWindow.isAll
-              ? "Results for each trip."
-              : "Each trip's sessions in the dates below."}</p>
+            : view === "trips"
+              ? dateWindow.isAll
+                ? "Results for each trip."
+                : "Each trip's sessions in the dates below."
+              : "Results for each game. Set a session's game on its page, or Select several on the Sessions tab."}
+        </p>
       </div>
 
       <div className="inline-flex rounded-xl border border-border bg-surface p-0.5 text-sm">
-        {(["players", "trips"] as const).map((option) => (
+        {(["players", "trips", "games"] as const).map((option) => (
           <button
             key={option}
             onClick={() => setView(option)}
@@ -121,7 +130,7 @@ export default function RollupsPage() {
               view === option ? "bg-surface-raised text-foreground" : "text-muted active:text-foreground"
             }`}
           >
-            {option === "players" ? "Players" : "Trips"}
+            {VIEW_LABELS[option]}
           </button>
         ))}
       </div>
@@ -196,6 +205,17 @@ export default function RollupsPage() {
           ))
         )
       ) : null}
+
+      {!isLoading && view === "games"
+        ? gameGroups.map((group) => (
+            <ResultStatsCard
+              key={group.label}
+              title={group.label}
+              sessions={group.sessions}
+              breakdowns={group.label === NO_GAME ? [] : [{ heading: "By player", rows: sessionsByPlayer(group.sessions) }]}
+            />
+          ))
+        : null}
 
       {!isLoading && roundStats.roundCount > 0 ? (
         <section className="space-y-2 pt-2">

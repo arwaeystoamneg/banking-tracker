@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useSessions } from "@/hooks/useSessions";
 import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { Badge } from "@/components/ui/Badge";
-import { SessionTagBadges, SessionTagEditor } from "@/components/sessions/SessionTags";
+import { SessionGameEditor, SessionTagBadges, SessionTagEditor } from "@/components/sessions/SessionTags";
 import { sessionTrip } from "@/lib/trips";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
@@ -102,6 +102,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
         ) : null}
       </section>
 
+      <SessionGameEditor session={session} />
       <SessionTagEditor session={session} />
 
       {sessionEmployee(session, payrollPeople(team, payrollMembers)) ? <PayrollStatus session={session} /> : null}

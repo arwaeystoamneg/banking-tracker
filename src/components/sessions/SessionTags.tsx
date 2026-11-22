@@ -12,14 +12,20 @@ import { roomBadgeStyle, roomDotStyle } from "@/lib/cardroomColors";
 import { useRoomColors } from "@/hooks/useRoomColors";
 import { sessionTrip, tripNames } from "@/lib/trips";
 import type { Session } from "@/lib/validation/schemas";
+import { useGames } from "@/hooks/useGames";
+import { ownsSession } from "@/lib/auth/permissions";
+import { gameChoices, sessionGameName } from "@/lib/sessionGames";
 
 type Marks = Partial<Pick<Session, "casino" | "ray_sponsored" | "trip">>;
 
 /** The session's cardroom and "Ray sponsored only", shown as tags next to it. */
-export function SessionTagBadges({ session }: { session: Pick<Session, "casino" | "ray_sponsored"> }) {
+export function SessionTagBadges({ session }: { session: Pick<Session, "casino" | "ray_sponsored"> & Partial<Pick<Session, "game_id">> }) {
   const { colorOf } = useRoomColors();
+  const { games } = useGames();
+  const game = session.game_id ? sessionGameName({ game_id: session.game_id }, games) : "";
   return (
     <>
+      {game ? <Badge>{game}</Badge> : null}
       {sessionCardrooms(session.casino).map((room) => (
         <Badge key={room} className="font-semibold" style={roomBadgeStyle(colorOf(room))}>
           {room}
@@ -147,6 +153,62 @@ export function SessionTagEditor({ session }: { session: Session }) {
           className="h-6 w-6 accent-violet-500"
         />
       </label>
+      {error ? <p className="text-xs text-red-400">{error}</p> : null}
+    </section>
+  );
+}
+
+/** One-tap game buttons; tapping the current game clears it. */
+export function GamePicker({ current, onPick, disabled = false }: { current: string; onPick: (gameId: string) => void; disabled?: boolean }) {
+  const { games } = useGames();
+  const choices = useMemo(() => gameChoices(games), [games]);
+  const currentName = current ? sessionGameName({ game_id: current }, games).toLowerCase() : "";
+  if (choices.length === 0) return <p className="text-xs text-muted">No games in the Games tab yet.</p>;
+  return (
+    <fieldset className="flex flex-wrap gap-2" disabled={disabled}>
+      {choices.map((choice) => {
+        const active = choice.name.toLowerCase() === currentName;
+        return (
+          <Chip key={choice.id} active={active} onClick={() => onPick(active ? "" : choice.id)}>
+            {choice.name}
+          </Chip>
+        );
+      })}
+    </fieldset>
+  );
+}
+
+/**
+ * Which game was played, so Stats can split results by game. Ray or admin can set it on any session; the
+ * player or whoever logged it can set it on their own until it's paid. Never part of the logging form.
+ */
+export function SessionGameEditor({ session }: { session: Session }) {
+  const user = useCurrentUser();
+  const { update } = useSessions();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const allowed = canMarkPayrollPaid(user) || (ownsSession(user, session) && !session.payroll_paid_at);
+  if (!allowed) return null;
+
+  async function pick(gameId: string) {
+    setSaving(true);
+    setError("");
+    try {
+      await update(session.session_id, { game_id: gameId }, session._row_version);
+    } catch {
+      setError("Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="space-y-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm">
+      <div>
+        <p className="font-medium text-foreground">Game</p>
+        <p className="text-xs text-muted">What was banked this session · Stats splits results by game · tap again to clear</p>
+      </div>
+      <GamePicker current={session.game_id} onPick={pick} disabled={saving} />
       {error ? <p className="text-xs text-red-400">{error}</p> : null}
     </section>
   );
