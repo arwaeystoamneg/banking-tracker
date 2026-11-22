@@ -1,0 +1,84 @@
+{
+ "name": "CA no-collection EZ baccarat table, PD banking, 8-deck shoe",
+ "game": "baccarat",
+ "decks": 8,
+ "shuffle": "shoe",
+ "penetration": 0.85,
+ "rounds": 50000000.0,
+ "seed": 12,
+ "chunks": 8,
+ "hands_per_hour": 70,
+ "reference": "baccarat_exact/8_decks",
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "banker_ez": 500,
+     "dragon7": 25
+    }
+   },
+   {
+    "bets": {
+     "player": 300,
+     "panda8": 25
+    }
+   },
+   {
+    "bets": {
+     "banker_ez": 200,
+     "tie_8": 10,
+     "supreme7_mb01": 10
+    }
+   },
+   {
+    "bets": {
+     "player": 200,
+     "eclipse": 25
+    }
+   },
+   {
+    "bets": {
+     "banker_ez": 100,
+     "player_pair": 10,
+     "banker_pair": 10
+    }
+   },
+   {
+    "bets": {
+     "player": 150,
+     "divine9": 10,
+     "supreme7_mb01": 5
+    }
+   }
+  ],
+  "bank_mode": "collect_then_pay",
+  "bank": 20000,
+  "action_order": "bet_type",
+  "bet_type_priority": [
+   "player",
+   "banker_ez",
+   "tie_8",
+   "panda8",
+   "dragon7",
+   "supreme7_mb01",
+   "divine9",
+   "eclipse",
+   "player_pair",
+   "banker_pair"
+  ],
+  "rotate_button": true,
+  "fees": {
+   "pd_per_round": 0.0,
+   "player_per_seat": 0.0
+  }
+ },
+ "session": {
+  "rounds": 350,
+  "bankrolls": [
+   5000,
+   10000,
+   20000,
+   40000
+  ]
+ }
+}

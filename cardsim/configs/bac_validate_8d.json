@@ -1,0 +1,37 @@
+{
+ "name": "Baccarat validation: every bet, 8 decks, fresh shoe each coup (matches exact off-the-top math)",
+ "game": "baccarat",
+ "decks": 8,
+ "shuffle": "csm",
+ "rounds": 200000000.0,
+ "seed": 11,
+ "chunks": 8,
+ "reference": "baccarat_exact/8_decks",
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "banker_5pct": 1,
+     "banker_ez": 1,
+     "banker_super6": 1,
+     "player": 1,
+     "tie_8": 1,
+     "tie_9": 1,
+     "dragon7": 1,
+     "panda8": 1,
+     "dragon_bonus_player": 1,
+     "dragon_bonus_banker": 1,
+     "lucky6": 1,
+     "player_pair": 1,
+     "banker_pair": 1,
+     "supreme7_mb01": 1,
+     "supreme7_mb02": 1,
+     "supreme7_mb03": 1,
+     "divine9": 1,
+     "eclipse": 1
+    }
+   }
+  ],
+  "bank_mode": "unlimited"
+ }
+}

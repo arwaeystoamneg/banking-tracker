@@ -1,0 +1,74 @@
+{
+ "name": "BJ engine check: standard Vegas 6D S17 DAS 3:2 no-surrender, Vegas basic strategy (expect ~0.4% HE)",
+ "game": "blackjack",
+ "rounds": 50000000,
+ "seconds": 35.57557153701782,
+ "rounds_per_sec": 1405458.7977026026,
+ "bets": {
+  "main": {
+   "ev": -0.00393707,
+   "house_edge": 0.00393707,
+   "sd": 1.1539082045292055,
+   "se": 0.00016318726325787898,
+   "ci95": [
+    -0.004256917035985443,
+    -0.003617222964014557
+   ],
+   "avg_wager_per_unit": 1.13165166,
+   "element_of_risk": 0.003479047607282262,
+   "samples": 50000000.0
+  },
+  "perfect_pairs": {
+   "ev": -0.06064996,
+   "house_edge": 0.06064996,
+   "sd": 3.892664165112629,
+   "se": 0.0005505058456066021,
+   "ci95": [
+    -0.06172895145738894,
+    -0.05957096854261106
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.06064996,
+   "samples": 50000000.0,
+   "ref_house_edge": 0.061093,
+   "z_vs_ref": -0.804787094516341
+  }
+ },
+ "bank": {
+  "ev_per_round": 0.06458703,
+  "sd_per_round": 4.093908521273501,
+  "se": 0.0005789660953899767,
+  "ci95": [
+   0.06345225645303565,
+   0.06572180354696436
+  ],
+  "pd_fee_per_round": 0.0,
+  "table_action_per_round": 2.0,
+  "ev_per_dollar_action": 0.032293515,
+  "n0_rounds": 4017.7752559463347,
+  "full_kelly_bankroll": 259.49617098906356,
+  "ror_brownian": {}
+ },
+ "sessions": null,
+ "seat0_cov": {
+  "order": [
+   "main",
+   "perfect_pairs"
+  ],
+  "cov": [
+   [
+    1.331504144479815,
+    0.13787426686198279
+   ],
+   [
+    0.13787426686198279,
+    15.152834302351998
+   ]
+  ]
+ },
+ "events": {
+  "pd_over_target": 0.28203672,
+  "pd_natural": 0.04750972
+ },
+ "player_fee_per_seat_round": 0.0
+}

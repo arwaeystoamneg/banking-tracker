@@ -1,0 +1,8 @@
+== Hustler 21st Century BJ, single seat, profile=vegas_shifted  (blackjack, 20,000,000 rounds, 1,409,844 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+main                       -0.03106   0.00050    3.1062%   1.1442   2.675%                 
+perfect_pairs              -0.07752   0.00170    7.7520%   3.8820   7.752%                 
+BANK  EV/round +0.1086 (±0.0018)  SD/round 4.076  action 2  PD fee 0.00  EV/$action +5.429%
+      N0 1,409 rounds   full-Kelly bankroll 153   RoR(Brownian) 
+events pd_over_target=0.196323  pd_natural=0.008711
+

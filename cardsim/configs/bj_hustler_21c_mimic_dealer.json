@@ -1,0 +1,49 @@
+{
+ "name": "Hustler 21st Century BJ, single seat, profile=mimic_dealer",
+ "game": "blackjack",
+ "decks": 8,
+ "jokers_per_deck": 1,
+ "shuffle": "csm",
+ "rounds": 30000000.0,
+ "seed": 42,
+ "chunks": 8,
+ "rules": {
+  "target": 22,
+  "joker_mode": "fixed21",
+  "dealer_stand": 17,
+  "dealer_hits_soft": true,
+  "both_over": "player_closer_push",
+  "das": true,
+  "max_hands": 3,
+  "split_aces_one_card": true,
+  "surrender": true,
+  "peek": false,
+  "joker_up_ends_hand": true
+ },
+ "naturals": {
+  "JJ": [
+   1,
+   2.0
+  ],
+  "AJ": [
+   1,
+   1.0
+  ],
+  "AA": [
+   1,
+   1.0
+  ]
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "main": 1,
+     "perfect_pairs": 1
+    },
+    "strategy": "mimic_dealer"
+   }
+  ],
+  "bank_mode": "unlimited"
+ }
+}

@@ -1,0 +1,58 @@
+{
+ "name": "3CP validation: 1 seat, single deck reshuffled every hand, 5-4-1 / 40-30-6-3-1",
+ "game": "tcp",
+ "decks": 1,
+ "shuffle": "csm",
+ "rounds": 200000000.0,
+ "seed": 21,
+ "chunks": 8,
+ "ante_bonus": [
+  5,
+  4,
+  1
+ ],
+ "pair_plus": [
+  40,
+  30,
+  6,
+  3,
+  1
+ ],
+ "six_card": [
+  1000,
+  200,
+  100,
+  20,
+  15,
+  10,
+  7
+ ],
+ "ca_bonus": [
+  200,
+  40,
+  30,
+  6,
+  3,
+  1
+ ],
+ "reference_inline": {
+  "ante_play": 0.03373,
+  "pair_plus": 0.07276,
+  "six_card": 0.08561,
+  "ca_bonus": 0.0438
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "ante_play": 1,
+     "pair_plus": 1,
+     "six_card": 1,
+     "ca_bonus": 1
+    },
+    "strategy": "q64"
+   }
+  ],
+  "bank_mode": "unlimited"
+ }
+}

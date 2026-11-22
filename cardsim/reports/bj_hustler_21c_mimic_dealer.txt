@@ -1,0 +1,8 @@
+== Hustler 21st Century BJ, single seat, profile=mimic_dealer  (blackjack, 20,000,000 rounds, 1,412,997 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+main                       -0.02820   0.00041    2.8199%   0.9362   2.820%                 
+perfect_pairs              -0.07458   0.00170    7.4584%   3.8890   7.458%                 
+BANK  EV/round +0.1028 (±0.0018)  SD/round 4.027  action 2  PD fee 0.00  EV/$action +5.139%
+      N0 1,535 rounds   full-Kelly bankroll 158   RoR(Brownian) 
+events pd_over_target=0.196175  pd_natural=0.008726
+

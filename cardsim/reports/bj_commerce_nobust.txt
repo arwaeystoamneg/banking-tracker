@@ -1,0 +1,12 @@
+== Commerce No Bust 21st Century BJ (joker=1/11, JJ natural 2:1, BJ 6:5, PD 3-card 23-25 push) — UNCONFIRMED  (blackjack, 20,000,000 rounds, 776,788 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+main                       -0.02637   0.00047    2.6367%   1.0687   2.434%                 
+BANK  EV/round +11.8203 (±0.1937)  SD/round 441.998  action 600  PD fee 4.00  EV/$action +1.970%
+      N0 1,398 rounds   full-Kelly bankroll 16,528   RoR(Brownian) 5000: 5.46e-01, 10000: 2.98e-01, 20000: 8.89e-02
+      per hour: EV +709.22  SD 3,423.70
+SESSIONS of 300 rounds (n=66,664): mean +3,546.2 sd 7,637.3  P(losing) 0.321
+      pct p1:-14,140  p5:-8,980  p25:-1,590  p50:+3,560  p75:+8,760  p95:+16,080  p99:+21,260
+      P(drawdown ≥ B) 5000: 0.3460  10000: 0.0915  20000: 0.0024
+PER SEAT  s0 main[vegas_basic] $100: HE 1.04%±0.05  |  s1 main[vegas_shifted] $100: HE 0.99%±0.05  |  s2 main[mimic_dealer] $100: HE 4.66%±0.04  |  s3 main[never_bust] $100: HE 7.13%±0.04  |  s4 main[vegas_basic] $100: HE 1.02%±0.05  |  s5 main[vegas_basic] $100: HE 0.99%±0.05
+events pd_over_target=0.278306  pd_natural=0.057314
+

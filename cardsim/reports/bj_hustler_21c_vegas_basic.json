@@ -1,0 +1,96 @@
+{
+ "name": "Hustler 21st Century BJ, single seat, profile=vegas_basic",
+ "game": "blackjack",
+ "rounds": 20000000,
+ "seconds": 14.604354858398438,
+ "rounds_per_sec": 1369454.5355763333,
+ "bets": {
+  "main": {
+   "ev": -0.07384735,
+   "house_edge": 0.07384735,
+   "sd": 1.0910988813567621,
+   "se": 0.0002439771268887698,
+   "ci95": [
+    -0.07432554516870199,
+    -0.07336915483129802
+   ],
+   "avg_wager_per_unit": 1.1201323,
+   "element_of_risk": 0.06592734626079437,
+   "samples": 20000000.0
+  },
+  "perfect_pairs": {
+   "ev": -0.076589,
+   "house_edge": 0.076589,
+   "sd": 3.8842994510051616,
+   "se": 0.0008685557617412655,
+   "ci95": [
+    -0.07829136929301289,
+    -0.07488663070698712
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.076589,
+   "samples": 20000000.0
+  }
+ },
+ "bank": {
+  "ev_per_round": 0.15043635,
+  "sd_per_round": 4.061180173865557,
+  "se": 0.00090810749376378,
+  "ci95": [
+   0.148656459312223,
+   0.152216240687777
+  ],
+  "pd_fee_per_round": 0.0,
+  "table_action_per_round": 2.0,
+  "ev_per_dollar_action": 0.075218175,
+  "n0_rounds": 728.784184420647,
+  "full_kelly_bankroll": 109.63563264196902,
+  "ror_brownian": {}
+ },
+ "sessions": null,
+ "seat0_cov": {
+  "order": [
+   "main",
+   "perfect_pairs"
+  ],
+  "cov": [
+   [
+    1.1904967688979775,
+    0.10745270531085001
+   ],
+   [
+    0.10745270531085001,
+    15.087782225079
+   ]
+  ]
+ },
+ "per_seat": [
+  {
+   "seat": 0,
+   "bet": "main",
+   "amount": 1.0,
+   "strategy": "vegas_basic",
+   "ev": -0.07384735,
+   "house_edge": 0.07384735,
+   "sd": 1.0910988813567621,
+   "se": 0.0002439771268887698,
+   "avg_wager_per_unit": 1.1201323
+  },
+  {
+   "seat": 0,
+   "bet": "perfect_pairs",
+   "amount": 1.0,
+   "strategy": "vegas_basic",
+   "ev": -0.076589,
+   "house_edge": 0.076589,
+   "sd": 3.8842994510051616,
+   "se": 0.0008685557617412655,
+   "avg_wager_per_unit": 1.0
+  }
+ ],
+ "events": {
+  "pd_over_target": 0.19639745,
+  "pd_natural": 0.0086753
+ },
+ "player_fee_per_seat_round": 0.0
+}

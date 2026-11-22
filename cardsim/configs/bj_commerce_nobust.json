@@ -1,0 +1,101 @@
+{
+ "name": "Commerce No Bust 21st Century BJ (joker=1/11, JJ natural 2:1, BJ 6:5, PD 3-card 23-25 push) \u2014 UNCONFIRMED",
+ "game": "blackjack",
+ "decks": 8,
+ "jokers_per_deck": 1,
+ "shuffle": "shoe",
+ "penetration": 0.8,
+ "rounds": 30000000.0,
+ "seed": 51,
+ "chunks": 8,
+ "hands_per_hour": 60,
+ "rules": {
+  "target": 21,
+  "joker_mode": "one_eleven",
+  "dealer_stand": 17,
+  "dealer_hits_soft": true,
+  "both_over": "dealer_wins",
+  "dealer3_push": [
+   23,
+   25,
+   23
+  ],
+  "das": true,
+  "max_hands": 4,
+  "no_split_aces": true,
+  "surrender": true,
+  "surrender_max_total": 20,
+  "double_no_joker": false,
+  "split_no_joker": true,
+  "no_options_joker_up": true,
+  "player_must_hit_le": 11,
+  "peek": false
+ },
+ "naturals": {
+  "JJ": [
+   2,
+   2.0
+  ],
+  "A10": [
+   1,
+   1.2
+  ],
+  "J10": [
+   1,
+   1.2
+  ]
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_basic"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_shifted"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "mimic_dealer"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "never_bust"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_basic"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_basic"
+   }
+  ],
+  "bank_mode": "unlimited",
+  "fees": {
+   "pd_per_round": 4.0,
+   "player_per_seat": 2.0
+  }
+ },
+ "session": {
+  "rounds": 300,
+  "bankrolls": [
+   5000,
+   10000,
+   20000
+  ]
+ }
+}

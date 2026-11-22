@@ -1,0 +1,53 @@
+{
+ "name": "BJ engine check: standard Vegas rules, player mimics dealer (expect ~5.5% HE)",
+ "game": "blackjack",
+ "rounds": 10000000,
+ "seconds": 7.107398509979248,
+ "rounds_per_sec": 1406984.5648811378,
+ "bets": {
+  "main": {
+   "ev": -0.05707615,
+   "house_edge": 0.05707615,
+   "sd": 0.9775996563528332,
+   "se": 0.0003091441553872849,
+   "ci95": [
+    -0.05768207254455908,
+    -0.05647022745544092
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.05707615,
+   "samples": 10000000.0
+  }
+ },
+ "bank": {
+  "ev_per_round": 0.05707615,
+  "sd_per_round": 0.9775996563528332,
+  "se": 0.0003091441553872849,
+  "ci95": [
+   0.05647022745544092,
+   0.05768207254455908
+  ],
+  "pd_fee_per_round": 0.0,
+  "table_action_per_round": 1.0,
+  "ev_per_dollar_action": 0.05707615,
+  "n0_rounds": 293.36799937606594,
+  "full_kelly_bankroll": 16.74431593758825,
+  "ror_brownian": {}
+ },
+ "sessions": null,
+ "seat0_cov": {
+  "order": [
+   "main"
+  ],
+  "cov": [
+   [
+    0.9557010881011775
+   ]
+  ]
+ },
+ "events": {
+  "pd_over_target": 0.2817979,
+  "pd_natural": 0.0474657
+ },
+ "player_fee_per_seat_round": 0.0
+}

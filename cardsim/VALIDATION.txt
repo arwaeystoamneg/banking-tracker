@@ -1,0 +1,42 @@
+== Baccarat validation: every bet, 8 decks, fresh shoe each coup (matches exact off-the-top math)  (baccarat, 50,000,000 rounds, 2,486,053 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+banker_5pct                -0.01069   0.00026    1.0685%   0.9274   1.069%   1.0579%  +0.81
+banker_ez                  -0.01031   0.00026    1.0310%   0.9393   1.031%   1.0183%  +0.96
+banker_super6              -0.01471   0.00026    1.4708%   0.9296   1.471%   1.4581%  +0.96
+player                     -0.01224   0.00026    1.2242%   0.9512   1.224%   1.2351%  -0.81
+tie_8                      -0.14382   0.00073   14.3817%   2.6406  14.382%  14.3596%  +0.59
+tie_9                      -0.04869   0.00081    4.8685%   2.9340   4.869%   4.8440%  +0.59
+dragon7                    -0.07535   0.00169    7.5350%   6.0873   7.535%   7.6113%  -0.89
+panda8                     -0.10280   0.00132   10.2802%   4.7458  10.280%  10.1876%  +1.38
+dragon_bonus_player        -0.02637   0.00069    2.6369%   2.4735   2.637%   2.6517%  -0.42
+dragon_bonus_banker        -0.09396   0.00064    9.3962%   2.3026   9.396%   9.3731%  +0.71
+lucky6                     -0.16631   0.00100   16.6312%   3.5966  16.631%  16.6836%  -1.03
+player_pair                -0.10323   0.00087   10.3232%   3.1555  10.323%  10.3614%  -0.86
+banker_pair                -0.10385   0.00087   10.3847%   3.1545  10.385%  10.3614%  +0.52
+supreme7_mb01              -0.07899   0.00298    7.8994%  10.7564   7.899%   7.7797%  +0.79
+supreme7_mb02              -0.07461   0.00533    7.4612%  19.2412   7.461%   7.2911%  +0.63
+supreme7_mb03              -0.09465   0.00264    9.4648%   9.5195   9.465%   9.3966%  +0.51
+divine9                    -0.09332   0.00122    9.3322%   4.3985   9.332%   9.3105%  +0.35
+eclipse                    -0.03007   0.00067    3.0066%   2.4184   3.007%   2.9664%  +1.18
+BANK  EV/round +1.2840 (±0.0100)  SD/round 36.247  action 18  PD fee 0.00  EV/$action +7.133%
+      N0 797 rounds   full-Kelly bankroll 1,023   RoR(Brownian) 
+
+== 3CP validation: 1 seat, single deck reshuffled every hand, 5-4-1 / 40-30-6-3-1  (tcp, 50,000,000 rounds, 3,064,768 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+ante_play                  -0.03398   0.00045    3.3983%   1.6391   2.030%   3.3730%  +1.09
+pair_plus                  -0.07306   0.00079    7.3061%   2.8474   7.306%   7.2760%  +0.75
+six_card                   -0.08626   0.00153    8.6255%   5.5096   8.626%   8.5610%  +0.83
+ca_bonus                   -0.04433   0.00107    4.4325%   3.8740   4.433%   4.3800%  +0.96
+BANK  EV/round +0.2376 (±0.0027)  SD/round 9.650  action 4  PD fee 0.00  EV/$action +5.941%
+      N0 1,649 rounds   full-Kelly bankroll 392   RoR(Brownian) 
+events dealer_not_qualify=0.304030
+
+== BJ engine check: standard Vegas 6D S17 DAS 3:2 no-surrender, Vegas basic strategy (expect ~0.4% HE)  (blackjack, 25,000,000 rounds, 1,138,841 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+main                       -0.00399   0.00045    0.3989%   1.1540   0.352%                 
+perfect_pairs              -0.06080   0.00153    6.0795%   3.8921   6.080%   6.1093%  -0.38
+BANK  EV/round +0.0648 (±0.0016)  SD/round 4.093  action 2  PD fee 0.00  EV/$action +3.239%
+      N0 3,992 rounds   full-Kelly bankroll 259   RoR(Brownian) 
+events pd_over_target=0.281957  pd_natural=0.047544
+
+ALL GATES PASSED

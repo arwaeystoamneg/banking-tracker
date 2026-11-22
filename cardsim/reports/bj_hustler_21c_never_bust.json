@@ -1,0 +1,96 @@
+{
+ "name": "Hustler 21st Century BJ, single seat, profile=never_bust",
+ "game": "blackjack",
+ "rounds": 20000000,
+ "seconds": 14.200618028640747,
+ "rounds_per_sec": 1408389.4066907987,
+ "bets": {
+  "main": {
+   "ev": -0.147026,
+   "house_edge": 0.147026,
+   "sd": 0.947986210513634,
+   "se": 0.00021197616084409112,
+   "ci95": [
+    -0.14744147327525442,
+    -0.14661052672474556
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.147026,
+   "samples": 20000000.0
+  },
+  "perfect_pairs": {
+   "ev": -0.07749285,
+   "house_edge": 0.07749285,
+   "sd": 3.8799353613428766,
+   "se": 0.0008675799216267882,
+   "ci95": [
+    -0.0791933066463885,
+    -0.0757923933536115
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.07749285,
+   "samples": 20000000.0
+  }
+ },
+ "bank": {
+  "ev_per_round": 0.22451885,
+  "sd_per_round": 4.0282316388205235,
+  "se": 0.0009007399773518071,
+  "ci95": [
+   0.22275339964439045,
+   0.22628430035560954
+  ],
+  "pd_fee_per_round": 0.0,
+  "table_action_per_round": 2.0,
+  "ev_per_dollar_action": 0.112259425,
+  "n0_rounds": 321.9016881541822,
+  "full_kelly_bankroll": 72.27299683743561,
+  "ror_brownian": {}
+ },
+ "sessions": null,
+ "seat0_cov": {
+  "order": [
+   "main",
+   "perfect_pairs"
+  ],
+  "cov": [
+   [
+    0.898677855324,
+    0.1370369362359
+   ],
+   [
+    0.1370369362359,
+    15.053898408198878
+   ]
+  ]
+ },
+ "per_seat": [
+  {
+   "seat": 0,
+   "bet": "main",
+   "amount": 1.0,
+   "strategy": "never_bust",
+   "ev": -0.147026,
+   "house_edge": 0.147026,
+   "sd": 0.947986210513634,
+   "se": 0.00021197616084409112,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 0,
+   "bet": "perfect_pairs",
+   "amount": 1.0,
+   "strategy": "never_bust",
+   "ev": -0.07749285,
+   "house_edge": 0.07749285,
+   "sd": 3.8799353613428766,
+   "se": 0.0008675799216267882,
+   "avg_wager_per_unit": 1.0
+  }
+ ],
+ "events": {
+  "pd_over_target": 0.1963244,
+  "pd_natural": 0.0087253
+ },
+ "player_fee_per_seat_round": 0.0
+}

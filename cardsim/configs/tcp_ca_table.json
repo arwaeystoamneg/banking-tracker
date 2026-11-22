@@ -1,0 +1,106 @@
+{
+ "name": "CA 3CP table, 6 seats, PD bank with CA Grand coverage rule",
+ "game": "tcp",
+ "decks": 1,
+ "shuffle": "csm",
+ "rounds": 50000000.0,
+ "seed": 22,
+ "chunks": 8,
+ "hands_per_hour": 45,
+ "ante_bonus": [
+  5,
+  4,
+  1
+ ],
+ "pair_plus": [
+  40,
+  30,
+  6,
+  3,
+  1
+ ],
+ "six_card": [
+  1000,
+  200,
+  100,
+  20,
+  15,
+  10,
+  7
+ ],
+ "ca_bonus": [
+  200,
+  40,
+  30,
+  6,
+  3,
+  1
+ ],
+ "reference_inline": {
+  "pair_plus": 0.07276,
+  "six_card": 0.08561
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "ante_play": 100,
+     "pair_plus": 25
+    },
+    "strategy": "q64"
+   },
+   {
+    "bets": {
+     "ante_play": 50,
+     "pair_plus": 25,
+     "six_card": 10
+    },
+    "strategy": "mimic_dealer"
+   },
+   {
+    "bets": {
+     "ante_play": 200
+    },
+    "strategy": "q64"
+   },
+   {
+    "bets": {
+     "ante_play": 25,
+     "pair_plus": 25,
+     "six_card": 5
+    },
+    "strategy": "raise_all"
+   },
+   {
+    "bets": {
+     "ante_play": 100,
+     "pair_plus": 50
+    },
+    "strategy": "mimic_dealer"
+   },
+   {
+    "bets": {
+     "ante_play": 75,
+     "six_card": 5
+    },
+    "strategy": "q64"
+   }
+  ],
+  "bank_mode": "precover",
+  "bank": 60000,
+  "action_order": "seat",
+  "rotate_button": true,
+  "fees": {
+   "pd_per_round": 2.0,
+   "player_per_seat": 1.0
+  }
+ },
+ "session": {
+  "rounds": 250,
+  "bankrolls": [
+   10000,
+   20000,
+   40000
+  ]
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "name": "BJ engine check: standard Vegas rules, player mimics dealer (expect ~5.5% HE)",
+ "game": "blackjack",
+ "decks": 6,
+ "shuffle": "csm",
+ "rounds": 20000000.0,
+ "seed": 32,
+ "chunks": 8,
+ "rules": {
+  "target": 21,
+  "joker_mode": "none",
+  "dealer_stand": 17,
+  "dealer_hits_soft": false,
+  "both_over": "dealer_wins",
+  "das": true,
+  "max_hands": 4,
+  "split_aces_one_card": true,
+  "resplit_aces": false,
+  "surrender": false,
+  "peek": true
+ },
+ "naturals": {
+  "A10": [
+   1,
+   1.5
+  ]
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "main": 1
+    },
+    "strategy": "mimic_dealer"
+   }
+  ],
+  "bank_mode": "unlimited"
+ }
+}

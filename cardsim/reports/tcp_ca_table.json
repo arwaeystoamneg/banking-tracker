@@ -1,0 +1,259 @@
+{
+ "name": "CA 3CP table, 6 seats, PD bank with CA Grand coverage rule",
+ "game": "tcp",
+ "rounds": 20000000,
+ "seconds": 22.593653440475464,
+ "rounds_per_sec": 885204.3363722196,
+ "bets": {
+  "ante_play": {
+   "ev": -0.041562025,
+   "house_edge": 0.041562025,
+   "sd": 1.678235136409049,
+   "se": 0.0003752647847239266,
+   "ci95": [
+    -0.0422975439780589,
+    -0.04082650602194111
+   ],
+   "avg_wager_per_unit": 1.7357068916666667,
+   "element_of_risk": 0.02394530159414829,
+   "samples": 120000000.0
+  },
+  "pair_plus": {
+   "ev": -0.073284775,
+   "house_edge": 0.073284775,
+   "sd": 2.84558343169783,
+   "se": 0.0006362917988923478,
+   "ci95": [
+    -0.07453190692582899,
+    -0.072037643074171
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.073284775,
+   "samples": 80000000.0,
+   "ref_house_edge": 0.07276,
+   "z_vs_ref": 0.8247395313180459
+  },
+  "six_card": {
+   "ev": -0.08679043333333333,
+   "house_edge": 0.08679043333333333,
+   "sd": 5.41210215664996,
+   "se": 0.0012101828323442525,
+   "ci95": [
+    -0.08916239168472807,
+    -0.0844184749819386
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.08679043333333333,
+   "samples": 60000000.0,
+   "ref_house_edge": 0.08561,
+   "z_vs_ref": 0.9754173516465303
+  }
+ },
+ "bank": {
+  "ev_per_round": 28.90673175,
+  "sd_per_round": 623.393728412296,
+  "se": 0.13939507534769358,
+  "ci95": [
+   28.63351740231852,
+   29.179946097681476
+  ],
+  "pd_fee_per_round": 2.0,
+  "table_action_per_round": 695.0,
+  "ev_per_dollar_action": 0.04159241978417266,
+  "n0_rounds": 465.07915315332133,
+  "full_kelly_bankroll": 13443.918322720227,
+  "ror_brownian": {
+   "10000": 0.2259003011325223,
+   "20000": 0.05103094605176425,
+   "40000": 0.0026041574549380735
+  },
+  "ev_per_hour": 1300.8029287499999,
+  "sd_per_hour": 4181.852260430808
+ },
+ "sessions": {
+  "rounds_per_session": 250,
+  "n_sessions": 80000,
+  "mean": 7226.6829375,
+  "sd": 9871.459970441752,
+  "pct": {
+   "1": -15860.0,
+   "5": -9090.249999999998,
+   "25": 615.0,
+   "50": 7235.0,
+   "75": 13920.0,
+   "95": 23355.0,
+   "99": 30020.049999999974
+  },
+  "p_losing_session": 0.229475,
+  "p_drawdown_exceeds": {
+   "10000": 0.1193125,
+   "20000": 0.007575,
+   "40000": 0.0
+  }
+ },
+ "seat0_cov": {
+  "order": [
+   "ante_play",
+   "pair_plus"
+  ],
+  "cov": [
+   [
+    2.6862144869065774,
+    2.26159096175524
+   ],
+   [
+    2.26159096175524,
+    8.09573772808384
+   ]
+  ]
+ },
+ "per_seat": [
+  {
+   "seat": 0,
+   "bet": "ante_play",
+   "amount": 100.0,
+   "strategy": "q64",
+   "ev": -0.03429815,
+   "house_edge": 0.03429815,
+   "sd": 1.6389675063608118,
+   "se": 0.0003664842757136094,
+   "avg_wager_per_unit": 1.67422905
+  },
+  {
+   "seat": 0,
+   "bet": "pair_plus",
+   "amount": 25.0,
+   "strategy": "q64",
+   "ev": -0.0737704,
+   "house_edge": 0.0737704,
+   "sd": 2.845300990771247,
+   "se": 0.0006362286431812011,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 1,
+   "bet": "ante_play",
+   "amount": 50.0,
+   "strategy": "mimic_dealer",
+   "ev": -0.03406815,
+   "house_edge": 0.03406815,
+   "sd": 1.6526972533272928,
+   "se": 0.0003695543404667017,
+   "avg_wager_per_unit": 1.6959633
+  },
+  {
+   "seat": 1,
+   "bet": "pair_plus",
+   "amount": 25.0,
+   "strategy": "mimic_dealer",
+   "ev": -0.0729261,
+   "house_edge": 0.0729261,
+   "sd": 2.846821487894664,
+   "se": 0.0006365686366739563,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 1,
+   "bet": "six_card",
+   "amount": 10.0,
+   "strategy": "mimic_dealer",
+   "ev": -0.0857408,
+   "house_edge": 0.0857408,
+   "sd": 5.472381110194662,
+   "se": 0.0012236616161181032,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 2,
+   "bet": "ante_play",
+   "amount": 200.0,
+   "strategy": "q64",
+   "ev": -0.0343901,
+   "house_edge": 0.0343901,
+   "sd": 1.6388698914257929,
+   "se": 0.0003664624483505772,
+   "avg_wager_per_unit": 1.67397855
+  },
+  {
+   "seat": 3,
+   "bet": "ante_play",
+   "amount": 25.0,
+   "strategy": "raise_all",
+   "ev": -0.07745145,
+   "house_edge": 0.07745145,
+   "sd": 1.8374934892110224,
+   "se": 0.00041087603500891223,
+   "avg_wager_per_unit": 2.0
+  },
+  {
+   "seat": 3,
+   "bet": "pair_plus",
+   "amount": 25.0,
+   "strategy": "raise_all",
+   "ev": -0.07322995,
+   "house_edge": 0.07322995,
+   "sd": 2.8443527250365763,
+   "se": 0.0006360166045168553,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 3,
+   "bet": "six_card",
+   "amount": 5.0,
+   "strategy": "raise_all",
+   "ev": -0.08686615,
+   "house_edge": 0.08686615,
+   "sd": 5.44282922035812,
+   "se": 0.0012170536126642937,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 4,
+   "bet": "ante_play",
+   "amount": 100.0,
+   "strategy": "mimic_dealer",
+   "ev": -0.03530105,
+   "house_edge": 0.03530105,
+   "sd": 1.6525262436248622,
+   "se": 0.000369516101534757,
+   "avg_wager_per_unit": 1.6957826
+  },
+  {
+   "seat": 4,
+   "bet": "pair_plus",
+   "amount": 50.0,
+   "strategy": "mimic_dealer",
+   "ev": -0.07321265,
+   "house_edge": 0.07321265,
+   "sd": 2.8458578948851216,
+   "se": 0.0006363531707267582,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 5,
+   "bet": "ante_play",
+   "amount": 75.0,
+   "strategy": "q64",
+   "ev": -0.03386325,
+   "house_edge": 0.03386325,
+   "sd": 1.6390697454042147,
+   "se": 0.0003665071370587097,
+   "avg_wager_per_unit": 1.67428785
+  },
+  {
+   "seat": 5,
+   "bet": "six_card",
+   "amount": 5.0,
+   "strategy": "q64",
+   "ev": -0.08776435,
+   "house_edge": 0.08776435,
+   "sd": 5.319887430093712,
+   "se": 0.00118956299263362,
+   "avg_wager_per_unit": 1.0
+  }
+ ],
+ "events": {
+  "dealer_not_qualify": 0.30406595
+ },
+ "player_fee_per_seat_round": 1.0
+}

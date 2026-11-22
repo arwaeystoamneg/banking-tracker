@@ -1,0 +1,94 @@
+{
+ "name": "Hustler 21st Century BJ (target 22, joker+any = hard 21, JJ/AA/AJ = Natural 22, JJ pays 2:1) \u2014 UNCONFIRMED on felt",
+ "game": "blackjack",
+ "decks": 8,
+ "jokers_per_deck": 1,
+ "shuffle": "shoe",
+ "penetration": 0.8,
+ "rounds": 30000000.0,
+ "seed": 41,
+ "chunks": 8,
+ "hands_per_hour": 60,
+ "rules": {
+  "target": 22,
+  "joker_mode": "fixed21",
+  "dealer_stand": 17,
+  "dealer_hits_soft": true,
+  "both_over": "player_closer_push",
+  "das": true,
+  "max_hands": 3,
+  "split_aces_one_card": true,
+  "surrender": true,
+  "double_no_joker": true,
+  "split_no_joker": true,
+  "peek": false,
+  "joker_up_ends_hand": true
+ },
+ "naturals": {
+  "JJ": [
+   1,
+   2.0
+  ],
+  "AJ": [
+   1,
+   1.0
+  ],
+  "AA": [
+   1,
+   1.0
+  ]
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_basic"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_shifted"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "mimic_dealer"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "never_bust"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_basic"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_basic"
+   }
+  ],
+  "bank_mode": "unlimited",
+  "fees": {
+   "pd_per_round": 4.0,
+   "player_per_seat": 2.0
+  }
+ },
+ "session": {
+  "rounds": 300,
+  "bankrolls": [
+   5000,
+   10000,
+   20000
+  ]
+ }
+}

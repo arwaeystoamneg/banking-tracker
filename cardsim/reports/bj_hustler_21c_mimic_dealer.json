@@ -1,0 +1,96 @@
+{
+ "name": "Hustler 21st Century BJ, single seat, profile=mimic_dealer",
+ "game": "blackjack",
+ "rounds": 20000000,
+ "seconds": 14.15431547164917,
+ "rounds_per_sec": 1412996.6256623026,
+ "bets": {
+  "main": {
+   "ev": -0.0281992,
+   "house_edge": 0.0281992,
+   "sd": 0.9361964564766094,
+   "se": 0.0002093398916976122,
+   "ci95": [
+    -0.02860950618772732,
+    -0.02778889381227268
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.0281992,
+   "samples": 20000000.0
+  },
+  "perfect_pairs": {
+   "ev": -0.074584,
+   "house_edge": 0.074584,
+   "sd": 3.8890055061601543,
+   "se": 0.0008696080676645082,
+   "ci95": [
+    -0.07628843181262243,
+    -0.07287956818737756
+   ],
+   "avg_wager_per_unit": 1.0,
+   "element_of_risk": 0.074584,
+   "samples": 20000000.0
+  }
+ },
+ "bank": {
+  "ev_per_round": 0.1027832,
+  "sd_per_round": 4.027289338227111,
+  "se": 0.0009005292725335962,
+  "ci95": [
+   0.10101816262583416,
+   0.10454823737416585
+  ],
+  "pd_fee_per_round": 0.0,
+  "table_action_per_round": 2.0,
+  "ev_per_dollar_action": 0.0513916,
+  "n0_rounds": 1535.2580929272335,
+  "full_kelly_bankroll": 157.79873961695841,
+  "ror_brownian": {}
+ },
+ "sessions": null,
+ "seat0_cov": {
+  "order": [
+   "main",
+   "perfect_pairs"
+  ],
+  "cov": [
+   [
+    0.8764638051193601,
+    0.1091158908672
+   ],
+   [
+    0.1091158908672,
+    15.124363826943998
+   ]
+  ]
+ },
+ "per_seat": [
+  {
+   "seat": 0,
+   "bet": "main",
+   "amount": 1.0,
+   "strategy": "mimic_dealer",
+   "ev": -0.0281992,
+   "house_edge": 0.0281992,
+   "sd": 0.9361964564766094,
+   "se": 0.0002093398916976122,
+   "avg_wager_per_unit": 1.0
+  },
+  {
+   "seat": 0,
+   "bet": "perfect_pairs",
+   "amount": 1.0,
+   "strategy": "mimic_dealer",
+   "ev": -0.074584,
+   "house_edge": 0.074584,
+   "sd": 3.8890055061601543,
+   "se": 0.0008696080676645082,
+   "avg_wager_per_unit": 1.0
+  }
+ ],
+ "events": {
+  "pd_over_target": 0.19617525,
+  "pd_natural": 0.00872585
+ },
+ "player_fee_per_seat_round": 0.0
+}

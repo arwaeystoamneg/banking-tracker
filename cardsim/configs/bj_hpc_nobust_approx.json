@@ -1,0 +1,102 @@
+{
+ "name": "HPC No Bust 21st C. 4.0a APPROX (no jokers, A+10 natural 6:5, PD wins ties over, PD 3-card 23-25 push, 4+ card bust loses)",
+ "game": "blackjack",
+ "decks": 8,
+ "shuffle": "shoe",
+ "penetration": 0.8,
+ "rounds": 30000000.0,
+ "seed": 61,
+ "chunks": 8,
+ "hands_per_hour": 60,
+ "rules": {
+  "target": 21,
+  "joker_mode": "none",
+  "dealer_stand": 17,
+  "dealer_hits_soft": true,
+  "both_over": "dealer_wins",
+  "dealer3_push": [
+   23,
+   25,
+   22
+  ],
+  "over_ncards_lose": 4,
+  "das": true,
+  "max_hands": 3,
+  "surrender": true,
+  "player_must_hit_le": 11,
+  "peek": false
+ },
+ "naturals": {
+  "A10": [
+   1,
+   1.2
+  ]
+ },
+ "buster": {
+  "3": 2,
+  "4": 2,
+  "5": 4,
+  "6": 16,
+  "7": 50,
+  "8": 200
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "main": 100,
+     "buster": 5
+    },
+    "strategy": "vegas_basic"
+   },
+   {
+    "bets": {
+     "main": 100,
+     "buster": 5
+    },
+    "strategy": "vegas_shifted"
+   },
+   {
+    "bets": {
+     "main": 100,
+     "buster": 5
+    },
+    "strategy": "mimic_dealer"
+   },
+   {
+    "bets": {
+     "main": 100,
+     "buster": 5
+    },
+    "strategy": "never_bust"
+   },
+   {
+    "bets": {
+     "main": 100,
+     "buster": 5
+    },
+    "strategy": "vegas_basic"
+   },
+   {
+    "bets": {
+     "main": 100,
+     "buster": 5
+    },
+    "strategy": "vegas_basic"
+   }
+  ],
+  "bank_mode": "unlimited",
+  "fees": {
+   "pd_per_round": 4.0,
+   "player_per_seat": 1.0
+  }
+ },
+ "session": {
+  "rounds": 300,
+  "bankrolls": [
+   5000,
+   10000,
+   20000
+  ]
+ }
+}

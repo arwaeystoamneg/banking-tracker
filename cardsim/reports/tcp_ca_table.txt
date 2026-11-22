@@ -1,0 +1,14 @@
+== CA 3CP table, 6 seats, PD bank with CA Grand coverage rule  (tcp, 20,000,000 rounds, 885,204 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+ante_play                  -0.04156   0.00074    4.1562%   1.6782   2.395%                 
+pair_plus                  -0.07328   0.00125    7.3285%   2.8456   7.328%   7.2760%  +0.82
+six_card                   -0.08679   0.00237    8.6790%   5.4121   8.679%   8.5610%  +0.98
+BANK  EV/round +28.9067 (±0.2732)  SD/round 623.394  action 695  PD fee 2.00  EV/$action +4.159%
+      N0 465 rounds   full-Kelly bankroll 13,444   RoR(Brownian) 10000: 2.26e-01, 20000: 5.10e-02, 40000: 2.60e-03
+      per hour: EV +1,300.80  SD 4,181.85
+SESSIONS of 250 rounds (n=80,000): mean +7,226.7 sd 9,871.5  P(losing) 0.229
+      pct p1:-15,860  p5:-9,090  p25:+615  p50:+7,235  p75:+13,920  p95:+23,355  p99:+30,020
+      P(drawdown ≥ B) 10000: 0.1193  20000: 0.0076  40000: 0.0000
+PER SEAT  s0 ante_play[q64] $100: HE 3.43%±0.07  |  s0 pair_plus[q64] $25: HE 7.38%±0.12  |  s1 ante_play[mimic_dealer] $50: HE 3.41%±0.07  |  s1 pair_plus[mimic_dealer] $25: HE 7.29%±0.12  |  s1 six_card[mimic_dealer] $10: HE 8.57%±0.24  |  s2 ante_play[q64] $200: HE 3.44%±0.07  |  s3 ante_play[raise_all] $25: HE 7.75%±0.08  |  s3 pair_plus[raise_all] $25: HE 7.32%±0.12  |  s3 six_card[raise_all] $5: HE 8.69%±0.24  |  s4 ante_play[mimic_dealer] $100: HE 3.53%±0.07  |  s4 pair_plus[mimic_dealer] $50: HE 7.32%±0.12  |  s5 ante_play[q64] $75: HE 3.39%±0.07  |  s5 six_card[q64] $5: HE 8.78%±0.23
+events dealer_not_qualify=0.304066
+

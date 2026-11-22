@@ -1,0 +1,76 @@
+{
+ "name": "Hustler LA Blackjack (6D + 4 jokers as 2/12, target 22, AA or joker+10 natural, PD wins 18 ties, PD H S18) \u2014 UNCONFIRMED",
+ "game": "blackjack",
+ "decks": 6,
+ "jokers_total": 4,
+ "shuffle": "shoe",
+ "penetration": 0.8,
+ "rounds": 30000000.0,
+ "seed": 71,
+ "chunks": 8,
+ "hands_per_hour": 60,
+ "rules": {
+  "target": 22,
+  "joker_mode": "two_twelve",
+  "dealer_stand": 18,
+  "dealer_hits_soft": true,
+  "both_over": "closer_wins",
+  "dealer_wins_tie_total": 18,
+  "double_any_two": false,
+  "max_hands": 1,
+  "surrender": false,
+  "player_must_hit_le": 12,
+  "player_must_stand_hard_ge": 18,
+  "peek": false
+ },
+ "naturals": {
+  "AA": [
+   1,
+   1.0
+  ],
+  "J10": [
+   1,
+   1.0
+  ]
+ },
+ "table": {
+  "seats": [
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_shifted"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "mimic_dealer"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "never_bust"
+   },
+   {
+    "bets": {
+     "main": 100
+    },
+    "strategy": "vegas_basic"
+   }
+  ],
+  "bank_mode": "unlimited",
+  "fees": {
+   "pd_per_round": 2.0,
+   "player_per_seat": 1.0
+  }
+ },
+ "session": {
+  "rounds": 300,
+  "bankrolls": [
+   5000,
+   10000
+  ]
+ }
+}

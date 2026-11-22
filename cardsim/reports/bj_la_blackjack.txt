@@ -1,0 +1,12 @@
+== Hustler LA Blackjack (6D + 4 jokers as 2/12, target 22, AA or joker+10 natural, PD wins 18 ties, PD H S18) — UNCONFIRMED  (blackjack, 20,000,000 rounds, 946,443 rounds/s)
+bet                         EV/unit      ±95%  HouseEdge       SD      EoR    ref HE      z
+main                       -0.04981   0.00042    4.9806%   0.9581   4.981%                 
+BANK  EV/round +17.9225 (±0.1287)  SD/round 293.761  action 400  PD fee 2.00  EV/$action +4.481%
+      N0 269 rounds   full-Kelly bankroll 4,815   RoR(Brownian) 5000: 1.25e-01, 10000: 1.57e-02
+      per hour: EV +1,075.35  SD 2,275.47
+SESSIONS of 300 rounds (n=66,664): mean +5,376.9 sd 5,094.7  P(losing) 0.143
+      pct p1:-6,500  p5:-3,000  p25:+2,000  p50:+5,400  p75:+8,800  p95:+13,800  p99:+17,300
+      P(drawdown ≥ B) 5000: 0.0806  10000: 0.0036
+PER SEAT  s0 main[vegas_shifted] $100: HE 2.68%±0.04  |  s1 main[mimic_dealer] $100: HE 1.82%±0.04  |  s2 main[never_bust] $100: HE 11.12%±0.04  |  s3 main[vegas_basic] $100: HE 4.30%±0.04
+events pd_over_target=0.289667  pd_natural=0.013229
+
