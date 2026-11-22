@@ -190,9 +190,17 @@ describe("login hardening", () => {
   });
 
   it("caps sign-ups waiting for approval", async () => {
-    for (let index = 0; index < 25; index += 1) await register(`wait${index}`, `Wait ${index}`);
+    // Seed 25 waiting rows directly: registering each would hash 25 passwords and take tens of seconds.
+    const store = memoryStore();
+    for (let index = 0; index < 25; index += 1) {
+      await store.create(
+        { name: `Wait ${index}`, password_hash: "x", status: "pending", role: "individual", requested_at: "", decided_by: "", decided_at: "" },
+        `wait${index}`,
+      );
+    }
+    setAccountsStoreForTests(store);
     expect(await register("onemore", "One More")).toEqual({ error: LOGIN_ERROR.signupsFull });
-  }, 60_000);
+  });
 });
 
 describe("canApproveAccounts", () => {

@@ -252,13 +252,21 @@ export interface PnlPoint {
   sessions: number;
 }
 
-/** Running net, one point per session date, oldest first. Open sessions have no result yet and are left out. */
-export function cumulativePnl(sessions: Session[]): PnlPoint[] {
+/**
+ * Running net, one point per session date, oldest first. Open sessions have no result yet and are left out.
+ * `adjustments` are other dated amounts (an expense is negative) that move the total on their day.
+ */
+export function cumulativePnl(sessions: Session[], adjustments: { date: string; amount: number }[] = []): PnlPoint[] {
   const byDate = new Map<string, { day: Decimal; sessions: number }>();
   for (const session of sessions) {
     if (isSessionOpen(session) || !session.date) continue;
     const row = byDate.get(session.date) ?? { day: d(0), sessions: 0 };
     byDate.set(session.date, { day: row.day.plus(result(session)), sessions: row.sessions + 1 });
+  }
+  for (const adjustment of adjustments) {
+    if (!adjustment.date) continue;
+    const row = byDate.get(adjustment.date) ?? { day: d(0), sessions: 0 };
+    byDate.set(adjustment.date, { day: row.day.plus(adjustment.amount), sessions: row.sessions });
   }
   let total = d(0);
   return [...byDate.entries()]

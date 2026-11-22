@@ -39,7 +39,7 @@ describe("display formatting", () => {
   });
 
   it("time running", () => {
-    expect(minutesSince("2026-10-30", "19:00", new Date("2026-10-30T22:20:00"))).toBe(200);
+    expect(minutesSince("2026-10-30", "19:00", new Date("2026-10-30T22:20:00-07:00"))).toBe(200);
     expect(minutesSince("2026-10-30", "", new Date())).toBeNull();
   });
 });

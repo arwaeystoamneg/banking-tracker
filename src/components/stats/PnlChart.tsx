@@ -35,11 +35,23 @@ const dayMs = (date: string) => Date.parse(`${date}T00:00:00Z`);
  * Running net over time for the sessions given (the Stats page passes the ones inside its date window).
  * Chips pick whose sessions count: everyone together, or one player.
  */
-export function PnlChart({ sessions }: { sessions: Session[] }) {
+export function PnlChart({
+  sessions,
+  adjustments = [],
+  subtitle = "Running net of finished sessions",
+}: {
+  sessions: Session[];
+  /** Dated amounts not tied to a session (expenses); counted for "Everyone" only, since they're nobody's own. */
+  adjustments?: { date: string; amount: number }[];
+  subtitle?: string;
+}) {
   const players = useMemo(() => sessionsByPlayer(sessions), [sessions]);
   const [who, setWho] = useState<string>("");
   const chosen = players.find((player) => player.label === who);
-  const points = useMemo(() => cumulativePnl(chosen ? chosen.sessions : sessions), [chosen, sessions]);
+  const points = useMemo(
+    () => (chosen ? cumulativePnl(chosen.sessions) : cumulativePnl(sessions, adjustments)),
+    [chosen, sessions, adjustments],
+  );
 
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -90,7 +102,7 @@ export function PnlChart({ sessions }: { sessions: Session[] }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">P&amp;L over time</h2>
-          <p className="text-xs text-muted">Running net of finished sessions{chosen ? ` · ${chosen.label}` : ""}</p>
+          <p className="text-xs text-muted">{subtitle}{chosen ? ` · ${chosen.label}` : ""}</p>
         </div>
         {last ? (
           <p className={`num text-right text-lg font-semibold ${last.total < 0 ? "text-red-400" : "text-emerald-400"}`}>{exact(last.total)}</p>
