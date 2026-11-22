@@ -152,36 +152,48 @@ export function pairPlusHand(c0: number, c1: number, c2: number): PairPlusHand |
   return (["pair", "flush", "straight", "trips"] as const)[cat - 1] ?? null;
 }
 
-/** Best five-card hand from six cards, for the 6 Card Bonus (trips or better; null below that). */
-export function sixCardHand(cards: number[]): SixCardHand | null {
-  const rankCount = new Array<number>(13).fill(0);
-  const suitCount = [0, 0, 0, 0];
-  for (const card of cards) {
-    rankCount[card >> 2] += 1;
-    suitCount[card & 3] += 1;
+const rankCount = new Int8Array(13);
+const suitCount = new Int8Array(4);
+const suitRanks = new Int8Array(13);
+
+/** Highest 5-in-a-row top rank in a 13-slot count array, or -1. Top 3 is the wheel (5-4-3-2-A). */
+function straightTop(present: Int8Array): number {
+  for (let top = 12; top >= 3; top -= 1) {
+    let ok = true;
+    for (let k = 0; k < 5 && ok; k += 1) ok = present[top - k < 0 ? 12 : top - k] > 0;
+    if (ok) return top;
   }
-  /** Highest straight's top rank, or -1. Top 3 is the wheel: 5-4-3-2 plus the ace playing low. */
-  const straightTop = (has: (rank: number) => boolean): number => {
-    for (let top = 12; top >= 3; top -= 1) {
-      let ok = true;
-      for (let k = 0; k < 5 && ok; k += 1) ok = has(top - k < 0 ? 12 : top - k);
-      if (ok) return top;
-    }
-    return -1;
-  };
-  const flushSuit = suitCount.findIndex((count) => count >= 5);
+  return -1;
+}
+
+/** Best five-card hand from six cards, for the 6 Card Bonus (trips or better; null below that). */
+export function sixCardHand(cards: ArrayLike<number>): SixCardHand | null {
+  rankCount.fill(0);
+  suitCount.fill(0);
+  for (let i = 0; i < cards.length; i += 1) {
+    rankCount[cards[i] >> 2] += 1;
+    suitCount[cards[i] & 3] += 1;
+  }
+  let flushSuit = -1;
+  for (let suit = 0; suit < 4; suit += 1) if (suitCount[suit] >= 5) flushSuit = suit;
   if (flushSuit >= 0) {
-    const inSuit = new Set(cards.filter((card) => (card & 3) === flushSuit).map((card) => card >> 2));
-    const top = straightTop((rank) => inSuit.has(rank));
+    suitRanks.fill(0);
+    for (let i = 0; i < cards.length; i += 1) if ((cards[i] & 3) === flushSuit) suitRanks[cards[i] >> 2] = 1;
+    const top = straightTop(suitRanks);
     if (top === 12) return "royal";
     if (top >= 3) return "straightFlush";
   }
-  const counts = rankCount.filter((count) => count > 0).sort((a, b) => b - a);
-  if (counts[0] >= 4) return "quads";
-  if (counts[0] === 3 && counts[1] >= 2) return "fullHouse";
+  let most = 0;
+  let pairsOrBetter = 0;
+  for (let rank = 0; rank < 13; rank += 1) {
+    if (rankCount[rank] > most) most = rankCount[rank];
+    if (rankCount[rank] >= 2) pairsOrBetter += 1;
+  }
+  if (most >= 4) return "quads";
+  if (most === 3 && pairsOrBetter >= 2) return "fullHouse";
   if (flushSuit >= 0) return "flush";
-  if (straightTop((rank) => rankCount[rank] > 0) >= 3) return "straight";
-  if (counts[0] === 3) return "trips";
+  if (straightTop(rankCount) >= 3) return "straight";
+  if (most === 3) return "trips";
   return null;
 }
 
@@ -196,18 +208,24 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-export interface ThreeCardTable {
-  rules: ThreeCardRules;
-  bonus: AnteBonusTable;
-  style: PlayerStyle;
+/** One player at the table: their bets and how they play. */
+export interface ThreeCardSeat {
   ante: number;
   pairPlus: number;
   sixCard: number;
+  style: PlayerStyle;
+}
+
+export interface ThreeCardTable {
+  rules: ThreeCardRules;
+  bonus: AnteBonusTable;
+  /** In settlement order (the order the dealer pays seats). Up to 7 seats from one deck. */
+  seats: ThreeCardSeat[];
   pairPlusPayouts: Record<PairPlusHand, number>;
   sixCardPayouts: Record<SixCardHand, number>;
 }
 
-export interface ThreeCardRound {
+export interface ThreeCardSeatResult {
   /** Player's result per bet in dollars (positive = player won). */
   antePlay: number;
   pairPlus: number;
@@ -215,45 +233,96 @@ export interface ThreeCardRound {
   played: boolean;
 }
 
-/** Deals one round from a fresh single deck: player 3, dealer 3 (dealer's first card is the up card). */
+export interface ThreeCardRound {
+  seats: ThreeCardSeatResult[];
+}
+
+const SIX = new Int8Array(6);
+
+/**
+ * Deals one round from a fresh single deck: three cards to each seat, then three to the dealer (the dealer's first
+ * card is the up card). Every seat plays against the same dealer hand, which is what ties their results together.
+ */
 export function dealThreeCardRound(rand: () => number, table: ThreeCardTable, deck = Array.from({ length: 52 }, (_, i) => i)): ThreeCardRound {
-  for (let i = 0; i < 6; i += 1) {
+  const k = table.seats.length;
+  const need = 3 * k + 3;
+  for (let i = 0; i < need; i += 1) {
     const j = i + Math.floor(rand() * (52 - i));
     const tmp = deck[i];
     deck[i] = deck[j];
     deck[j] = tmp;
   }
-  const player = score3(deck[0], deck[1], deck[2]);
-  const dealer = score3(deck[3], deck[4], deck[5]);
-  const ap = antePlayResult(table.rules, table.bonus, table.style, player, deck[3], dealer);
-  let pairPlus = 0;
-  if (table.pairPlus > 0) {
-    const hand = pairPlusHand(deck[0], deck[1], deck[2]);
-    // A paytable without a Mini Royal line pays it as a straight flush.
-    const key = hand === "miniRoyal" && !(table.pairPlusPayouts.miniRoyal > 0) ? "straightFlush" : hand;
-    const pay = key ? table.pairPlusPayouts[key] ?? 0 : 0;
-    pairPlus = pay > 0 ? pay * table.pairPlus : -table.pairPlus;
+  const d0 = deck[3 * k];
+  const d1 = deck[3 * k + 1];
+  const d2 = deck[3 * k + 2];
+  const dealer = score3(d0, d1, d2);
+  const seats: ThreeCardSeatResult[] = [];
+  for (let s = 0; s < k; s += 1) {
+    const seat = table.seats[s];
+    const c0 = deck[3 * s];
+    const c1 = deck[3 * s + 1];
+    const c2 = deck[3 * s + 2];
+    const player = score3(c0, c1, c2);
+    const ap = seat.ante > 0 ? antePlayResult(table.rules, table.bonus, seat.style, player, d0, dealer) : { result: 0, played: false };
+    let pairPlus = 0;
+    if (seat.pairPlus > 0) {
+      const hand = pairPlusHand(c0, c1, c2);
+      // A paytable without a Mini Royal line pays it as a straight flush.
+      const key = hand === "miniRoyal" && !(table.pairPlusPayouts.miniRoyal > 0) ? "straightFlush" : hand;
+      const pay = key ? table.pairPlusPayouts[key] ?? 0 : 0;
+      pairPlus = pay > 0 ? pay * seat.pairPlus : -seat.pairPlus;
+    }
+    let sixCard = 0;
+    if (seat.sixCard > 0) {
+      SIX[0] = c0;
+      SIX[1] = c1;
+      SIX[2] = c2;
+      SIX[3] = d0;
+      SIX[4] = d1;
+      SIX[5] = d2;
+      const hand = sixCardHand(SIX);
+      const pay = hand ? table.sixCardPayouts[hand] ?? 0 : 0;
+      sixCard = pay > 0 ? pay * seat.sixCard : -seat.sixCard;
+    }
+    seats.push({ antePlay: ap.result * seat.ante, pairPlus, sixCard, played: ap.played });
   }
-  let sixCard = 0;
-  if (table.sixCard > 0) {
-    const hand = sixCardHand([deck[0], deck[1], deck[2], deck[3], deck[4], deck[5]]);
-    const pay = hand ? table.sixCardPayouts[hand] ?? 0 : 0;
-    sixCard = pay > 0 ? pay * table.sixCard : -table.sixCard;
-  }
-  return { antePlay: ap.result * table.ante, pairPlus, sixCard, played: ap.played };
+  return { seats };
 }
 
 /**
- * Bank's P&L for one round, paying winners from the stack in settlement order (Ante/Play, then Pair Plus, then
- * 6 Card Bonus) before collecting losers, so a short bank can't pay the side bets in full — same gross
- * settlement as the baccarat sim. Returns the bank's change.
+ * Bank's P&L for one round, paying winners from the stack in settlement order — every seat's Ante/Play first,
+ * then Pair Plus, then the 6 Card Bonus, seat by seat — before collecting losers, so a short bank can't pay
+ * the late bets in full (same gross settlement as the baccarat sim). Returns the bank's change.
  */
 export function settleThreeCardRound(round: ThreeCardRound, bank: number): number {
   let stack = Math.max(0, bank);
-  const legs = [round.antePlay, round.pairPlus, round.sixCard];
-  for (const leg of legs) if (leg > 0) stack -= Math.min(leg, stack);
-  for (const leg of legs) if (leg < 0) stack += -leg;
+  for (const leg of ["antePlay", "pairPlus", "sixCard"] as const) {
+    for (const seat of round.seats) if (seat[leg] > 0) stack -= Math.min(seat[leg], stack);
+  }
+  for (const seat of round.seats) {
+    for (const leg of ["antePlay", "pairPlus", "sixCard"] as const) if (seat[leg] < 0) stack += -seat[leg];
+  }
   return stack - Math.max(0, bank);
+}
+
+/**
+ * Mean and variance of the bank's result per round for this table, each round settled from a fresh `bank`
+ * (so payouts are capped by what the bank holds, as at the table). Deterministic for a seed. The calculator
+ * takes the table's SD from here: seats share the dealer hand and their side bets ride on the same cards,
+ * which no per-bet formula captures.
+ */
+export function threeCardTableMoments(bank: number, table: ThreeCardTable, rounds = 100_000, seed = 0x51ed27): { mean: number; variance: number } {
+  const rand = mulberry32(seed);
+  const deck = Array.from({ length: 52 }, (_, i) => i);
+  let sum = 0;
+  let sumSq = 0;
+  for (let i = 0; i < rounds; i += 1) {
+    const pnl = settleThreeCardRound(dealThreeCardRound(rand, table, deck), bank);
+    sum += pnl;
+    sumSq += pnl * pnl;
+  }
+  const mean = sum / rounds;
+  return { mean, variance: Math.max(0, sumSq / rounds - mean * mean) };
 }
 
 export interface ThreeCardSimResult {
@@ -265,7 +334,7 @@ export interface ThreeCardSimResult {
   p5SessionPnl: number;
   p95SessionPnl: number;
   medianMaxDrawdown: number;
-  /** Share of rounds the player played (checks the strategy against THREE_CARD_EXACT). */
+  /** Share of seat-hands played (checks the strategies against THREE_CARD_EXACT). */
   raiseRate: number;
 }
 
@@ -295,7 +364,7 @@ export function simulateThreeCardSessions(input: {
     let broke = false;
     for (let r = 0; r < input.roundsPerSession; r += 1) {
       const round = dealThreeCardRound(rand, input.table, deck);
-      if (round.played) played += 1;
+      for (const seat of round.seats) if (seat.played) played += 1;
       const pnl = settleThreeCardRound(round, stack) - input.collection;
       stack += pnl;
       sessionPnl += pnl;
@@ -327,6 +396,6 @@ export function simulateThreeCardSessions(input: {
     p5SessionPnl: quantile(sessionPnls, 0.05),
     p95SessionPnl: quantile(sessionPnls, 0.95),
     medianMaxDrawdown: quantile(drawdowns, 0.5),
-    raiseRate: rounds > 0 ? played / rounds : 0,
+    raiseRate: rounds > 0 ? played / (rounds * Math.max(1, input.table.seats.filter((seat) => seat.ante > 0).length)) : 0,
   };
 }

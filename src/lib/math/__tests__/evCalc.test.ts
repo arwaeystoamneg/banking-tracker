@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeBankingEV, type EVInput } from "@/lib/math/evCalc";
+import { computeBankingEV, seatsVariance, type EVInput } from "@/lib/math/evCalc";
 
 const baseInput = (over: Partial<EVInput> = {}): EVInput => ({
   bank: 8000,
@@ -85,5 +85,26 @@ describe("computeBankingEV — underbanking / settlement order", () => {
     expect(r.riskOfRuin.toNumber()).toBe(1);
     expect(r.n0.isFinite()).toBe(false);
     expect(r.kellyBank.isFinite()).toBe(false);
+  });
+});
+
+describe("players with different bets", () => {
+  it("matches the equal-spots formula when every seat bets the same", () => {
+    const base = { actionOffered: 300, edge: 0.02, exposureMult: 1, sigma: 1.2 };
+    const equal = computeBankingEV({ bank: 1e6, collection: 0, base, sides: [], spots: 3, rho: 0.4 });
+    const seats = computeBankingEV({
+      bank: 1e6,
+      collection: 0,
+      base: { ...base, seats: [100, 100, 100].map((offered) => ({ offered, sigma: 1.2 })) },
+      sides: [],
+      spots: 1,
+      rho: 0.4,
+    });
+    expect(seats.sd.toNumber()).toBeCloseTo(equal.sd.toNumber(), 9);
+  });
+
+  it("weights each seat by its own bet: one $300 and one $100 bettor, uncorrelated", () => {
+    expect(seatsVariance([{ offered: 300, sigma: 1 }, { offered: 100, sigma: 1 }], 1, 0)).toBe(300 * 300 + 100 * 100);
+    expect(seatsVariance([{ offered: 300, sigma: 1 }, { offered: 100, sigma: 1 }], 1, 1)).toBe(400 * 400);
   });
 });

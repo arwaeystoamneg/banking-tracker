@@ -45,11 +45,9 @@ import {
   matchThreeCardSidebet,
   pairPlusCap,
   pairPlusPayoutsFromRows,
-  pairPlusSigma,
   realizedPairPlusEdge,
   realizedSixCardEdge,
   sixCardPayoutsFromRows,
-  sixCardSigma,
 } from "@/lib/math/threeCardPoker";
 import {
   FORTUNE_PAI_GOW_PAYOUTS,
@@ -75,15 +73,18 @@ import {
   uthTripsTop,
   type TripsHand,
 } from "@/lib/math/uthTrips";
-import { formatMoney } from "@/lib/decimal";
+import { formatMoney, type Decimal } from "@/lib/decimal";
+import { Chip } from "@/components/ui/Chip";
 import {
   ANTE_BONUS,
   antePlayExact,
   antePlayExposure,
   simulateThreeCardSessions,
+  threeCardTableMoments,
   type AnteBonusTable,
   type PlayerStyle,
   type ThreeCardRules,
+  type ThreeCardTable,
 } from "@/lib/math/threeCardSim";
 import { calculatorOptions, detectGameFamily, isHighValueSidebet } from "@/lib/gameFamily";
 
@@ -102,6 +103,31 @@ const BACCARAT_BET_LABEL: Record<keyof BaccaratBets, string> = {
   pandaKoi: "Panda 8",
 };
 
+/** One player's bets. Every input on the page edits the selected player; the math uses all of them. */
+interface PlayerBets {
+  main: string;
+  /** Two Way Winner Play. */
+  play: string;
+  /** Three Card Poker: how this player plays. */
+  style: PlayerStyle;
+  bacPlayer: string;
+  bacBanker: string;
+  bacTie: string;
+  sides: Record<string, string>;
+}
+
+const FIRST_PLAYER: PlayerBets = { main: "100", play: "", style: "optimal", bacPlayer: "250", bacBanker: "250", bacTie: "", sides: {} };
+const MAX_PLAYERS = 7;
+
+/** The dealt-card table moments, recomputed only when the table (as a JSON key) or bank changes. */
+function useThreeCardTableMoments(key: string): { mean: number; variance: number } | null {
+  return useMemo(() => {
+    if (!key) return null;
+    const { bank, table } = JSON.parse(key) as { bank: number; table: ThreeCardTable };
+    return table.seats.some((seat) => seat.ante + seat.pairPlus + seat.sixCard > 0) ? threeCardTableMoments(bank, table) : null;
+  }, [key]);
+}
+
 export default function EvCalculatorPage() {
   const { games } = useGames();
   const { sidebets } = useSidebets();
@@ -109,12 +135,37 @@ export default function EvCalculatorPage() {
 
   const [calcId, setCalcId] = useState("");
   const [bank, setBank] = useState("8000");
-  const [mainSize, setMainSize] = useState("100");
-  const [baccaratPlayerAction, setBaccaratPlayerAction] = useState("250");
-  const [baccaratBankerAction, setBaccaratBankerAction] = useState("250");
-  const [baccaratTieAction, setBaccaratTieAction] = useState("");
-  const [sideSizes, setSideSizes] = useState<Record<string, string>>({});
-  const [twoWayPlay, setTwoWayPlay] = useState("");
+  const [players, setPlayers] = useState<PlayerBets[]>([FIRST_PLAYER]);
+  const [activePlayer, setActivePlayer] = useState(0);
+  const active = Math.min(activePlayer, players.length - 1);
+  const current = players[active];
+  const editPlayer = (change: (player: PlayerBets) => PlayerBets) =>
+    setPlayers((prev) => prev.map((player, i) => (i === active ? change(player) : player)));
+  // The inputs below read and write the selected player.
+  const mainSize = current.main;
+  const setMainSize = (v: string) => editPlayer((player) => ({ ...player, main: v }));
+  const baccaratPlayerAction = current.bacPlayer;
+  const setBaccaratPlayerAction = (v: string) => editPlayer((player) => ({ ...player, bacPlayer: v }));
+  const baccaratBankerAction = current.bacBanker;
+  const setBaccaratBankerAction = (v: string) => editPlayer((player) => ({ ...player, bacBanker: v }));
+  const baccaratTieAction = current.bacTie;
+  const setBaccaratTieAction = (v: string) => editPlayer((player) => ({ ...player, bacTie: v }));
+  const twoWayPlay = current.play;
+  const setTwoWayPlay = (v: string) => editPlayer((player) => ({ ...player, play: v }));
+  const sideSizes = current.sides;
+  const setSideSizes = (change: (prev: Record<string, string>) => Record<string, string>) =>
+    editPlayer((player) => ({ ...player, sides: change(player.sides) }));
+  function addPlayer() {
+    if (players.length >= MAX_PLAYERS) return;
+    // A new player starts with the last player's bets: the usual case is "another one like that".
+    setPlayers((prev) => [...prev, { ...prev[prev.length - 1], sides: { ...prev[prev.length - 1].sides } }]);
+    setActivePlayer(players.length);
+  }
+  function removePlayer(index: number) {
+    if (players.length <= 1) return;
+    setPlayers((prev) => prev.filter((_, i) => i !== index));
+    setActivePlayer((i) => Math.max(0, i >= index ? i - 1 : i));
+  }
   const [collectionFee, setCollectionFee] = useState("");
   const [mainSigma, setMainSigma] = useState("1.0");
   const [sideSigma, setSideSigma] = useState("5");
@@ -125,7 +176,8 @@ export default function EvCalculatorPage() {
   // 3CP: which rules are on the felt and how the players play. Face-up matches the Games tab's gm_3cp.
   const [tcpRules, setTcpRules] = useState<ThreeCardRules>("faceUp");
   const [tcpBonus, setTcpBonus] = useState<AnteBonusTable>("5/4/1");
-  const [tcpStyle, setTcpStyle] = useState<PlayerStyle>("optimal");
+  const tcpStyle = current.style;
+  const setTcpStyle = (v: PlayerStyle) => editPlayer((player) => ({ ...player, style: v }));
   const tcpExact = antePlayExact(tcpRules, tcpBonus, tcpStyle);
   const tcpExposure = antePlayExposure(tcpRules, tcpBonus);
 
@@ -166,28 +218,57 @@ export default function EvCalculatorPage() {
     return byId;
   }, [gameSidebets, paytables]);
 
-  // One player per table — action and SD are for a single seat, not a full rail.
-  const n = 1;
   // ρ below 0 isn't a valid cross-seat covariance here and would NaN the SD (√ of a negative). Clamp it.
   const rhoVal = Math.min(1, Math.max(0, num(rho, 0.5)));
   const bankAmount = Math.max(0, num(bank));
-  const mainBetAmount = Math.max(0, num(mainSize));
+  const amount = (value: string | undefined) => Math.max(0, num(value ?? ""));
+  const seats = players.map((player) => ({
+    main: amount(player.main),
+    play: amount(player.play),
+    style: player.style,
+    side: (sidebetId: string) => amount(player.sides[sidebetId]),
+  }));
+  type Seat = (typeof seats)[number];
+  const sumSeats = (f: (seat: Seat) => number) => seats.reduce((total, seat) => total + f(seat), 0);
+  const totalMain = sumSeats((seat) => seat.main);
   const mainSigmaValue = Math.max(0, num(mainSigma));
   const sideSigmaValue = Math.max(0, num(sideSigma, 5));
-  const baccaratPlayerAmount = Math.max(0, num(baccaratPlayerAction));
-  const baccaratBankerAmount = Math.max(0, num(baccaratBankerAction));
-  const baccaratTieAmount = Math.max(0, num(baccaratTieAction));
-  const twoWayPlayAmount = Math.max(0, num(twoWayPlay));
-  const baseAction = isBaccarat
-    ? baccaratPlayerAmount + baccaratBankerAmount
-    : isTwoWay
-      ? n * (2 * mainBetAmount + twoWayPlayAmount)
-      : n * mainBetAmount;
+  // Baccarat players all bet on the same coup, so the table is exactly the sum of their bets.
+  const baccaratPlayerAmount = players.reduce((total, player) => total + amount(player.bacPlayer), 0);
+  const baccaratBankerAmount = players.reduce((total, player) => total + amount(player.bacBanker), 0);
+  const baccaratTieAmount = players.reduce((total, player) => total + amount(player.bacTie), 0);
+  const twoWayPlayAmount = sumSeats((seat) => seat.play);
+  /** A seat's base action: two Antes + Play at Two Way Winner, else the main bet. */
+  const seatBase = (seat: Seat) => (isTwoWay ? 2 * seat.main + seat.play : seat.main);
+  const baseAction = isBaccarat ? baccaratPlayerAmount + baccaratBankerAmount : sumSeats(seatBase);
 
-  const sideActionOf = (sidebetId: string) => {
-    const size = Math.max(0, num(sideSizes[sidebetId] ?? ""));
-    return isBaccarat ? size : n * size;
-  };
+  const sideActionOf = (sidebetId: string) => sumSeats((seat) => seat.side(sidebetId));
+  /**
+   * A side bet across players: each player's edge and SD use their own payout cap (a big hit is paid from the
+   * bank left after the main bets, so a bigger bet is capped at a lower multiple). Edge is action-weighted.
+   */
+  function perSeat(
+    sidebetId: string | undefined,
+    edgeAt: (seat: Seat, size: number) => number,
+    sigmaAt: (seat: Seat, size: number) => number,
+  ) {
+    const rows = sidebetId
+      ? seats
+          .map((seat) => ({ seat, size: seat.side(sidebetId) }))
+          .filter((row) => row.size > 0)
+          .map((row) => ({ ...row, edge: edgeAt(row.seat, row.size), sigma: sigmaAt(row.seat, row.size) }))
+      : [];
+    const total = rows.reduce((t, row) => t + row.size, 0);
+    const largest = rows.reduce<(typeof rows)[number] | null>((best, row) => (!best || row.size > best.size ? row : best), null);
+    return {
+      total,
+      edge: total > 0 ? rows.reduce((t, row) => t + row.size * row.edge, 0) / total : null,
+      seats: rows.map((row) => ({ offered: row.size, sigma: row.sigma })),
+      /** The biggest bet's size and seat: it's capped hardest, so the panels quote it. */
+      largestSize: largest?.size ?? 0,
+      largestSeat: largest?.seat ?? null,
+    };
+  }
   // In felt order, so listed paytables read top line first.
   const paytableRowsOf = (sidebetId: string) =>
     paytables
@@ -255,6 +336,7 @@ export default function EvCalculatorPage() {
       edge: sb.edge_pct,
       exposureMult: sideExposure.get(sb.sidebet_id) ?? 1,
       sigma: sideSigmaValue,
+      seats: seats.map((seat) => ({ offered: seat.side(sb.sidebet_id), sigma: sideSigmaValue })).filter((row) => row.offered > 0),
     }))
     .filter((l) => l.actionOffered > 0);
 
@@ -339,7 +421,7 @@ export default function EvCalculatorPage() {
     hpcFrogRows.some((row) => row.action > 0 && row.hitMultiple + 0.01 < row.payout);
 
   const tripsSidebet = gameSidebets.find((sb) => sb !== bbjSidebet && /trips/i.test(sb.name));
-  const tripsSize = tripsSidebet ? Math.max(0, num(sideSizes[tripsSidebet.sidebet_id] ?? "")) : 0;
+  const tripsOf = (seat: Seat) => (tripsSidebet ? seat.side(tripsSidebet.sidebet_id) : 0);
   const tripsPayouts = tripsSidebet
     ? (tripsPayoutsFromRows(paytableRowsOf(tripsSidebet.sidebet_id)) ?? TRIPS_PAYOUTS_BY_BADBEAT)
     : TRIPS_PAYOUTS_BY_BADBEAT;
@@ -347,23 +429,32 @@ export default function EvCalculatorPage() {
   const uthTripsPayouts: Record<TripsHand, number> = (uthTripsSidebet
     ? uthTripsPayoutsFromRows(paytableRowsOf(uthTripsSidebet.sidebet_id))
     : null) ?? { royal: TRIPS_PAYOUTS_BY_BADBEAT.straightFlush, ...TRIPS_PAYOUTS_BY_BADBEAT };
-  const uthTripsAction = uthTripsSidebet ? sideActionOf(uthTripsSidebet.sidebet_id) : 0;
-  // Ante/Blind/Play settle first; Trips is paid from what the main bet leaves in the tray.
+  // Ante/Blind/Play settle first; Trips is paid from what the main bets leave in the tray.
   const uthMainBooked = isUth ? Math.min(baseAction, bankAmount / (game?.exposure_mult || 1)) : 0;
-  const uthTripsCap =
-    uthTripsAction > 0 ? Math.max(0, bankAmount - uthMainBooked * (game?.exposure_mult || 1)) / uthTripsAction : Infinity;
-  const uthTripsEdge = uthTripsAction > 0 ? realizedUthTripsEdge(uthTripsPayouts, uthTripsCap) : null;
+  const uthTripsLeft = Math.max(0, bankAmount - uthMainBooked * (game?.exposure_mult || 1));
+  const uthTripsBySeat = perSeat(
+    uthTripsSidebet?.sidebet_id,
+    (_, size) => realizedUthTripsEdge(uthTripsPayouts, uthTripsLeft / size),
+    (_, size) => uthTripsSigma(uthTripsPayouts, uthTripsLeft / size),
+  );
+  const uthTripsAction = uthTripsBySeat.total;
+  const uthTripsCap = uthTripsBySeat.largestSize > 0 ? uthTripsLeft / uthTripsBySeat.largestSize : Infinity;
+  const uthTripsEdge = uthTripsBySeat.edge;
   const uthTripsBaseEdge = realizedUthTripsEdge(uthTripsPayouts);
   const uthTripsTopPayout = uthTripsTop(uthTripsPayouts);
 
-  const bbjSize = bbjSidebet ? num(sideSizes[bbjSidebet.sidebet_id] ?? "") : 0;
-  const bbjAction = bbjSidebet ? sideActionOf(bbjSidebet.sidebet_id) : 0;
+  const bbjBySeat = perSeat(
+    bbjSidebet?.sidebet_id,
+    (seat, size) => realizedBadBeatEdgeAfterTrips(bankAmount, tripsOf(seat), size, bbjPayouts, tripsPayouts),
+    (seat, size) => badBeatSigmaAfterTrips(bankAmount, tripsOf(seat), size, bbjPayouts, tripsPayouts),
+  );
+  // The panel quotes the biggest Bad Beat bettor (capped hardest) with their own Trips bet.
+  const bbjSize = bbjBySeat.largestSize;
+  const tripsSize = bbjBySeat.largestSeat ? tripsOf(bbjBySeat.largestSeat) : 0;
+  const bbjAction = bbjBySeat.total;
   const bbjSfCap = bbjSize > 0 ? badBeatHitMultipleAfterTrips(bankAmount, tripsSize, bbjSize, "straightFlush", tripsPayouts) : Infinity;
   const bbjBaseEdge = realizedBadBeatEdge(BAD_BEAT_PROBABILITIES, Infinity, bbjPayouts);
-  const bbjEdge =
-    bbjSidebet && bbjAction > 0
-      ? realizedBadBeatEdgeAfterTrips(bankAmount, tripsSize, bbjSize, bbjPayouts, tripsPayouts)
-      : null;
+  const bbjEdge = bbjSidebet && bbjAction > 0 ? bbjBySeat.edge : null;
 
   const pairPlusSidebet = isThreeCard
     ? gameSidebets.find((sb) => matchThreeCardSidebet(sb.name) === "pairPlus")
@@ -377,13 +468,25 @@ export default function EvCalculatorPage() {
   const sixCardPayouts = sixCardSidebet
     ? (sixCardPayoutsFromRows(paytableRowsOf(sixCardSidebet.sidebet_id)) ?? SIX_CARD_PAYOUTS_TCP6B4)
     : SIX_CARD_PAYOUTS_TCP6B4;
-  const pairPlusSize = pairPlusSidebet ? Math.max(0, num(sideSizes[pairPlusSidebet.sidebet_id] ?? "")) : 0;
-  const sixCardSize = sixCardSidebet ? Math.max(0, num(sideSizes[sixCardSidebet.sidebet_id] ?? "")) : 0;
-  const pairPlusAction = pairPlusSidebet ? sideActionOf(pairPlusSidebet.sidebet_id) : 0;
-  const sixCardAction = sixCardSidebet ? sideActionOf(sixCardSidebet.sidebet_id) : 0;
-  const anteAction = isThreeCard ? n * mainBetAmount : 0;
+  const anteAction = isThreeCard ? totalMain : 0;
   const anteBooked = isThreeCard ? Math.min(anteAction, bankAmount / tcpExposure) : 0;
   const remainingAfterAnte = Math.max(0, bankAmount - anteBooked * tcpExposure);
+  // Each side bet can pay up to what's left after the Antes' worst case, capped per player by their own bet.
+  // A big Pair Plus hit and a big 6 Card hit on the same hand are rare; the dealt-card table settles that exactly.
+  const pairPlusBySeat = perSeat(
+    pairPlusSidebet?.sidebet_id,
+    (_, size) => realizedPairPlusEdge(pairPlusPayouts, pairPlusCap(remainingAfterAnte, size)),
+    () => 0,
+  );
+  const sixCardBySeat = perSeat(
+    sixCardSidebet?.sidebet_id,
+    (_, size) => realizedSixCardEdge(sixCardPayouts, pairPlusCap(remainingAfterAnte, size)),
+    () => 0,
+  );
+  const pairPlusSize = pairPlusBySeat.largestSize;
+  const sixCardSize = sixCardBySeat.largestSize;
+  const pairPlusAction = pairPlusBySeat.total;
+  const sixCardAction = sixCardBySeat.total;
   const pairPlusHitCap = pairPlusSize > 0 ? pairPlusCap(remainingAfterAnte, pairPlusSize) : Infinity;
   const pairPlusTop = Math.max(
     pairPlusPayouts.miniRoyal,
@@ -393,13 +496,11 @@ export default function EvCalculatorPage() {
     pairPlusPayouts.flush,
     pairPlusPayouts.pair,
   );
-  // Each side bet can pay up to what's left after the Ante's worst case. Reserving Pair Plus's worst case first
-  // left the 6 Card Bonus nothing to pay with, which showed it as a ~92% edge on an $8k bank. A big Pair Plus
-  // hit and a big 6 Card hit on the same hand are rare; the dealt-card Monte Carlo settles that overlap exactly.
+  // (Reserving Pair Plus's worst case before the 6 Card Bonus once left it nothing to pay with: a ~92% "edge".)
   const sixCardHitCap = sixCardSize > 0 ? pairPlusCap(remainingAfterAnte, sixCardSize) : Infinity;
-  const pairPlusEdge = pairPlusAction > 0 ? realizedPairPlusEdge(pairPlusPayouts, pairPlusHitCap) : null;
+  const pairPlusEdge = pairPlusAction > 0 ? pairPlusBySeat.edge : null;
   const pairPlusBaseEdge = realizedPairPlusEdge(pairPlusPayouts);
-  const sixCardEdge = sixCardAction > 0 ? realizedSixCardEdge(sixCardPayouts, sixCardHitCap) : null;
+  const sixCardEdge = sixCardAction > 0 ? sixCardBySeat.edge : null;
   const sixCardBaseEdge = realizedSixCardEdge(sixCardPayouts);
   const sixCardTop = Math.max(
     sixCardPayouts.royal,
@@ -415,7 +516,6 @@ export default function EvCalculatorPage() {
   const twoWayBonusRows = twoWayBonusSidebet ? paytableRowsOf(twoWayBonusSidebet.sidebet_id) : [];
   const twoWayBonusLines = twoWayWinnerBonusLinesFromRows(twoWayBonusRows);
   const twoWayBonusPayouts = twoWayWinnerBonusPayoutsFromRows(twoWayBonusRows);
-  const twoWayBonusSize = twoWayBonusSidebet ? Math.max(0, num(sideSizes[twoWayBonusSidebet.sidebet_id] ?? "")) : 0;
   const twoWayBaseBooked = isTwoWay
     ? Math.min(baseAction, bankAmount / TWO_WAY_WINNER.exposureMult)
     : 0;
@@ -423,10 +523,16 @@ export default function EvCalculatorPage() {
     0,
     bankAmount - twoWayBaseBooked * TWO_WAY_WINNER.exposureMult,
   );
+  const twoWayBonusBySeat = perSeat(
+    twoWayBonusSidebet?.sidebet_id,
+    (_, size) => realizedTwoWayWinnerBonusEdge(twoWayBonusPayouts, twoWayWinnerBonusCap(remainingAfterTwoWayBase, size)),
+    (_, size) => twoWayWinnerBonusSigma(twoWayBonusPayouts, twoWayWinnerBonusCap(remainingAfterTwoWayBase, size)),
+  );
+  const twoWayBonusSize = twoWayBonusBySeat.largestSize;
   const twoWayBonusHitCap =
     twoWayBonusSize > 0 ? twoWayWinnerBonusCap(remainingAfterTwoWayBase, twoWayBonusSize) : Infinity;
   const twoWayBonusTop = twoWayWinnerBonusTop(twoWayBonusPayouts);
-  const twoWayBonusEdge = twoWayBonusSize > 0 ? realizedTwoWayWinnerBonusEdge(twoWayBonusPayouts, twoWayBonusHitCap) : null;
+  const twoWayBonusEdge = twoWayBonusSize > 0 ? twoWayBonusBySeat.edge : null;
   const twoWayBonusBaseEdge = realizedTwoWayWinnerBonusEdge(twoWayBonusPayouts);
   const twoWayBonusSigmaValue =
     twoWayBonusSize > 0 ? twoWayWinnerBonusSigma(twoWayBonusPayouts, twoWayBonusHitCap) : null;
@@ -435,15 +541,20 @@ export default function EvCalculatorPage() {
   const fortuneRows = fortuneSidebet ? paytableRowsOf(fortuneSidebet.sidebet_id) : [];
   const fortuneLines = twoWayWinnerBonusLinesFromRows(fortuneRows);
   const fortunePayouts = twoWayWinnerBonusPayoutsFromRows(fortuneRows, FORTUNE_PAI_GOW_PAYOUTS);
-  const fortuneSize = fortuneSidebet ? Math.max(0, num(sideSizes[fortuneSidebet.sidebet_id] ?? "")) : 0;
   const paiGowBaseBooked = isPaiGow ? Math.min(baseAction, bankAmount / (game?.exposure_mult || 1)) : 0;
   const remainingAfterPaiGowBase = Math.max(
     0,
     bankAmount - paiGowBaseBooked * (game?.exposure_mult || 1),
   );
+  const fortuneBySeat = perSeat(
+    fortuneSidebet?.sidebet_id,
+    (_, size) => realizedTwoWayWinnerBonusEdge(fortunePayouts, twoWayWinnerBonusCap(remainingAfterPaiGowBase, size)),
+    (_, size) => twoWayWinnerBonusSigma(fortunePayouts, twoWayWinnerBonusCap(remainingAfterPaiGowBase, size)),
+  );
+  const fortuneSize = fortuneBySeat.largestSize;
   const fortuneHitCap = fortuneSize > 0 ? twoWayWinnerBonusCap(remainingAfterPaiGowBase, fortuneSize) : Infinity;
   const fortuneTop = twoWayWinnerBonusTop(fortunePayouts);
-  const fortuneEdge = fortuneSize > 0 ? realizedTwoWayWinnerBonusEdge(fortunePayouts, fortuneHitCap) : null;
+  const fortuneEdge = fortuneSize > 0 ? fortuneBySeat.edge : null;
   const fortuneBaseEdge = realizedTwoWayWinnerBonusEdge(fortunePayouts);
   const fortuneSigmaValue = fortuneSize > 0 ? twoWayWinnerBonusSigma(fortunePayouts, fortuneHitCap) : null;
 
@@ -458,6 +569,7 @@ export default function EvCalculatorPage() {
             edge: uthTripsEdge,
             exposureMult: 1,
             sigma: uthTripsSigma(uthTripsPayouts, uthTripsCap),
+            seats: uthTripsBySeat.seats,
           },
         ]
       : []),
@@ -470,6 +582,7 @@ export default function EvCalculatorPage() {
             edge: bbjEdge,
             exposureMult: 1,
             sigma: badBeatSigmaAfterTrips(bankAmount, tripsSize, bbjSize, bbjPayouts, tripsPayouts),
+            seats: bbjBySeat.seats,
           },
         ]
       : []),
@@ -481,7 +594,8 @@ export default function EvCalculatorPage() {
             actionOffered: pairPlusAction,
             edge: pairPlusEdge,
             exposureMult: 1,
-            sigma: pairPlusSigma(pairPlusPayouts, pairPlusHitCap),
+            // Its swing is part of the dealt-card table SD on the Ante layer.
+            sigma: 0,
           },
         ]
       : []),
@@ -493,7 +607,7 @@ export default function EvCalculatorPage() {
             actionOffered: sixCardAction,
             edge: sixCardEdge,
             exposureMult: 1,
-            sigma: sixCardSigma(sixCardPayouts, sixCardHitCap),
+            sigma: 0,
           },
         ]
       : []),
@@ -502,10 +616,11 @@ export default function EvCalculatorPage() {
           {
             id: twoWayBonusSidebet.sidebet_id,
             name: twoWayBonusSidebet.name,
-            actionOffered: n * twoWayBonusSize,
+            actionOffered: twoWayBonusBySeat.total,
             edge: twoWayBonusEdge,
             exposureMult: 1,
             sigma: twoWayBonusSigmaValue,
+            seats: twoWayBonusBySeat.seats,
           },
         ]
       : []),
@@ -514,10 +629,11 @@ export default function EvCalculatorPage() {
           {
             id: fortuneSidebet.sidebet_id,
             name: fortuneSidebet.name,
-            actionOffered: n * fortuneSize,
+            actionOffered: fortuneBySeat.total,
             edge: fortuneEdge,
             exposureMult: 1,
             sigma: fortuneSigmaValue,
+            seats: fortuneBySeat.seats,
           },
         ]
       : []),
@@ -528,13 +644,31 @@ export default function EvCalculatorPage() {
   const feeBasisTta = isBaccarat
     ? baseAction + baccaratBets.tie + hpcFrogRows.reduce((sum, row) => sum + row.action, 0)
     : isThreeCard
-      ? n * mainBetAmount * (1 + tcpExact.raiseRate)
+      ? sumSeats((seat) => seat.main * (1 + antePlayExact(tcpRules, tcpBonus, seat.style).raiseRate))
       : baseAction;
   const collection = Math.max(0, num(collectionFee));
 
+  // Three Card: every player's real hand against one dealer hand. EV is exact per player; the table's SD comes
+  // from 100,000 dealt rounds settled from the bank (seats share the dealer, side bets ride on the same cards).
+  const tcpTable: ThreeCardTable = {
+    rules: tcpRules,
+    bonus: tcpBonus,
+    seats: seats.map((seat) => ({
+      ante: seat.main,
+      pairPlus: pairPlusSidebet ? seat.side(pairPlusSidebet.sidebet_id) : 0,
+      sixCard: sixCardSidebet ? seat.side(sixCardSidebet.sidebet_id) : 0,
+      style: seat.style,
+    })),
+    pairPlusPayouts,
+    sixCardPayouts,
+  };
+  const tcpTableKey = isThreeCard ? JSON.stringify({ bank: bankAmount, table: tcpTable }) : "";
+  const tcpTableMoments = useThreeCardTableMoments(tcpTableKey);
+  const anteEv = isThreeCard ? sumSeats((seat) => seat.main * antePlayExact(tcpRules, tcpBonus, seat.style).edge) : 0;
+  const anteCoverage = anteAction > 0 ? anteBooked / anteAction : 1;
   const threeCardMoments =
-    isThreeCard && anteAction > 0
-      ? { ev: tcpExact.edge * anteAction, variance: tcpExact.variance * anteAction * anteAction }
+    isThreeCard && tcpTableMoments
+      ? { ev: anteEv * anteCoverage, variance: tcpTableMoments.variance, ignoreCoverage: true }
       : undefined;
 
   const result = game
@@ -547,24 +681,34 @@ export default function EvCalculatorPage() {
             : isThreeCard
               ? anteAction
               : baseAction,
-          edge: isThreeCard ? tcpExact.edge : isTwoWay ? TWO_WAY_WINNER.edge : game.edge_pct,
+          edge: isThreeCard ? (anteAction > 0 ? anteEv / anteAction : tcpExact.edge) : isTwoWay ? TWO_WAY_WINNER.edge : game.edge_pct,
           exposureMult: isThreeCard ? tcpExposure : game.exposure_mult || 1,
           sigma: isThreeCard ? Math.sqrt(tcpExact.variance) : mainSigmaValue,
+          seats:
+            isBaccarat || isThreeCard
+              ? undefined
+              : seats.map((seat) => ({ offered: seatBase(seat), sigma: mainSigmaValue })).filter((row) => row.offered > 0),
           exactMoments: baccaratMomentsSettled
             ? { ev: baccaratMomentsSettled.ev, variance: baccaratMomentsSettled.variance, ignoreCoverage: true }
             : threeCardMoments,
         },
         sides: isBaccarat
           ? hpcFrogLayers
-          : sideLayers.map((l) => ({ actionOffered: l.actionOffered, edge: l.edge, exposureMult: l.exposureMult, sigma: l.sigma })),
-        spots: isBaccarat ? 1 : n,
+          : sideLayers.map((l) => ({
+              actionOffered: l.actionOffered,
+              edge: l.edge,
+              exposureMult: l.exposureMult,
+              sigma: l.sigma,
+              seats: "seats" in l ? l.seats : undefined,
+            })),
+        spots: 1,
         rho: rhoVal,
       })
     : null;
 
   // A finished simulation is only valid for the inputs it ran on. Key it to those inputs and only show
   // it while the key still matches, so the panel never displays ruin/drawdown that predates an edit.
-  const simKey = `${calcId}|${gameId}|${bank}|${mainSize}|${twoWayPlay}|${baccaratPlayerAction}|${baccaratBankerAction}|${baccaratTieAction}|${JSON.stringify(sideSizes)}|${collectionFee}|${mainSigma}|${sideSigma}|${rho}|${roundsPerSession}|${tcpRules}|${tcpBonus}|${tcpStyle}`;
+  const simKey = `${calcId}|${gameId}|${bank}|${JSON.stringify(players)}|${collectionFee}|${mainSigma}|${sideSigma}|${rho}|${roundsPerSession}|${tcpRules}|${tcpBonus}`;
   const simResult = sim && sim.key === simKey ? sim.result : null;
 
   function runSim() {
@@ -592,16 +736,7 @@ export default function EvCalculatorPage() {
         result: simulateThreeCardSessions({
           bank: bankAmount,
           collection,
-          table: {
-            rules: tcpRules,
-            bonus: tcpBonus,
-            style: tcpStyle,
-            ante: n * mainBetAmount,
-            pairPlus: pairPlusSize,
-            sixCard: sixCardSize,
-            pairPlusPayouts,
-            sixCardPayouts,
-          },
+          table: tcpTable,
           sessions: SIM_SESSIONS,
           roundsPerSession: Math.max(1, Math.round(num(roundsPerSession, 50))),
           seed: 0x9e3779b1,
@@ -609,13 +744,13 @@ export default function EvCalculatorPage() {
       });
       return;
     }
+    // Each layer's SD already combines every player (their own bets, correlation ρ), so the sim draws one
+    // spot per layer with that SD.
+    const perDollarSd = (layer: { booked: Decimal; sd: Decimal }) =>
+      layer.booked.greaterThan(0) ? layer.sd.dividedBy(layer.booked).toNumber() : 0;
     const layers = [
-      {
-        booked: result.base.booked.toNumber(),
-        edge: isThreeCard ? tcpExact.edge : isTwoWay ? TWO_WAY_WINNER.edge : game!.edge_pct,
-        sigma: isThreeCard ? Math.sqrt(tcpExact.variance) : mainSigmaValue,
-      },
-      ...result.sides.map((s, i) => ({ booked: s.booked.toNumber(), edge: sideLayers[i].edge, sigma: sideLayers[i].sigma })),
+      { booked: result.base.booked.toNumber(), edge: isTwoWay ? TWO_WAY_WINNER.edge : game!.edge_pct, sigma: perDollarSd(result.base) },
+      ...result.sides.map((s, i) => ({ booked: s.booked.toNumber(), edge: sideLayers[i].edge, sigma: perDollarSd(s) })),
     ];
     setSim({
       key: simKey,
@@ -623,7 +758,7 @@ export default function EvCalculatorPage() {
         bank: bankAmount,
         collection,
         layers,
-        spots: n,
+        spots: 1,
         rho: rhoVal,
         sessions: SIM_SESSIONS,
         roundsPerSession: Math.max(1, Math.round(num(roundsPerSession, 50))),
@@ -648,7 +783,7 @@ export default function EvCalculatorPage() {
           value={calcId}
           onChange={(e) => {
             setCalcId(e.target.value);
-            setSideSizes({});
+            setPlayers((prev) => prev.map((player) => ({ ...player, sides: {} })));
             setSim(null);
           }}
           className="h-12 w-full rounded-xl border border-border bg-surface-inset px-3 text-base text-foreground outline-none focus:border-emerald-500/70"
@@ -685,8 +820,46 @@ export default function EvCalculatorPage() {
             {collectionFee.trim() === "" ? " · blank = $0" : null}.
           </p>
 
+          <section className="space-y-2 rounded-2xl border border-border bg-surface p-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-semibold text-foreground">Players at the table</h2>
+              <span className="text-xs text-muted">
+                {players.length} · editing Player {active + 1}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {players.map((_, i) => (
+                <Chip key={i} active={i === active} onClick={() => setActivePlayer(i)}>
+                  Player {i + 1}
+                </Chip>
+              ))}
+              {players.length < MAX_PLAYERS ? (
+                <button
+                  type="button"
+                  onClick={addPlayer}
+                  className="min-h-11 rounded-full border border-dashed border-border-strong px-4 text-sm font-medium text-foreground active:bg-surface-raised"
+                >
+                  + Add player
+                </button>
+              ) : null}
+            </div>
+            {players.length > 1 ? (
+              <button type="button" onClick={() => removePlayer(active)} className="min-h-9 text-xs text-muted underline active:text-foreground">
+                Remove Player {active + 1}
+              </button>
+            ) : null}
+            <p className="text-xs text-muted">
+              {isBaccarat
+                ? "Everyone bets on the same coup, so the table is exactly the sum of all players' bets."
+                : isThreeCard
+                  ? "Each player gets their own three cards against the same dealer hand; the table's SD comes from 100,000 dealt rounds."
+                  : "Each player plays their own hand. EV adds up; swings combine using the correlation ρ (volatility assumptions), weighted by each player's bet, and each player's side-bet cap uses their own bet."}{" "}
+              New players copy the last player&apos;s bets.
+            </p>
+          </section>
+
           <Panel
-            title="Main bet"
+            title={players.length > 1 ? `Main bet · Player ${active + 1}` : "Main bet"}
             subtitle={
               isBaccaratHpc
                 ? `HPC cloth · 9/7 30:1 · 9/1 100:1 · exposure ×${game.exposure_mult}`
@@ -703,10 +876,10 @@ export default function EvCalculatorPage() {
           >
             {isBaccarat ? (
               <>
-                <BetRow label="Player-line TTA ($)" value={baccaratPlayerAction} onChange={setBaccaratPlayerAction} />
-                <BetRow label="Banker-line TTA ($)" value={baccaratBankerAction} onChange={setBaccaratBankerAction} />
+                <BetRow label="Player line ($)" value={baccaratPlayerAction} onChange={setBaccaratPlayerAction} />
+                <BetRow label="Banker line ($)" value={baccaratBankerAction} onChange={setBaccaratBankerAction} />
                 {!tieFromSidebet ? (
-                  <BetRow label="Tie TTA ($)" value={baccaratTieAction} onChange={setBaccaratTieAction} />
+                  <BetRow label="Tie ($)" value={baccaratTieAction} onChange={setBaccaratTieAction} />
                 ) : null}
                 {isBaccaratHpc
                   ? gameSidebets
@@ -721,7 +894,7 @@ export default function EvCalculatorPage() {
                         return (
                           <BetRow
                             key={sb.sidebet_id}
-                            label={`${sb.name} TTA ($)`}
+                            label={`${sb.name} ($)`}
                             hint={
                               felt < standard
                                 ? `${felt}:1 HPC · standard ${standard}:1`
@@ -776,7 +949,7 @@ export default function EvCalculatorPage() {
                   />
                 ) : null}
                 <Choice
-                  label="How the players play"
+                  label={`How Player ${active + 1} plays`}
                   value={tcpStyle}
                   onChange={(v) => setTcpStyle(v as PlayerStyle)}
                   options={[
@@ -788,9 +961,10 @@ export default function EvCalculatorPage() {
                 <p className="text-xs text-muted">
                   Ante action = <span className="num text-muted-strong">{formatMoney(anteAction)}</span>. Expected TTA ≈{" "}
                   <span className="num text-muted-strong">
-                    {formatMoney(n * mainBetAmount * (1 + tcpExact.raiseRate))}
+                    {formatMoney(feeBasisTta)}
                   </span>{" "}
-                  at a {(tcpExact.raiseRate * 100).toFixed(1)}% play rate. Edge {(tcpExact.edge * 100).toFixed(2)}% of Ante ={" "}
+                  across the table. Player {active + 1}: {(tcpExact.raiseRate * 100).toFixed(1)}% play rate, edge{" "}
+                  {(tcpExact.edge * 100).toFixed(2)}% of Ante ={" "}
                   {((tcpExact.edge / (1 + tcpExact.raiseRate)) * 100).toFixed(2)}% per dollar bet (Ante + Play), exact from
                   every deal.{" "}
                   {tcpRules === "faceUp"
@@ -803,10 +977,10 @@ export default function EvCalculatorPage() {
                 <BetRow label="Ante, each of two ($)" value={mainSize} onChange={setMainSize} />
                 <BetRow label="Play ($)" value={twoWayPlay} onChange={setTwoWayPlay} />
                 <p className="text-xs text-muted">
-                  Two Antes posted = <span className="num text-muted-strong">{formatMoney(n * 2 * mainBetAmount)}</span>
+                  Two Antes posted = <span className="num text-muted-strong">{formatMoney(2 * totalMain)}</span>
                   {twoWayPlayAmount > 0 ? (
                     <>
-                      ; Play = <span className="num text-muted-strong">{formatMoney(n * twoWayPlayAmount)}</span>
+                      ; Play = <span className="num text-muted-strong">{formatMoney(twoWayPlayAmount)}</span>
                     </>
                   ) : null}
                   . Blackjack Play is 1× Ante; poker Play is 1× or 2×. Base edge is a{" "}
@@ -832,7 +1006,10 @@ export default function EvCalculatorPage() {
             )}
           </Panel>
 
-          <Panel title="Side bets" subtitle={isBaccarat ? "TTA · settle last" : "settle last"}>
+          <Panel
+            title={players.length > 1 ? `Side bets · Player ${active + 1}` : "Side bets"}
+            subtitle={isBaccarat ? "TTA · settle last" : "settle last"}
+          >
             {gameSidebets.filter((sb) => {
               const frog = matchHpcFrogSidebet(sb.name);
               return frog !== "nineSeven" && frog !== "nineOne";
@@ -879,8 +1056,8 @@ export default function EvCalculatorPage() {
                 <p className="text-xs text-muted">
                   {isBaccarat
                     ? isBaccaratHpc
-                      ? "Sizes are total table action. Dragon, Panda 8, and 8/6 settle after Player/Banker/Tie. 9/7 and 9/1 are on the main panel. Blank = not offered."
-                      : "Sizes are total table action. Dragon and Panda/Koi are paid from the bank left on the hand they actually hit. Blank size = not offered."
+                      ? "This player's bets; the table is everyone's added up. Dragon, Panda 8, and 8/6 settle after Player/Banker/Tie. 9/7 and 9/1 are on the main panel. Blank = not offered."
+                      : "This player's bets; the table is everyone's added up. Dragon and Panda/Koi are paid from the bank left on the hand they actually hit. Blank size = not offered."
                     : isTwoWay || isPaiGow || isThreeCard
                       ? "Computed side bets use coverage, not the stored edge_pct. Blank size = not offered."
                       : "Side bets without their own math use the edge recorded on the game page; a bet with no recorded edge isn't counted. Blank size = not offered."}

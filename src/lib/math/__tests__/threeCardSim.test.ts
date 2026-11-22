@@ -13,7 +13,9 @@ import {
   type AnteBonusTable,
   type PlayerStyle,
   type ThreeCardRules,
+  type ThreeCardSeat,
   type ThreeCardTable,
+  threeCardTableMoments,
 } from "@/lib/math/threeCardSim";
 import { PAIR_PLUS_PAYOUTS_CA, SIX_CARD_PAYOUTS_TCP6B4, realizedPairPlusEdge, realizedSixCardEdge } from "@/lib/math/threeCardPoker";
 
@@ -31,16 +33,12 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-const table = (rules: ThreeCardRules, style: PlayerStyle, bonus: AnteBonusTable = "5/4/1", extra: Partial<ThreeCardTable> = {}): ThreeCardTable => ({
+const table = (rules: ThreeCardRules, style: PlayerStyle, bonus: AnteBonusTable = "5/4/1", seat: Partial<ThreeCardSeat> = {}, count = 1): ThreeCardTable => ({
   rules,
   bonus,
-  style,
-  ante: 1,
-  pairPlus: 0,
-  sixCard: 0,
+  seats: Array.from({ length: count }, () => ({ ante: 1, pairPlus: 0, sixCard: 0, style, ...seat })),
   pairPlusPayouts: PAIR_PLUS_PAYOUTS_CA,
   sixCardPayouts: SIX_CARD_PAYOUTS_TCP6B4,
-  ...extra,
 });
 
 /** Mean player result per unit over n dealt rounds, with its standard error. */
@@ -49,7 +47,7 @@ function measure(t: ThreeCardTable, n: number, pick: "antePlay" | "pairPlus" | "
   let sum = 0;
   let sq = 0;
   for (let i = 0; i < n; i += 1) {
-    const r = dealThreeCardRound(rand, t)[pick];
+    const r = dealThreeCardRound(rand, t).seats[0][pick];
     sum += r;
     sq += r * r;
   }
@@ -132,21 +130,62 @@ describe("side bets on real cards", () => {
 describe("settlement and sessions", () => {
   it("a short bank pays winners in order until it runs out, then collects losers", () => {
     // Ante/Play wins $200, Pair Plus wins $3,000, 6 Card loses $25, with $1,000 in the bank.
-    expect(settleThreeCardRound({ antePlay: 200, pairPlus: 3000, sixCard: -25, played: true }, 1000)).toBe(-1000 + 25);
-    expect(settleThreeCardRound({ antePlay: -200, pairPlus: -25, sixCard: 0, played: true }, 1000)).toBe(225);
+    expect(settleThreeCardRound({ seats: [{ antePlay: 200, pairPlus: 3000, sixCard: -25, played: true }] }, 1000)).toBe(-1000 + 25);
+    expect(settleThreeCardRound({ seats: [{ antePlay: -200, pairPlus: -25, sixCard: 0, played: true }] }, 1000)).toBe(225);
+    // Every seat's Ante/Play is paid before anyone's Pair Plus.
+    const twoSeats = { seats: [{ antePlay: -100, pairPlus: 900, sixCard: 0, played: true }, { antePlay: 200, pairPlus: 0, sixCard: 0, played: true }] };
+    expect(settleThreeCardRound(twoSeats, 1000)).toBe(-1000 + 100);
   });
 
   it("runs sessions and reports the raise rate it played", () => {
     const result = simulateThreeCardSessions({
       bank: 8000,
       collection: 1,
-      table: table("faceUp", "optimal", "none", { ante: 100, pairPlus: 25, sixCard: 25 }),
+      table: table("faceUp", "optimal", "none", { ante: 100, pairPlus: 25, sixCard: 25 }, 3),
       sessions: 400,
       roundsPerSession: 100,
       seed: 3,
     });
     expect(result.rounds).toBe(40_000);
+    expect(result.riskOfRuin).toBeLessThan(0.05);
     expect(Math.abs(result.raiseRate - antePlayExact("faceUp", "none", "optimal").raiseRate)).toBeLessThan(0.01);
-    expect(result.riskOfRuin).toBe(0);
+  });
+});
+
+describe("several players", () => {
+  it("each seat gets its own cards and they all face one dealer hand, so their results move together", () => {
+    const t = table("faceUp", "optimal", "none", {}, 3);
+    const rand = mulberry32(21);
+    let sa = 0;
+    let sb = 0;
+    let sab = 0;
+    let saa = 0;
+    let sbb = 0;
+    const n = 200_000;
+    for (let i = 0; i < n; i += 1) {
+      const round = dealThreeCardRound(rand, t);
+      const a = round.seats[0].antePlay;
+      const b = round.seats[1].antePlay;
+      sa += a;
+      sb += b;
+      sab += a * b;
+      saa += a * a;
+      sbb += b * b;
+    }
+    const cov = sab / n - (sa / n) * (sb / n);
+    const corr = cov / Math.sqrt((saa / n - (sa / n) ** 2) * (sbb / n - (sb / n) ** 2));
+    expect(corr).toBeGreaterThan(0.1);
+    expect(corr).toBeLessThan(0.6);
+    // Each seat still sits at the single-seat exact edge.
+    const se = Math.sqrt(antePlayExact("faceUp", "none", "optimal").variance / n);
+    expect(Math.abs(-sb / n - antePlayExact("faceUp", "none", "optimal").edge)).toBeLessThan(4 * se);
+  });
+
+  it("table moments: three seats swing more than one but less than three times as much", () => {
+    const one = threeCardTableMoments(1e9, table("faceUp", "optimal", "none", { ante: 100 }, 1), 60_000);
+    const three = threeCardTableMoments(1e9, table("faceUp", "optimal", "none", { ante: 100 }, 3), 60_000);
+    const ratio = Math.sqrt(three.variance / one.variance);
+    expect(ratio).toBeGreaterThan(Math.sqrt(3));
+    expect(ratio).toBeLessThan(3);
   });
 });

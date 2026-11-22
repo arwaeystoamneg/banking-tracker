@@ -33,6 +33,12 @@ export interface EVLayerInput {
   exactMoments?: { ev: Decimal.Value; variance: Decimal.Value; /** Already the booked-dollar moments; do not scale by B/m coverage. */ ignoreCoverage?: boolean };
   /** Optional label for UI echo-back. */
   label?: string;
+  /**
+   * One entry per player when bets differ by player: each seat's offered action and its own per-$1 SD (a side
+   * bet's SD depends on that seat's payout cap). Replaces the equal-spots formula: with pairwise correlation ρ,
+   * Var = c²·[ρ·(Σ σᵢwᵢ)² + (1−ρ)·Σ (σᵢwᵢ)²], c = booked/offered. Equal seats give the old σ·w·√(n[1+ρ(n−1)]).
+   */
+  seats?: { offered: number; sigma: number }[];
 }
 
 export interface EVInput {
@@ -84,6 +90,18 @@ function layerVariance(booked: Decimal, sigma: Decimal.Value, spots: number, rho
   return standardDeviation(sigma, perSpot, n, rho).pow(2);
 }
 
+/** Variance of a layer whose seats bet different amounts (see EVLayerInput.seats). */
+export function seatsVariance(seats: { offered: number; sigma: number }[], coverage: number, rho: number): number {
+  let sum = 0;
+  let sumSq = 0;
+  for (const seat of seats) {
+    const x = Math.max(0, seat.offered) * Math.max(0, seat.sigma);
+    sum += x;
+    sumSq += x * x;
+  }
+  return coverage * coverage * (rho * sum * sum + (1 - rho) * sumSq);
+}
+
 function coverageOf(booked: Decimal, offered: Decimal): Decimal {
   return offered.greaterThan(0) ? booked.dividedBy(offered) : d(1);
 }
@@ -100,7 +118,9 @@ function bookLayer(layer: EVLayerInput, availableBank: Decimal, spots: number, r
   const coverage = ignoreCoverage ? d(1) : coverageOf(booked, offered);
   const variance = layer.exactMoments
     ? d(layer.exactMoments.variance).times(ignoreCoverage ? 1 : coverage.pow(2))
-    : layerVariance(booked, layer.sigma, spots, rho);
+    : layer.seats && layer.seats.length > 0
+      ? d(seatsVariance(layer.seats, coverage.toNumber(), rho.toNumber()))
+      : layerVariance(booked, layer.sigma, spots, rho);
   const ev = layer.exactMoments
     ? d(layer.exactMoments.ev).times(ignoreCoverage ? 1 : coverage)
     : d(layer.edge).times(booked);
