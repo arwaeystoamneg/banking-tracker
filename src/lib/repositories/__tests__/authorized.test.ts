@@ -317,6 +317,23 @@ describe("reimbursements", () => {
     expect(created).toMatchObject({ payee: "Dana Reyes", payee_id: "dana", requested_by: "Ray Tang" });
   });
 
+  it("only Ray or admin sets who pays a reimbursement back; a filer's split is dropped; it must add to 100%", async () => {
+    const repos = fixtureRepos({ reimbursements: [owed({ status: "paid", paid_at: "2026-10-22", paid_by: "Ray Tang" })] });
+    const filed = await createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.create(
+      { date: "2026-10-20", amount: 40, requested_by: "Dana Reyes", backing: "Dana Reyes:100" },
+      "rb2",
+    );
+    expect(filed.backing ?? "").toBe("");
+    await expect(createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.update("rb2", { backing: "Ray Tang:100" }, 1)).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    const asRay = createAuthorizedRepositories(repos, ray, fullTeam);
+    await expect(asRay.reimbursements.update("rb1", { backing: "Ray Tang:60|Sam Park:30" }, 1)).rejects.toThrow("90%");
+    // Even on a paid one: it changes who owes, not what was paid.
+    const split = await asRay.reimbursements.update("rb1", { backing: " Ray Tang:60 | Sam Park:40 " }, 1);
+    expect(split).toMatchObject({ backing: "Ray Tang:60|Sam Park:40", status: "paid" });
+  });
+
   it("ignores paid status sent on create", async () => {
     const repos = fixtureRepos({});
     await createAuthorizedRepositories(repos, dana, fullTeam).reimbursements.create(
@@ -682,6 +699,22 @@ describe("overtime requests", () => {
     );
     const own = await createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o2", { game_id: "gm_baccarat" }, 1);
     expect(own.game_id).toBe("gm_baccarat");
+  });
+
+  it("only Ray or admin sets a session's backers, on any session, and a split must add to 100%", async () => {
+    const repos = fixtureRepos({ sessions: [played({ payroll_paid_at: "2026-10-25" })] });
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { backing: "Damon:100" }, 1)).rejects.toThrow(
+      "Only Ray or an admin",
+    );
+    const auth = createAuthorizedRepositories(repos, ray, roster);
+    await expect(auth.sessions.update("o1", { backing: "Ray Tang:80" }, 1)).rejects.toThrow("80%");
+    const split = await auth.sessions.update("o1", { backing: "Ray Tang:80|Damon:20" }, 1);
+    expect(split).toMatchObject({ backing: "Ray Tang:80|Damon:20", payroll_paid_at: "2026-10-25" });
+    const fresh = await createAuthorizedRepositories(repos, damonUser, roster).sessions.create(
+      { date: "2026-10-21", buy_in: 50, time_in: "12:00", logged_by: "Damon", logged_at: "", casino: "", backing: "Damon:100" },
+      "o9",
+    );
+    expect(fresh.backing ?? "").toBe("");
   });
 
   it("only Ray or admin sets room colors, and setting one twice updates it", async () => {

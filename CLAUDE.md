@@ -184,6 +184,12 @@ the LA rooms (Hollywood Park, Bicycle, Commerce, Hustler, Gardens), listed in `T
 the Sessions list: Ray/admin on any session, the player or logger on their own until it's paid. It's never on the logging
 form. Stats → Games splits results by game name (`src/lib/sessionGames.ts`).
 
+`backing` (Sessions and Reimbursements) is who backs it: `Name:pct|Name:pct` adding to 100 (`src/lib/backing.ts`);
+blank = Unassigned. Only Ray/admin set it (session page, reimbursement page, Select → Set backers, or a trip page for the
+whole trip + reimbursements filed against its sessions); it can change on paid rows. Backers split 100% of a session's pay
+by share, the player's own share included (it nets out). The Pay tab shows each backer's unpaid wages, owed
+reimbursements and paid wages; each employee card shows who pays their unpaid wages.
+
 `trip` is a trip name Ray/admin set (session page, or Select on the Sessions list to mark many at once).
 Trips are only what's named there; nothing is inferred from dates. Sessions with no trip stand alone.
 Each trip has its own stats page at `/trips/<name>` (whole trip, then each person on it).

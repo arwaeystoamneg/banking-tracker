@@ -7,6 +7,7 @@ import { useSessions } from "@/hooks/useSessions";
 import { ResultStatsCard } from "@/components/stats/ResultStatsCard";
 import { SessionListItem } from "@/components/sessions/SessionListItem";
 import { AutoTripControl } from "@/components/sessions/AutoTripControl";
+import { TripBackingControl } from "@/components/backing/TripBackingControl";
 import { groupSessionsIntoTrips } from "@/lib/trips";
 import { sessionsByPlayer } from "@/lib/stats/resultStats";
 
@@ -47,6 +48,8 @@ export default function TripPage() {
       {players.length > 1
         ? players.map((player) => <ResultStatsCard key={player.label} title={player.label} sessions={player.sessions} />)
         : null}
+
+      <TripBackingControl sessions={trip.sessions} />
 
       <AutoTripControl trip={trip.name} players={players.map((player) => player.label)} />
 

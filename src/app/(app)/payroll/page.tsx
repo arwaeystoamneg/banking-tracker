@@ -6,7 +6,9 @@ import { usePayrollMembers } from "@/hooks/usePayrollMembers";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { d, formatMoney, parseMoneyInput } from "@/lib/decimal";
+import { d, formatMoney, parseMoneyInput, type Decimal } from "@/lib/decimal";
+import { useReimbursements } from "@/hooks/useReimbursements";
+import { addSplit, sortedTotals, UNASSIGNED } from "@/lib/backing";
 import { ratesFor, sessionPay, totalPay, type PayRates } from "@/lib/overtime";
 import type { PayrollMember } from "@/lib/validation/schemas";
 import { PaySwitcher } from "@/components/payroll/PaySwitcher";
@@ -58,6 +60,37 @@ export default function PayrollPage() {
     return { money, hours, count, unrated };
   }, [summaries, payrollMembers, paidWindow]);
 
+  // What each backer owes: their share of unpaid wages (each session's pay split by its backers) and of owed
+  // reimbursements, plus their share of wages paid in the date window.
+  const { reimbursements } = useReimbursements();
+  const byBacker = useMemo(() => {
+    const wages = new Map<string, Decimal>();
+    const paidWages = new Map<string, Decimal>();
+    const owedBack = new Map<string, Decimal>();
+    for (const summary of summaries) {
+      const rates = ratesFor(summary.employee.id, payrollMembers);
+      for (const session of summary.unpaid) {
+        const pay = sessionPay(session, rates);
+        if (pay) addSplit(wages, pay, session.backing);
+      }
+      for (const session of summary.paid) {
+        if (!paidWindow.contains(session.date)) continue;
+        const pay = sessionPay(session, rates);
+        if (pay) addSplit(paidWages, pay, session.backing);
+      }
+    }
+    for (const row of reimbursements) if (row.status === "owed") addSplit(owedBack, row.amount, row.backing);
+    const names = new Set([...wages.keys(), ...paidWages.keys(), ...owedBack.keys()]);
+    const zero = d(0);
+    const order = sortedTotals(new Map([...names].map((name) => [name, (wages.get(name) ?? zero).plus(owedBack.get(name) ?? zero).plus(paidWages.get(name) ?? zero)])));
+    return order.map(({ name }) => ({
+      name,
+      wages: wages.get(name) ?? zero,
+      owedBack: owedBack.get(name) ?? zero,
+      paid: paidWages.get(name) ?? zero,
+    }));
+  }, [summaries, payrollMembers, paidWindow, reimbursements]);
+
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
       <PaySwitcher />
@@ -67,6 +100,39 @@ export default function PayrollPage() {
           Sessions since {formatDateForDisplay(PAYROLL_START_DATE)}. {canMark ? "Check each one off once paid." : "Ray or an admin checks sessions off once paid."}
         </p>
       </div>
+
+      {!isLoading && canSeeAllPayroll(user) && byBacker.length > 0 ? (
+        <section className="space-y-2 rounded-2xl border border-border bg-surface p-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">By backer</h2>
+            <p className="text-xs text-muted">
+              Each session&apos;s pay and each reimbursement split by who backs it. Set splits on a session, a reimbursement, or a whole trip.
+            </p>
+          </div>
+          <div className="divide-y divide-border">
+            {byBacker.map((row) => {
+              const owes = row.wages.plus(row.owedBack);
+              return (
+                <div key={row.name} className="py-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className={`truncate text-sm font-medium ${row.name === UNASSIGNED ? "text-amber-400" : "text-foreground"}`}>{row.name}</p>
+                    <p className={`num text-sm font-semibold ${owes.isZero() ? "text-muted" : "text-amber-400"}`}>
+                      {owes.isZero() ? "owes nothing" : `owes ${formatMoney(owes)}`}
+                    </p>
+                  </div>
+                  <p className="num text-xs text-muted">
+                    {formatMoney(row.wages)} unpaid wages · {formatMoney(row.owedBack)} reimbursements · {formatMoney(row.paid)} wages paid
+                    {paidWindow.isAll ? "" : " in window"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          {byBacker.some((row) => row.name === UNASSIGNED) ? (
+            <p className="text-xs text-amber-400">Unassigned = sessions or reimbursements with no backer split yet.</p>
+          ) : null}
+        </section>
+      ) : null}
 
       {!isLoading && paidDates.length > 0 ? (
         <section className="space-y-3">
@@ -231,6 +297,15 @@ function EmployeeCard({
   const { update } = useSessions();
   const [editingRates, setEditingRates] = useState(false);
   const unpaidPay = totalPay(summary.unpaid, rates);
+  // Who pays this person's unpaid wages, by each session's backers.
+  const unpaidByBacker = (() => {
+    const totals = new Map<string, Decimal>();
+    for (const session of summary.unpaid) {
+      const pay = sessionPay(session, rates);
+      if (pay) addSplit(totals, pay, session.backing);
+    }
+    return sortedTotals(totals);
+  })();
   const unpaidOvertime = summary.unpaid.filter((s) => s.overtime_status === "approved").length;
   const requests = summary.unpaid.filter((s) => s.overtime_status === "requested").length;
   const [showPaid, setShowPaid] = useState(false);
@@ -282,6 +357,17 @@ function EmployeeCard({
               </>
             )}
           </p>
+          {unpaidByBacker.length > 0 ? (
+            <p className="num text-xs text-muted">
+              Who pays:{" "}
+              {unpaidByBacker.map((row, i) => (
+                <span key={row.name} className={row.name === UNASSIGNED ? "text-amber-400" : undefined}>
+                  {i > 0 ? " · " : ""}
+                  {row.name} {formatMoney(row.amount)}
+                </span>
+              ))}
+            </p>
+          ) : null}
           <p className="text-xs text-muted">
             {rates
               ? `$${rates.base.toString()}/h · overtime $${rates.overtime.toString()}/h`

@@ -165,6 +165,8 @@ export const sessionSchema = z
     ray_sponsored: z.boolean().default(false),
     /** The trip Ray or admin put this session in; blank means it stands alone. */
     trip: z.string().default(""),
+    /** Who backs this session: "Name:pct|Name:pct" adding to 100 (lib/backing.ts). Blank = unassigned. Ray/admin set it. */
+    backing: z.string().default(""),
     /**
      * Optional chip counts at the session's lowest and highest points. Ends alone hide how far a night swung before
      * it settled; these let stats estimate the swing within sessions. Blank = not recorded.
@@ -205,6 +207,7 @@ export const sessionCreateSchema = sessionSchema
     trip: true,
     low_stack: true,
     high_stack: true,
+    backing: true,
   })
   .extend({
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.
@@ -410,12 +413,14 @@ export const reimbursementSchema = z
     requested_by: z.string(),
     requested_at: z.string(),
     owner_id: z.string().default(""),
+    /** Who pays this back, split like a session's backing (lib/backing.ts). Blank = unassigned. Ray/admin set it. */
+    backing: z.string().default(""),
   })
   .merge(rowVersion);
 export type Reimbursement = z.infer<typeof reimbursementSchema>;
 export const reimbursementCreateSchema = reimbursementSchema
   .omit({ reimbursement_id: true, _row_version: true, status: true, paid_at: true, paid_by: true })
-  .partial({ payee: true, payee_id: true, reason: true, session_id: true, owner_id: true, requested_at: true })
+  .partial({ payee: true, payee_id: true, reason: true, session_id: true, owner_id: true, requested_at: true, backing: true })
   .extend({
     date: inputDate,
     amount: z.number().positive(),

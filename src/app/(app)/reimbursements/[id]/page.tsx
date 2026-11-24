@@ -12,6 +12,9 @@ import { canEditReimbursement, canSettleReimbursements } from "@/lib/auth/permis
 import { formatDateForDisplay, formatDateTimeForDisplay } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
 import { sessionPlayerName } from "@/lib/sessionHelpers";
+import { canMarkPayrollPaid } from "@/lib/payroll";
+import { BackingEditor } from "@/components/backing/BackingEditor";
+import { describeBacking } from "@/lib/backing";
 
 const LINK_BUTTON =
   "flex h-10 min-w-12 items-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-foreground active:bg-neutral-800";
@@ -111,6 +114,21 @@ export default function ReimbursementDetailPage({ params }: { params: Promise<{ 
           ) : null}
         </div>
       </section>
+
+      {canMarkPayrollPaid(user) ? (
+        <section className="rounded-2xl border border-border bg-surface p-4 text-sm">
+          <BackingEditor
+            value={item.backing}
+            title="Who pays this back"
+            hint="Backers split this reimbursement by share. Unassigned until set."
+            onSave={async (backing) => {
+              await update(item.reimbursement_id, { backing }, item._row_version);
+            }}
+          />
+        </section>
+      ) : (
+        <p className="text-sm text-muted">Paid back by: {describeBacking(item.backing)}</p>
+      )}
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 

@@ -9,6 +9,7 @@ import { useReimbursements } from "@/hooks/useReimbursements";
 import { canSettleReimbursements } from "@/lib/auth/permissions";
 import { formatDateForDisplay, formatDateTimeForDisplay } from "@/lib/dates";
 import { formatMoney } from "@/lib/decimal";
+import { describeBacking } from "@/lib/backing";
 import type { Reimbursement } from "@/lib/validation/schemas";
 
 export function ReimbursementListItem({ item }: { item: Reimbursement }) {
@@ -47,6 +48,7 @@ export function ReimbursementListItem({ item }: { item: Reimbursement }) {
               ? `Filed by ${item.requested_by}`
               : null}
         </p>
+        <p className={`truncate text-xs ${item.backing ? "text-muted" : "text-amber-400/80"}`}>Backers: {describeBacking(item.backing)}</p>
       </Link>
       <div className="flex shrink-0 items-center pr-3">
         {!paid && canSettleReimbursements(user) ? (

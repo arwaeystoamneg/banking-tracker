@@ -120,6 +120,7 @@ export const SESSIONS_TAB: TabConfig = {
     "trip",
     "low_stack",
     "high_stack",
+    "backing",
   ],
   numberFields: ["buy_in", "_row_version"],
   nullableNumberFields: [
@@ -227,6 +228,8 @@ export const REIMBURSEMENTS_TAB: TabConfig = {
     "requested_at",
     "owner_id",
     "_row_version",
+    // Appended: the adapter adds missing headers at the end of an existing sheet.
+    "backing",
   ],
   numberFields: ["amount", "_row_version"],
   nullableNumberFields: [],

@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CardroomPicker, GamePicker } from "@/components/sessions/SessionTags";
+import { BackingEditor } from "@/components/backing/BackingEditor";
 import { TripPicker } from "@/components/sessions/TripPicker";
 import { useSessions } from "@/hooks/useSessions";
 import type { Session } from "@/lib/validation/schemas";
 
-type Action = "trip" | "cardroom" | "game" | null;
+type Action = "trip" | "cardroom" | "game" | "backers" | null;
 
 /** Puts every selected session in a trip, or tags them all with a cardroom, in one go. */
 export function BulkMarkPanel({
@@ -26,7 +27,7 @@ export function BulkMarkPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function apply(patch: Partial<Pick<Session, "casino" | "trip" | "game_id">>, label: string) {
+  async function apply(patch: Partial<Pick<Session, "casino" | "trip" | "game_id" | "backing">>, label: string) {
     setSaving(true);
     setMessage("");
     let failed = 0;
@@ -88,6 +89,14 @@ export function BulkMarkPanel({
           >
             Set game
           </Button>
+          <Button
+            variant={action === "backers" ? "primary" : "secondary"}
+            className="h-10 flex-1 text-xs"
+            onClick={() => setAction(action === "backers" ? null : "backers")}
+            disabled={saving}
+          >
+            Set backers
+          </Button>
         </div>
       ) : null}
       {count > 0 && action === "trip" ? (
@@ -102,6 +111,14 @@ export function BulkMarkPanel({
             Take out of any trip
           </button>
         </div>
+      ) : null}
+      {count > 0 && action === "backers" ? (
+        <BackingEditor
+          value=""
+          hint={`One split for all ${count} selected sessions.`}
+          saveLabel={`Apply to ${count}`}
+          onSave={(backing) => apply({ backing }, backing ? "Backers set" : "Backers cleared")}
+        />
       ) : null}
       {count > 0 && action === "game" ? (
         <div className="space-y-2">

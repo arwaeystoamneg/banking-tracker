@@ -31,6 +31,7 @@ function session(overrides: Partial<Session> & { session_id: string; date: strin
     overtime_status: "",
     ray_sponsored: false,
     trip: "",
+    backing: "",
     low_stack: null,
     high_stack: null,
     logged_by: "Ray",

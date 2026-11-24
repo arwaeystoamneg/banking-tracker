@@ -15,6 +15,7 @@ import type { Session } from "@/lib/validation/schemas";
 import { useGames } from "@/hooks/useGames";
 import { ownsSession } from "@/lib/auth/permissions";
 import { gameChoices, sessionGameName } from "@/lib/sessionGames";
+import { BackingEditor } from "@/components/backing/BackingEditor";
 
 type Marks = Partial<Pick<Session, "casino" | "ray_sponsored" | "trip">>;
 
@@ -138,6 +139,15 @@ export function SessionTagEditor({ session }: { session: Session }) {
           <p className="text-xs text-muted">Sessions you put in the same trip are grouped under Trips</p>
         </div>
         <TripPicker current={sessionTrip(session)} names={names} onPick={(trip) => save({ trip })} disabled={saving} />
+      </div>
+      <div className="border-t border-border pt-3">
+        <BackingEditor
+          value={session.backing}
+          hint="Who backs this session. They split its result and its pay by share; the player can hold a share too."
+          onSave={async (backing) => {
+            await update(session.session_id, { backing }, session._row_version);
+          }}
+        />
       </div>
       <label className="flex min-h-12 items-center justify-between gap-3 border-t border-border pt-3">
         <span>

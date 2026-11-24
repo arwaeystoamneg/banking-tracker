@@ -52,10 +52,20 @@ import {
 import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
 import { canMarkPayrollPaid, payrollPeople, sessionEmployee } from "@/lib/payroll";
 import { cardroomYesterday, correctFutureStartDate } from "@/lib/dates";
+import { normalizeBacking } from "@/lib/backing";
 
 /** The paid check-off (Ray/admin only) and the overtime request/approval. Neither is a normal edit. */
 const PAID_KEYS = ["payroll_paid_at", "payroll_paid_by"];
-const PAYROLL_KEYS = [...PAID_KEYS, "overtime_status", "ray_sponsored", "trip"];
+const PAYROLL_KEYS = [...PAID_KEYS, "overtime_status", "ray_sponsored", "trip", "backing"];
+
+/** A backer split as stored, or a 400 with the reason it can't be saved. */
+function checkedBacking(text: string | undefined): string {
+  try {
+    return normalizeBacking(text ?? "");
+  } catch (error) {
+    throw new InputError(error instanceof Error ? error.message : "Invalid backer split");
+  }
+}
 
 function assertOwnsGame(user: AuthUser, game: Game): void {
   if (!ownsGame(user, game)) throw new AuthorizationError("Only the game owner or an admin can change this game");
@@ -363,6 +373,9 @@ export function createAuthorizedRepositories(
         if ("trip" in patch && !approver) {
           throw new AuthorizationError("Only Ray or an admin can put sessions in a trip");
         }
+        if ("backing" in patch && !approver) {
+          throw new AuthorizationError("Only Ray or an admin can set who backs a session");
+        }
         if ("overtime_status" in patch && !approver) {
           // The player (or whoever logged it) may ask for overtime or withdraw the ask — never decide it.
           if (patch.overtime_status === "approved" || patch.overtime_status === "declined") {
@@ -397,6 +410,8 @@ export function createAuthorizedRepositories(
           // The sponsor tag doesn't change pay, so it can flip on paid sessions and anyone's session.
           if ("ray_sponsored" in patch) changes.ray_sponsored = Boolean(patch.ray_sponsored);
           if ("trip" in patch) changes.trip = (patch.trip ?? "").trim();
+          // Like the trip, the split can change on a paid session: it moves who owes, not what was paid.
+          if ("backing" in patch) changes.backing = checkedBacking(patch.backing);
           if ("casino" in patch) changes.casino = patch.casino?.trim() ? canonicalCasino(patch.casino) : "";
           if ("game_id" in patch) changes.game_id = (patch.game_id ?? "").trim();
           if (settles) {
@@ -508,7 +523,10 @@ export function createAuthorizedRepositories(
       get: (id) => repos.reimbursements.get(id),
       async create(data: ReimbursementCreate, id?: string) {
         if (!canRequestReimbursement(user)) throw new AuthorizationError("This account cannot file reimbursements");
-        const fields = withoutKeys(data, ["status", "paid_at", "paid_by"]);
+        // Only Ray or admin decide who pays a reimbursement back; anyone else's split is dropped.
+        const fields = canMarkPayrollPaid(user)
+          ? { ...withoutKeys(data, ["status", "paid_at", "paid_by"]), backing: checkedBacking(data.backing) }
+          : withoutKeys(data, ["status", "paid_at", "paid_by", "backing"]);
         const stamped = isConfiguredAccountRole(user.role)
           ? { ...fields, requested_by: user.name, requested_at: new Date().toISOString(), owner_id: user.userId }
           : { ...fields, requested_at: new Date().toISOString(), owner_id: user.userId };
@@ -525,6 +543,9 @@ export function createAuthorizedRepositories(
       async update(id: string, patch: ReimbursementPatch, expectedVersion: number) {
         const item = await requiredReimbursement(repos, id);
         assertVersion("Reimbursements", id, item, expectedVersion);
+        if ("backing" in patch && !canMarkPayrollPaid(user)) {
+          throw new AuthorizationError("Only Ray or an admin can set who pays a reimbursement back");
+        }
         let safePatch: ReimbursementPatch = withoutKeys(patch, [
           "owner_id",
           "requested_at",
@@ -533,6 +554,7 @@ export function createAuthorizedRepositories(
           "status",
           "paid_at",
           "paid_by",
+          "backing",
           ...(isAdmin(user) ? [] : ["requested_by"]),
         ]);
 
@@ -572,6 +594,8 @@ export function createAuthorizedRepositories(
           if (changed) safePatch = { ...safePatch, payee: next.player, payee_id: next.player_id };
         }
 
+        // The split moves who owes, not the amount, so Ray/admin can set it even on a paid reimbursement.
+        if ("backing" in patch) safePatch = { ...safePatch, backing: checkedBacking(patch.backing) };
         return repos.reimbursements.update(id, safePatch, expectedVersion);
       },
       async remove(id: string, expectedVersion: number) {

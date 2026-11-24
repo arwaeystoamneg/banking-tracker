@@ -10,7 +10,8 @@ import { useCurrentUser } from "@/components/providers/AuthProvider";
 import { canRequestReimbursement, canSettleReimbursements, sameIdentity } from "@/lib/auth/permissions";
 import { isConfiguredAccountRole, type AuthUser } from "@/lib/auth/types";
 import { compareReimbursements, reimbursementsByPerson, totalOwed, totalPaid, type PersonReimbursements } from "@/lib/reimbursements";
-import { formatMoney } from "@/lib/decimal";
+import { formatMoney, type Decimal } from "@/lib/decimal";
+import { addSplit, sortedTotals, UNASSIGNED } from "@/lib/backing";
 import type { Reimbursement } from "@/lib/validation/schemas";
 
 type Filter = "owed" | "paid" | "all";
@@ -34,6 +35,12 @@ export default function ReimbursementsPage() {
   const owed = useMemo(() => totalOwed(scoped), [scoped]);
   const paid = useMemo(() => totalPaid(scoped), [scoped]);
   const byPerson = useMemo(() => reimbursementsByPerson(scoped), [scoped]);
+  // Who owes the money still owed, by each reimbursement's backers.
+  const owedByBacker = useMemo(() => {
+    const totals = new Map<string, Decimal>();
+    for (const row of scoped) if (row.status === "owed") addSplit(totals, row.amount, row.backing);
+    return sortedTotals(totals);
+  }, [scoped]);
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 pt-4 pb-8">
@@ -51,6 +58,19 @@ export default function ReimbursementsPage() {
           </Link>
         ) : null}
       </div>
+
+      {owedByBacker.length > 0 && canSettleReimbursements(user) ? (
+        <section className="space-y-1 rounded-2xl border border-border bg-surface p-4 text-sm">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Owed, by backer</h2>
+          {owedByBacker.map((row) => (
+            <div key={row.name} className="flex items-baseline justify-between gap-3">
+              <span className={row.name === UNASSIGNED ? "text-amber-400" : "text-foreground"}>{row.name}</span>
+              <span className="num font-semibold text-amber-400">{formatMoney(row.amount)}</span>
+            </div>
+          ))}
+          <p className="pt-1 text-xs text-muted">Each reimbursement split by who backs it; set it on the reimbursement or its trip.</p>
+        </section>
+      ) : null}
 
       {byPerson.length > 0 ? (
         <section className="space-y-2 rounded-2xl border border-border bg-surface p-4 text-sm">
