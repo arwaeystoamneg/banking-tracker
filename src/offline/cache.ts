@@ -2,6 +2,7 @@ import { db, getActivePrincipalId, setLastSyncedAt, type CacheTab } from "@/offl
 import { isQueueTab, TAB_CLIENT_CONFIG } from "@/offline/tabConfig";
 import { queueItemMatchesPrincipal } from "@/offline/legacyQueue";
 import { recentState } from "@/offline/recent";
+import { withDefaults } from "@/offline/defaults";
 
 export function mergeServerRowsWithLocal(
   serverRows: Record<string, unknown>[],
@@ -93,5 +94,6 @@ export async function refreshAllTabCaches(): Promise<void> {
 /** Reads whatever is cached locally right now — instant, works offline. */
 export async function readTabCache<T>(tab: CacheTab): Promise<T[]> {
   if (!db) return [];
-  return db.table(tab).toArray();
+  const rows: T[] = await db.table(tab).toArray();
+  return rows.map((row) => withDefaults(tab, row));
 }

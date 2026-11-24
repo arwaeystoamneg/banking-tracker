@@ -91,11 +91,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
           value={net === null ? "—" : formatMoney(net)}
           tone={net === null ? undefined : net.isNegative() ? "text-red-400" : "text-emerald-400"}
         />
-        {session.low_stack !== null || session.high_stack !== null ? (
+        {session.low_stack != null || session.high_stack != null ? (
           <p className="num col-span-3 text-xs text-muted">
-            {session.low_stack !== null ? `Lowest ${formatMoney(session.low_stack)}` : ""}
-            {session.low_stack !== null && session.high_stack !== null ? " · " : ""}
-            {session.high_stack !== null ? `Highest ${formatMoney(session.high_stack)}` : ""}
+            {session.low_stack != null ? `Lowest ${formatMoney(session.low_stack)}` : ""}
+            {session.low_stack != null && session.high_stack != null ? " · " : ""}
+            {session.high_stack != null ? `Highest ${formatMoney(session.high_stack)}` : ""}
           </p>
         ) : null}
         {session.notes ? (

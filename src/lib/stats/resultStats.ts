@@ -183,7 +183,7 @@ export function computeResultStats(sessions: Session[], prior?: SdPrior): Result
   let deepestDip = 0;
   for (const session of finished) {
     const ends = [session.buy_in, session.buy_out ?? session.buy_in];
-    if (session.low_stack !== null) deepestDip = Math.max(deepestDip, session.buy_in - Math.min(session.low_stack, ...ends));
+    if (session.low_stack != null) deepestDip = Math.max(deepestDip, session.buy_in - Math.min(session.low_stack, ...ends));
     const played = sessionMinutes(session);
     if (session.low_stack === null || session.high_stack === null || played === null || played <= 0) continue;
     const range = Math.max(session.high_stack, ...ends) - Math.min(session.low_stack, ...ends);
