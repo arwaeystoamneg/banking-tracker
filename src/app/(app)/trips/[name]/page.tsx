@@ -8,6 +8,7 @@ import { ResultStatsCard } from "@/components/stats/ResultStatsCard";
 import { SessionListItem } from "@/components/sessions/SessionListItem";
 import { AutoTripControl } from "@/components/sessions/AutoTripControl";
 import { TripBackingControl } from "@/components/backing/TripBackingControl";
+import { PayRateControl } from "@/components/payroll/PayRateControl";
 import { groupSessionsIntoTrips } from "@/lib/trips";
 import { sessionsByPlayer } from "@/lib/stats/resultStats";
 
@@ -50,6 +51,8 @@ export default function TripPage() {
         : null}
 
       <TripBackingControl sessions={trip.sessions} />
+
+      <PayRateControl sessions={trip.sessions} scope="trip" />
 
       <AutoTripControl trip={trip.name} players={players.map((player) => player.label)} />
 

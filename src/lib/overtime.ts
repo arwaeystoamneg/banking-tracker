@@ -9,7 +9,11 @@ import type { PayrollMember, Session } from "@/lib/validation/schemas";
  * and only then does that whole session pay at the person's overtime rate instead of their base rate.
  */
 /** What pay needs from a session; the date makes hours across a daylight-saving change exact. */
-type PaySession = Pick<Session, "time_in" | "time_out" | "overtime_status"> & { date?: string };
+type PaySession = Pick<Session, "time_in" | "time_out" | "overtime_status"> & {
+  date?: string;
+  pay_rate?: number | null;
+  pay_rate_ot?: number | null;
+};
 
 export interface PayRates {
   base: Decimal;
@@ -27,15 +31,23 @@ export function ratesFor(
   return { base, overtime: row.overtime_rate === null ? base.times(1.5) : d(row.overtime_rate) };
 }
 
+/** The session's own rate when it has one (e.g. set for its trip), else the person's. */
+export function effectiveRates(session: PaySession, rates: PayRates | null): PayRates | null {
+  if (session.pay_rate === null || session.pay_rate === undefined) return rates;
+  const base = d(session.pay_rate);
+  return { base, overtime: session.pay_rate_ot === null || session.pay_rate_ot === undefined ? base.times(1.5) : d(session.pay_rate_ot) };
+}
+
 /** What one finished session pays, or null without a rate or usable times. */
-export function sessionPay(session: PaySession, rates: PayRates | null): Decimal | null {
+export function sessionPay(session: PaySession, personRates: PayRates | null): Decimal | null {
   const minutes = sessionMinutes(session);
+  const rates = effectiveRates(session, personRates);
   if (!rates || minutes === null) return null;
   return (session.overtime_status === "approved" ? rates.overtime : rates.base).times(minutes).dividedBy(60).toDecimalPlaces(2);
 }
 
 export function totalPay(sessions: PaySession[], rates: PayRates | null): Decimal | null {
-  if (!rates) return null;
+  if (!rates && !sessions.some((session) => session.pay_rate !== null && session.pay_rate !== undefined)) return null;
   return sessions.reduce((total, session) => total.plus(sessionPay(session, rates) ?? 0), d(0));
 }
 

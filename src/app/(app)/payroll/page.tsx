@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { d, formatMoney, parseMoneyInput, type Decimal } from "@/lib/decimal";
 import { useReimbursements } from "@/hooks/useReimbursements";
-import { addSplit, sortedTotals, UNASSIGNED } from "@/lib/backing";
+import { paySlips, sortedTotals, splitAmount, UNASSIGNED } from "@/lib/backing";
+import { BackerSlips, type BackerRow } from "@/components/payroll/BackerSlips";
 import { ratesFor, sessionPay, totalPay, type PayRates } from "@/lib/overtime";
 import type { PayrollMember } from "@/lib/validation/schemas";
 import { PaySwitcher } from "@/components/payroll/PaySwitcher";
@@ -60,35 +61,38 @@ export default function PayrollPage() {
     return { money, hours, count, unrated };
   }, [summaries, payrollMembers, paidWindow]);
 
-  // What each backer owes: their share of unpaid wages (each session's pay split by its backers) and of owed
-  // reimbursements, plus their share of wages paid in the date window.
+  // What each backer owes: their unpaid slips (their share of each session's pay they haven't paid yet) and their
+  // share of owed reimbursements, plus the slips they've paid for sessions in the date window.
   const { reimbursements } = useReimbursements();
   const byBacker = useMemo(() => {
-    const wages = new Map<string, Decimal>();
-    const paidWages = new Map<string, Decimal>();
-    const owedBack = new Map<string, Decimal>();
+    const zero = d(0);
+    const rows = new Map<string, BackerRow>();
+    const rowOf = (name: string) => {
+      if (!rows.has(name)) rows.set(name, { name, wages: zero, owedBack: zero, paid: zero, slips: [] });
+      return rows.get(name)!;
+    };
     for (const summary of summaries) {
       const rates = ratesFor(summary.employee.id, payrollMembers);
-      for (const session of summary.unpaid) {
+      for (const session of [...summary.unpaid, ...summary.paid]) {
         const pay = sessionPay(session, rates);
-        if (pay) addSplit(wages, pay, session.backing);
-      }
-      for (const session of summary.paid) {
-        if (!paidWindow.contains(session.date)) continue;
-        const pay = sessionPay(session, rates);
-        if (pay) addSplit(paidWages, pay, session.backing);
+        if (!pay) continue;
+        for (const slip of paySlips(session, pay)) {
+          const row = rowOf(slip.name);
+          if (slip.paidAt) {
+            if (paidWindow.contains(session.date)) row.paid = row.paid.plus(slip.amount);
+          } else {
+            row.wages = row.wages.plus(slip.amount);
+            row.slips.push({ session, employee: summary.employee.name, amount: slip.amount });
+          }
+        }
       }
     }
-    for (const row of reimbursements) if (row.status === "owed") addSplit(owedBack, row.amount, row.backing);
-    const names = new Set([...wages.keys(), ...paidWages.keys(), ...owedBack.keys()]);
-    const zero = d(0);
-    const order = sortedTotals(new Map([...names].map((name) => [name, (wages.get(name) ?? zero).plus(owedBack.get(name) ?? zero).plus(paidWages.get(name) ?? zero)])));
-    return order.map(({ name }) => ({
-      name,
-      wages: wages.get(name) ?? zero,
-      owedBack: owedBack.get(name) ?? zero,
-      paid: paidWages.get(name) ?? zero,
-    }));
+    for (const item of reimbursements) {
+      if (item.status !== "owed") continue;
+      for (const [name, piece] of splitAmount(item.amount, item.backing)) rowOf(name).owedBack = rowOf(name).owedBack.plus(piece);
+    }
+    const order = sortedTotals(new Map([...rows.values()].map((row) => [row.name, row.wages.plus(row.owedBack).plus(row.paid)])));
+    return order.map(({ name }) => rows.get(name)!);
   }, [summaries, payrollMembers, paidWindow, reimbursements]);
 
   return (
@@ -110,23 +114,9 @@ export default function PayrollPage() {
             </p>
           </div>
           <div className="divide-y divide-border">
-            {byBacker.map((row) => {
-              const owes = row.wages.plus(row.owedBack);
-              return (
-                <div key={row.name} className="py-2">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className={`truncate text-sm font-medium ${row.name === UNASSIGNED ? "text-amber-400" : "text-foreground"}`}>{row.name}</p>
-                    <p className={`num text-sm font-semibold ${owes.isZero() ? "text-muted" : "text-amber-400"}`}>
-                      {owes.isZero() ? "owes nothing" : `owes ${formatMoney(owes)}`}
-                    </p>
-                  </div>
-                  <p className="num text-xs text-muted">
-                    {formatMoney(row.wages)} unpaid wages · {formatMoney(row.owedBack)} reimbursements · {formatMoney(row.paid)} wages paid
-                    {paidWindow.isAll ? "" : " in window"}
-                  </p>
-                </div>
-              );
-            })}
+            {byBacker.map((row) => (
+              <BackerSlips key={row.name} row={row} canMark={canMark} paidLabel={paidWindow.isAll ? "paid" : "paid in window"} />
+            ))}
           </div>
           {byBacker.some((row) => row.name === UNASSIGNED) ? (
             <p className="text-xs text-amber-400">Unassigned = sessions or reimbursements with no backer split yet.</p>
@@ -302,7 +292,10 @@ function EmployeeCard({
     const totals = new Map<string, Decimal>();
     for (const session of summary.unpaid) {
       const pay = sessionPay(session, rates);
-      if (pay) addSplit(totals, pay, session.backing);
+      if (!pay) continue;
+      for (const slip of paySlips(session, pay)) {
+        if (!slip.paidAt) totals.set(slip.name, (totals.get(slip.name) ?? d(0)).plus(slip.amount));
+      }
     }
     return sortedTotals(totals);
   })();

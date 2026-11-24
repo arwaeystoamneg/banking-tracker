@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addSplit, backingProblem, describeBacking, formatBacking, normalizeBacking, parseBacking, sortedTotals, splitAmount, UNASSIGNED } from "@/lib/backing";
+import { addSplit, backingProblem, describeBacking, formatBacking, formatBackerPaid, normalizeBacking, parseBacking, parseBackerPaid, paySlips, sortedTotals, splitAmount, UNASSIGNED } from "@/lib/backing";
 import { d } from "@/lib/decimal";
 
 describe("backing", () => {
@@ -44,5 +44,22 @@ describe("backing", () => {
       ["Ben", 50],
       [UNASSIGNED, 240],
     ]);
+  });
+});
+
+describe("pay slips", () => {
+  it("gives each backer their share and tracks who has paid", () => {
+    const session = { backing: "Ray:50|Shiva Oswal:50", backer_paid: "Ray@2026-11-24T05:00:00.000Z", payroll_paid_at: "" };
+    expect(paySlips(session, 300).map((slip) => [slip.name, slip.amount.toNumber(), Boolean(slip.paidAt)])).toEqual([
+      ["Ray", 150, true],
+      ["Shiva Oswal", 150, false],
+    ]);
+    expect(formatBackerPaid(parseBackerPaid(session.backer_paid))).toBe(session.backer_paid);
+  });
+
+  it("treats a session paid before slips existed as fully paid, and an unassigned one as a single slip", () => {
+    const old = paySlips({ backing: "Ray:50|Shiva Oswal:50", backer_paid: "", payroll_paid_at: "2026-11-01" }, 100);
+    expect(old.every((slip) => slip.paidAt === "2026-11-01")).toBe(true);
+    expect(paySlips({ backing: "", payroll_paid_at: "" }, 100)).toEqual([{ name: UNASSIGNED, amount: d(100), paidAt: "" }]);
   });
 });

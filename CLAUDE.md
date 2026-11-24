@@ -189,6 +189,13 @@ blank = Unassigned. Only Ray/admin set it (session page, reimbursement page, Sel
 whole trip + reimbursements filed against its sessions); it can change on paid rows. Backers split 100% of a session's pay
 by share, the player's own share included (it nets out). The Pay tab shows each backer's unpaid wages, owed
 reimbursements and paid wages; each employee card shows who pays their unpaid wages.
+Pay slips: each session's pay is one slip per backer; `backer_paid` (`Name@iso|…`) records who has paid theirs. A backer
+(matched by name to their login) marks only their own slip; Ray/admin any. The session's `payroll_paid_at` is set when
+every slip is paid and cleared if one is undone; Ray's whole-session check-off pays every slip. Pay tab → By backer lists
+each backer's unpaid slips with Copy slip (text to send) and Mark all paid.
+Pay rate per trip/session: `pay_rate` / `pay_rate_ot` on a session override the player's PayrollMembers rate
+(`effectiveRates` in overtime.ts). Set for a whole trip on its page (unpaid sessions only) or one session; can't change
+once any slip is paid. A session auto-added to a trip copies the trip's split and rate when all its sessions share one.
 
 `trip` is a trip name Ray/admin set (session page, or Select on the Sessions list to mark many at once).
 Trips are only what's named there; nothing is inferred from dates. Sessions with no trip stand alone.

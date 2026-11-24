@@ -167,6 +167,14 @@ export const sessionSchema = z
     trip: z.string().default(""),
     /** Who backs this session: "Name:pct|Name:pct" adding to 100 (lib/backing.ts). Blank = unassigned. Ray/admin set it. */
     backing: z.string().default(""),
+    /** Which backers have paid their slip of this session's pay: "Name@iso|Name@iso" (lib/backing.ts). */
+    backer_paid: z.string().default(""),
+    /**
+     * This session's own pay rate ($/h), e.g. set for a whole trip. Blank = the player's rate from PayrollMembers.
+     * pay_rate_ot blank = 1.5× pay_rate.
+     */
+    pay_rate: z.number().nonnegative().nullable().default(null),
+    pay_rate_ot: z.number().nonnegative().nullable().default(null),
     /**
      * Optional chip counts at the session's lowest and highest points. Ends alone hide how far a night swung before
      * it settled; these let stats estimate the swing within sessions. Blank = not recorded.
@@ -208,6 +216,9 @@ export const sessionCreateSchema = sessionSchema
     low_stack: true,
     high_stack: true,
     backing: true,
+    backer_paid: true,
+    pay_rate: true,
+    pay_rate_ot: true,
   })
   .extend({
     // Logging is buy-in/buy-out and times; casino is optional so older and newer rows coexist.

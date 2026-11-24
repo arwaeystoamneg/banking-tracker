@@ -11,6 +11,7 @@ import {
   canSettleReimbursements,
   ownsGame,
   ownsSession,
+  sameIdentity,
 } from "@/lib/auth/permissions";
 import { listConfiguredTeamMembers } from "@/lib/auth/accounts";
 import { AuthorizationError, InputError } from "@/lib/auth/session";
@@ -52,11 +53,11 @@ import {
 import { isSessionOpen, sessionPlayerName } from "@/lib/sessionHelpers";
 import { canMarkPayrollPaid, payrollPeople, sessionEmployee } from "@/lib/payroll";
 import { cardroomYesterday, correctFutureStartDate } from "@/lib/dates";
-import { normalizeBacking } from "@/lib/backing";
+import { formatBackerPaid, normalizeBacking, parseBacking, parseBackerPaid } from "@/lib/backing";
 
 /** The paid check-off (Ray/admin only) and the overtime request/approval. Neither is a normal edit. */
 const PAID_KEYS = ["payroll_paid_at", "payroll_paid_by"];
-const PAYROLL_KEYS = [...PAID_KEYS, "overtime_status", "ray_sponsored", "trip", "backing"];
+const PAYROLL_KEYS = [...PAID_KEYS, "overtime_status", "ray_sponsored", "trip", "backing", "backer_paid", "pay_rate", "pay_rate_ot"];
 
 /** A backer split as stored, or a 400 with the reason it can't be saved. */
 function checkedBacking(text: string | undefined): string {
@@ -161,15 +162,29 @@ export function autoTripKey(player: string): string {
  * The trip a new session joins on its own, if Ray or admin turned that on for its player. Never throws: a
  * failed lookup only means the session is saved without a trip, never that logging fails.
  */
-async function autoTripFor(repos: Repositories, player: string, date: string): Promise<string> {
+async function autoTripFor(
+  repos: Repositories,
+  player: string,
+  date: string,
+): Promise<{ trip: string; backing: string; payRate: { pay_rate: number | null; pay_rate_ot: number | null } | null }> {
+  const none = { trip: "", backing: "", payRate: null };
   try {
     const key = autoTripKey(player);
-    if (!key) return "";
+    if (!key) return none;
     const row = (await repos.autoTrips.list()).find((entry) => entry.player_key === key);
-    if (!row?.trip || (row.since && date < row.since)) return "";
-    return row.trip;
+    if (!row?.trip || (row.since && date < row.since)) return none;
+    // The new session takes the trip's backer split when every session already on the trip shares one.
+    const tripKey = row.trip.trim().toLowerCase();
+    const onTrip = (await repos.sessions.list()).filter((session) => (session.trip ?? "").trim().toLowerCase() === tripKey);
+    const splits = new Set(onTrip.map((session) => session.backing ?? ""));
+    const backing = splits.size === 1 ? [...splits][0] : "";
+    // Likewise the trip's pay rate, when every session on it has the same one.
+    const rates = new Set(onTrip.map((session) => `${session.pay_rate ?? ""}|${session.pay_rate_ot ?? ""}`));
+    const [base, ot] = rates.size === 1 ? [...rates][0].split("|") : ["", ""];
+    const payRate = base ? { pay_rate: Number(base), pay_rate_ot: ot ? Number(ot) : null } : null;
+    return { trip: row.trip, backing, payRate };
   } catch {
-    return "";
+    return none;
   }
 }
 
@@ -351,8 +366,13 @@ export function createAuthorizedRepositories(
         if (!isSessionOpen(candidate) && candidate.rounds_banked !== null && candidate.coverage_pct === null) {
           throw new InputError("Round totals need coverage data");
         }
-        const trip = await autoTripFor(repos, withPlayer.player || stamped.logged_by, withPlayer.date);
-        return repos.sessions.create(trip ? { ...withPlayer, trip } : withPlayer, id);
+        const auto = await autoTripFor(repos, withPlayer.player || stamped.logged_by, withPlayer.date);
+        return repos.sessions.create(
+          auto.trip
+            ? { ...withPlayer, trip: auto.trip, ...(auto.backing ? { backing: auto.backing } : {}), ...(auto.payRate ?? {}) }
+            : withPlayer,
+          id,
+        );
       },
       async update(id: string, patch: SessionPatch, expectedVersion: number) {
         const session = await requiredSession(repos, id);
@@ -376,6 +396,18 @@ export function createAuthorizedRepositories(
         if ("backing" in patch && !approver) {
           throw new AuthorizationError("Only Ray or an admin can set who backs a session");
         }
+        if (("pay_rate" in patch || "pay_rate_ot" in patch) && !approver) {
+          throw new AuthorizationError("Only Ray or an admin can set a session's pay rate");
+        }
+        if ("backer_paid" in patch && !approver) {
+          // A backer checks off (or undoes) only their own slip.
+          const before = parseBackerPaid(session.backer_paid);
+          const after = parseBackerPaid(patch.backer_paid);
+          const changed = [...new Set([...before.keys(), ...after.keys()])].filter((key) => before.has(key) !== after.has(key));
+          if (changed.length === 0 || changed.some((key) => !sameIdentity(key, user))) {
+            throw new AuthorizationError("You can only mark your own slip paid");
+          }
+        }
         if ("overtime_status" in patch && !approver) {
           // The player (or whoever logged it) may ask for overtime or withdraw the ask — never decide it.
           if (patch.overtime_status === "approved" || patch.overtime_status === "declined") {
@@ -395,11 +427,14 @@ export function createAuthorizedRepositories(
         if (payrollOnly) {
           const settles = "payroll_paid_at" in patch || "payroll_paid_by" in patch;
           const paying = settles && Boolean(patch.payroll_paid_at);
-          const willBePaid = settles ? paying : Boolean(session.payroll_paid_at);
+          // Any slip already paid counts: pay that's partly sent can't change under it.
+          const willBePaid = settles ? paying : Boolean(session.payroll_paid_at) || Boolean(session.backer_paid?.trim());
+          const slipping = "backer_paid" in patch && parseBackerPaid(patch.backer_paid).size > parseBackerPaid(session.backer_paid).size;
+          if (slipping && isSessionOpen(session)) throw new InputError("End the session before marking it paid");
           const members = await (repos.payrollMembers.listFresh?.() ?? repos.payrollMembers.list());
           const onPayroll = Boolean(sessionEmployee(session, payrollPeople(team, members)));
           if (paying && isSessionOpen(session)) throw new InputError("End the session before marking it paid");
-          if (paying && !onPayroll) throw new InputError("Whoever played this session isn't on payroll");
+          if ((paying || slipping) && !onPayroll) throw new InputError("Whoever played this session isn't on payroll");
           const changes: SessionPatch = {};
           if ("overtime_status" in patch && patch.overtime_status !== session.overtime_status) {
             // Overtime changes what the session pays, so it can't move under a paid check-off.
@@ -414,13 +449,52 @@ export function createAuthorizedRepositories(
           if ("backing" in patch) changes.backing = checkedBacking(patch.backing);
           if ("casino" in patch) changes.casino = patch.casino?.trim() ? canonicalCasino(patch.casino) : "";
           if ("game_id" in patch) changes.game_id = (patch.game_id ?? "").trim();
+          if ("pay_rate" in patch || "pay_rate_ot" in patch) {
+            if (willBePaid) throw new InputError("This session is already (partly) paid; undo paid before changing its pay rate");
+            for (const key of ["pay_rate", "pay_rate_ot"] as const) {
+              if (!(key in patch)) continue;
+              const value = patch[key];
+              if (value !== null && value !== undefined && (!Number.isFinite(value) || value < 0)) throw new InputError("Pay rates must be dollar amounts");
+              changes[key] = value ?? null;
+            }
+          }
+          const now = new Date().toISOString();
+          const shares = parseBacking(changes.backing ?? session.backing);
           if (settles) {
+            // Marking the whole session paid pays every backer's slip; undoing clears them all.
             Object.assign(
               changes,
               paying
-                ? { payroll_paid_at: new Date().toISOString(), payroll_paid_by: user.name }
-                : { payroll_paid_at: "", payroll_paid_by: "" },
+                ? {
+                    payroll_paid_at: now,
+                    payroll_paid_by: user.name,
+                    backer_paid: formatBackerPaid(new Map(shares.map((share) => [share.name.toLowerCase(), { name: share.name, at: now }]))),
+                  }
+                : { payroll_paid_at: "", payroll_paid_by: "", backer_paid: "" },
             );
+          } else if ("backer_paid" in patch) {
+            if (shares.length === 0) throw new InputError("Set who backs this session before paying slips");
+            const before = parseBackerPaid(session.backer_paid);
+            const asked = parseBackerPaid(patch.backer_paid);
+            const next = new Map<string, { name: string; at: string }>();
+            for (const share of shares) {
+              const key = share.name.toLowerCase();
+              if (asked.has(key)) next.set(key, { name: share.name, at: before.get(key)?.at || now });
+            }
+            changes.backer_paid = formatBackerPaid(next);
+            const allPaid = shares.every((share) => next.has(share.name.toLowerCase()));
+            if (allPaid && !session.payroll_paid_at) Object.assign(changes, { payroll_paid_at: now, payroll_paid_by: user.name });
+            if (!allPaid && session.payroll_paid_at) Object.assign(changes, { payroll_paid_at: "", payroll_paid_by: "" });
+          } else if ("backing" in patch && session.backer_paid) {
+            // A new split keeps the slips of backers still on it; a fully paid session stays paid under it.
+            const before = parseBackerPaid(session.backer_paid);
+            const next = new Map<string, { name: string; at: string }>();
+            for (const share of shares) {
+              const key = share.name.toLowerCase();
+              const at = before.get(key)?.at || (session.payroll_paid_at ? session.payroll_paid_at : "");
+              if (at) next.set(key, { name: share.name, at });
+            }
+            changes.backer_paid = formatBackerPaid(next);
           }
           return repos.sessions.update(id, changes, expectedVersion);
         }

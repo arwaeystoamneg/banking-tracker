@@ -629,6 +629,67 @@ describe("overtime requests", () => {
     expect((await asDamon.sessions.create({ ...start, date: "2026-11-15" })).trip).toBeFalsy();
   });
 
+  it("pays backer slips one by one: a backer marks only their own, and the session is paid when all are", async () => {
+    const split = "Ray:50|Shiva Oswal:50";
+    const repos = fixtureRepos({ sessions: [played({ backing: split })] });
+    const shiva: AuthUser = { role: "individual", userId: "shiva", name: "Shiva Oswal", registered: true };
+    await expect(createAuthorizedRepositories(repos, shiva, roster).sessions.update("o1", { backer_paid: "Ray@x" }, 1)).rejects.toThrow(
+      "only mark your own slip",
+    );
+    const half = await createAuthorizedRepositories(repos, shiva, roster).sessions.update("o1", { backer_paid: "Shiva Oswal@x" }, 1);
+    expect(half.backer_paid).toMatch(/^Shiva Oswal@20/);
+    expect(half.payroll_paid_at ?? "").toBe("");
+    // Pay can't change once part of it has been sent.
+    await expect(createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { pay_rate: 80 }, half._row_version)).rejects.toThrow(
+      "already (partly) paid",
+    );
+    const full = await createAuthorizedRepositories(repos, ray, roster).sessions.update(
+      "o1",
+      { backer_paid: `${half.backer_paid}|Ray@x` },
+      half._row_version,
+    );
+    expect(full.payroll_paid_at).toBeTruthy();
+    expect(full.backer_paid.split("|")).toHaveLength(2);
+    // Undoing one slip makes the session unpaid again.
+    const undone = await createAuthorizedRepositories(repos, shiva, roster).sessions.update(
+      "o1",
+      { backer_paid: full.backer_paid.split("|").filter((piece) => !piece.startsWith("Shiva")).join("|") },
+      full._row_version,
+    );
+    expect(undone.payroll_paid_at).toBe("");
+    // Ray's whole-session check-off pays every slip.
+    const all = await createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { payroll_paid_at: "now" }, undone._row_version);
+    expect(all.backer_paid.split("|").map((piece) => piece.split("@")[0])).toEqual(["Ray", "Shiva Oswal"]);
+  });
+
+  it("only Ray or admin sets a session's own pay rate, and an auto-added trip session inherits the trip's", async () => {
+    const TRIP = "Damon Pre-Thanksgiving Internship";
+    const repos = fixtureRepos({ sessions: [played({ trip: TRIP })] });
+    await expect(createAuthorizedRepositories(repos, damonUser, roster).sessions.update("o1", { pay_rate: 999 }, 1)).rejects.toThrow("Only Ray or an admin");
+    const rated = await createAuthorizedRepositories(repos, ray, roster).sessions.update("o1", { pay_rate: 60, pay_rate_ot: 80 }, 1);
+    expect(rated).toMatchObject({ pay_rate: 60, pay_rate_ot: 80 });
+    await createAuthorizedRepositories(repos, ray, roster).autoTrips.create({ player: "damon", trip: TRIP, since: "2026-11-01", updated_by: "" });
+    const start = { casino: "", buy_in: 10000, time_in: "18:00", logged_by: "Damon", logged_at: "", player_id: "damon", date: "2026-11-14" };
+    const joined = await createAuthorizedRepositories(repos, damonUser, roster).sessions.create(start, "n1");
+    expect(joined).toMatchObject({ trip: TRIP, pay_rate: 60, pay_rate_ot: 80 });
+  });
+
+  it("a session auto-added to a trip takes the trip's backer split when the trip's sessions all share one", async () => {
+    const TRIP = "Damon Pre-Thanksgiving Internship";
+    const split = "Ray:50|Shiva Oswal:50";
+    const repos = fixtureRepos({ sessions: [played({ trip: TRIP, backing: split })] });
+    await createAuthorizedRepositories(repos, ray, roster).autoTrips.create({ player: "damon", trip: TRIP, since: "2026-11-01", updated_by: "" });
+    const asDamon = createAuthorizedRepositories(repos, damonUser, roster);
+    const start = { casino: "", buy_in: 10000, time_in: "18:00", logged_by: "Damon", logged_at: "", player_id: "damon" };
+    const joined = await asDamon.sessions.create({ ...start, date: "2026-11-14" }, "n1");
+    expect(joined).toMatchObject({ trip: TRIP, backing: split });
+    // Once the trip's sessions disagree, new ones start unassigned rather than guessing.
+    await createAuthorizedRepositories(repos, ray, roster).sessions.update("n1", { backing: "Ray:100" }, joined._row_version);
+    const next = await asDamon.sessions.create({ ...start, date: "2026-11-15" }, "n2");
+    expect(next.trip).toBe(TRIP);
+    expect(next.backing ?? "").toBe("");
+  });
+
   it("a broken auto-trip lookup never stops a session being logged", async () => {
     const repos = fixtureRepos({});
     repos.autoTrips.list = async () => {

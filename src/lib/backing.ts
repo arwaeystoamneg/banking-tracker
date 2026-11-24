@@ -105,3 +105,48 @@ export function sortedTotals(totals: Map<string, Decimal>): { name: string; amou
     .filter((row) => !row.amount.isZero())
     .sort((a, b) => Number(a.name === UNASSIGNED) - Number(b.name === UNASSIGNED) || b.amount.comparedTo(a.amount));
 }
+
+/**
+ * Which backers have paid their slip of a session's pay: "Ray@2026-11-24T05:00:00.000Z|Shiva Oswal@…" in the
+ * session's `backer_paid` column. A session is paid in full (payroll_paid_at) once every backer has.
+ */
+export function parseBackerPaid(text: string | undefined | null): Map<string, { name: string; at: string }> {
+  const out = new Map<string, { name: string; at: string }>();
+  if (!text?.trim()) return out;
+  for (const piece of text.split("|")) {
+    const at = piece.lastIndexOf("@");
+    const name = (at > 0 ? piece.slice(0, at) : piece).trim();
+    if (name) out.set(name.toLowerCase(), { name, at: at > 0 ? piece.slice(at + 1).trim() : "" });
+  }
+  return out;
+}
+
+export function formatBackerPaid(paid: Map<string, { name: string; at: string }>): string {
+  return [...paid.values()].map((entry) => `${entry.name.replace(/[|@]/g, " ")}@${entry.at}`).join("|");
+}
+
+export interface PaySlip {
+  /** The backer, or UNASSIGNED when the session has no split. */
+  name: string;
+  amount: Decimal;
+  /** When this backer paid their part; "" while unpaid. */
+  paidAt: string;
+}
+
+/**
+ * One slip per backer for a session's pay. A session paid before slips existed (paid, no slip record) counts
+ * every slip as paid at that time; an unassigned session is one slip that's paid when the session is.
+ */
+export function paySlips(
+  session: { backing: string; backer_paid?: string; payroll_paid_at: string },
+  pay: Decimal.Value,
+): PaySlip[] {
+  const pieces = splitAmount(pay, session.backing);
+  const paid = parseBackerPaid(session.backer_paid);
+  const legacyPaid = session.payroll_paid_at && paid.size === 0;
+  return [...pieces.entries()].map(([name, amount]) => ({
+    name,
+    amount,
+    paidAt: name === UNASSIGNED || legacyPaid ? session.payroll_paid_at : (paid.get(name.toLowerCase())?.at ?? ""),
+  }));
+}

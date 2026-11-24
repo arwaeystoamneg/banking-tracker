@@ -9,6 +9,7 @@ import { useSessions } from "@/hooks/useSessions";
 import { EndSessionCard, SessionSummaryCard } from "@/components/sessions/SessionSummaryCard";
 import { Badge } from "@/components/ui/Badge";
 import { SessionGameEditor, SessionTagBadges, SessionTagEditor } from "@/components/sessions/SessionTags";
+import { PayRateControl } from "@/components/payroll/PayRateControl";
 import { sessionTrip } from "@/lib/trips";
 import { isSessionOpen, loggedOnBehalf, sessionPlayerName } from "@/lib/sessionHelpers";
 import { formatDateForDisplay, formatTimeRange } from "@/lib/dates";
@@ -105,7 +106,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
       <SessionGameEditor session={session} />
       <SessionTagEditor session={session} />
 
-      {sessionEmployee(session, payrollPeople(team, payrollMembers)) ? <PayrollStatus session={session} /> : null}
+      {sessionEmployee(session, payrollPeople(team, payrollMembers)) ? (
+        <>
+          <PayrollStatus session={session} />
+          <PayRateControl sessions={[session]} scope="session" />
+        </>
+      ) : null}
 
       {open && canEdit ? <EndSessionCard session={session} /> : null}
       {open && !canEdit ? (
